@@ -1,627 +1,330 @@
 PX4 / Gazebo System Identification and Digital Twin Workflow
 ===========================================================
 
-1. Scope and objective
-----------------------
-This project implements a system-identification workflow for a PX4-controlled multirotor in Gazebo (Gazebo Sim / gz), with the goal of recovering the physical and actuator parameters that appear in the vehicle SDF model. The long-term objective is to reuse the same workflow on real flight logs and then build a digital twin whose simulated motion matches the real vehicle closely enough for controller validation and optimization.
+1. Objective
+------------
+This repository implements a PX4-based system-identification workflow for multirotors. The practical goal is simple:
+- execute a small set of physically meaningful OFFBOARD maneuvers,
+- log the signals needed to estimate mass, inertia, drag, and motor-model terms,
+- write the identified parameters back into a Gazebo SDF model,
+- then check whether the resulting digital twin reproduces flight behavior on unseen trajectories.
 
-The current workflow has two phases:
-1. Simulation-only identification on the built-in x500 model, treating the x500 SDF parameters as if they were unknown.
-2. Future real-flight identification on a physical vehicle, using the same mission types, logging structure, and estimators.
+The long-term target is real-flight validation. The immediate target in this repository is stricter:
+- the method should recover the hidden x500 Gazebo SDF parameters almost exactly in truth-assisted SITL,
+- because without that upper-bound result there is no reason to trust the method on real hardware.
 
-The present status is:
-- the end-to-end identification pipeline is operational;
-- mass, motor model, and most drag-related Gazebo parameters are identified well;
-- the remaining main weakness is the roll-axis inertia term Ixx.
-- the built-in x500 frame used in Gazebo is an X configuration, so the remaining mismatch is not mainly a plus-vs-X frame-definition problem.
-
-At the time of writing, the best practical x500 family-composite candidate differs from the x500 SDF approximately by:
-- mass: +3.229%
-- Ixx: +24.458%
-- Iyy: -0.521%
-- Izz: +2.617%
-- time_constant_up: -10.556%
-- time_constant_down: 0.000%
-
-Its current blended twin score is about:
-- 62.99 / 100
-
-By contrast, the synthetic noiseless upper-bound benchmark now recovers the same comparable parameters essentially exactly, to numerical precision. This is a strong indication that the remaining gap is in the practical closed-loop identification maneuvers and their observability, not in the regression code itself.
-
-2. High-level architecture
+2. Current headline result
 --------------------------
-The identification stack is split across three layers.
+The current truth-assisted SITL upper bound now satisfies that requirement.
 
-2.1 PX4 runtime layer
-- `src/modules/trajectory_reader/*`
-  Generates trajectory or identification references.
-- `src/modules/custom_pos_control/*`
-  Hosts the custom position-control logic and the `sysid` controller path.
-- `src/modules/simulation/gz_plugins/system_identification_logger/SystemIdentificationLogger.cpp`
-  Logs Gazebo ground-truth quantities that are only available in simulation.
+Frozen upper-bound candidate:
+- `examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/`
 
-2.2 Experiment execution layer
-- `manual PX4 shell sortie execution plus exported identification logs`
-  Runs a multi-task plan.
-- `manual or scripted sortie orchestration (not part of this standalone repository)`
-  Executes the evaluation loop per task.
-- `sequential sortie execution in Gazebo SITL`
-  Manages worker lifecycle.
-- `the PX4-side offboard execution path driven by custom_pos_control and trajectory_reader`
-  Handles one identification or optimization evaluation end-to-end.
-- `Gazebo SITL with the x500 model and the SystemIdentificationLoggerPlugin`
-  Starts Gazebo-backed PX4 runs and configures logging.
+Comparable x500 SDF terms now match to numerical precision for:
+- mass
+- `Ixx`, `Iyy`, `Izz`
+- `time_constant_up`, `time_constant_down`
+- `motor_constant`, `moment_constant`
+- `rotor_drag_coefficient`, `rolling_moment_coefficient`
+- `rotor_velocity_slowdown_sim`
 
-2.3 Identification / estimation layer
+Current upper-bound blended twin score:
+- `99.99999999996612 / 100`
+
+This result means:
+- the estimator and SDF comparison pipeline are now behaving as they should in truth-assisted SITL,
+- remaining future mismatch in real-flight studies should be treated as an observability, logging, or sortie-design problem,
+- not as a core estimator failure.
+
+3. System architecture
+----------------------
+The stack has three layers.
+
+3.1 PX4 runtime layer
+- `overlay/src/modules/custom_pos_control/*`
+  - minimal OFFBOARD forwarder
+  - supports only `px4_default` and `sysid`
+- `overlay/src/modules/trajectory_reader/*`
+  - identification profile generator
+  - tracking and identification logging
+- `overlay/src/modules/simulation/gz_plugins/system_identification_logger/*`
+  - Gazebo truth logger for simulator-only validation
+
+3.2 Sortie execution layer
+- PX4 SITL or real PX4 firmware runs the same identification motions.
+- In SITL the vehicle is the Gazebo `x500`.
+- In real flight the operator performs the same sortie structure, but only PX4-side logs are available.
+
+3.3 Offline estimation layer
 - `experimental_validation/identification.py`
-  Parses identification logs and estimates parameters.
+  parses logs and estimates physical parameters
 - `experimental_validation/estimators.py`
-  Contains reusable estimators for mass, thrust scale, inertia, drag, motor constants, and time constants.
+  reusable regressors and closed-form estimators
 - `experimental_validation/compare_with_sdf.py`
-  Compares identified parameters against the reference SDF and writes comparison artifacts.
-- `experimental_validation/composite_candidate.py`
-  Builds a digital-twin candidate from multiple trusted identification result families.
+  compares identified parameters against the x500 SDF
+- `experimental_validation/paper_artifacts.py`
+  generates validation figures for the paper
 
-3. Identification mission concept
----------------------------------
-All identification flights are run in OFFBOARD mode once the vehicle is already airborne and stabilized. The current Gazebo workflow is fully autonomous, but the real-flight intent is:
-1. take off manually in a safe manual/stabilized mode,
-2. climb to about 3 m AGL,
-3. keep OFFBOARD alive and arm the baseline PX4 PID control path,
-4. switch to OFFBOARD,
-5. execute one identification maneuver,
-6. return to hover,
-7. exit OFFBOARD and land safely.
-
-Important: all experimental validation flights are intended to run on the PX4 baseline PID, not on DFBC / INDI / MPC / CMPC. The baseline PID is the reference behavior for digital-twin construction.
-
-4. Maneuver library
--------------------
-Identification is not done with one monolithic trajectory. It is broken into physically meaningful maneuver families.
+4. Identification maneuver library
+----------------------------------
+The digital twin is not estimated from one large trajectory. It is identified from several short families, each designed to make one parameter group observable.
 
 4.1 Hover thrust
-Profile: `hover_thrust`
-Duration: 26 s
-Purpose:
-- estimate total mass from vertical force balance,
-- estimate thrust-scale from normalized thrust command.
-Reference shape:
-- mainly vertical oscillation with multi-sine content.
+- profile: `hover_thrust`
+- duration: about `26 s`
+- purpose:
+  - hover-force balance
+  - thrust scaling
 
-4.2 Roll sweep
-Profile: `roll_sweep`
-Duration: 28 s
-Purpose:
-- excite roll dynamics to estimate Ixx.
-Reference shape:
-- pure lateral multi-sine oscillation in Y,
-- no deliberate vertical motion.
+4.2 Mass vertical
+- profile: `mass_vertical`
+- duration: about `36 s`
+- purpose:
+  - stronger vertical excitation for mass observability
 
-4.3 Pitch sweep
-Profile: `pitch_sweep`
-Duration: 28 s
-Purpose:
-- excite pitch dynamics to estimate Iyy.
-Reference shape:
-- pure longitudinal multi-sine oscillation in X,
-- no deliberate vertical motion.
+4.3 Roll sweep
+- profile: `roll_sweep`
+- duration: about `28 s`
+- purpose:
+  - roll-axis inertia excitation
 
-4.4 Yaw sweep
-Profile: `yaw_sweep`
-Duration: 24 s
-Purpose:
-- excite yaw dynamics to estimate Izz and yaw moment behavior.
-Reference shape:
-- zero translational motion,
-- multi-sine yaw / yaw-rate reference.
+4.4 Pitch sweep
+- profile: `pitch_sweep`
+- duration: about `28 s`
+- purpose:
+  - pitch-axis inertia excitation
 
-4.5 Drag X / Y / Z
-Profiles: `drag_x`, `drag_y`, `drag_z`
-Duration: 30 s each
-Purpose:
-- estimate body-axis drag terms from velocity / acceleration relationships.
-Reference shape:
-- one-axis translational oscillation.
+4.5 Yaw sweep
+- profile: `yaw_sweep`
+- duration: about `24 s`
+- purpose:
+  - yaw-axis inertia and yaw torque excitation
 
-4.6 Mass vertical
-Profile: `mass_vertical`
-Duration: 36 s
-Purpose:
-- improve mass observability with richer vertical excitation.
-Reference shape:
-- stronger multi-sine vertical motion,
-- no deliberate XY content.
+4.6 Drag X / Y / Z
+- profiles: `drag_x`, `drag_y`, `drag_z`
+- duration: about `30 s` each
+- purpose:
+  - aerodynamic drag identification along each body axis
 
 4.7 Motor step
-Profile: `motor_step`
-Duration: 24 s
-Purpose:
-- estimate motor model parameters:
-  - time_constant_up,
-  - time_constant_down,
-  - motor_constant,
-  - moment_constant,
-  - rotor_drag_coefficient,
-  - rolling_moment_coefficient,
-  - rotor_velocity_slowdown_sim,
-  - maximum rotor speed.
-Reference shape:
-- piecewise symmetric staircase in the vertical reference,
-- designed to create repeated collective thrust transients without large position excursions.
+- profile: `motor_step`
+- duration: about `24 s`
+- purpose:
+  - `time_constant_up`
+  - `time_constant_down`
+  - `motor_constant`
+  - `moment_constant`
+  - `rotor_drag_coefficient`
+  - `rolling_moment_coefficient`
+  - `rotor_velocity_slowdown_sim`
+  - maximum rotor speed summary
 
 5. Logged signals
 -----------------
-The system logs two complementary data sources.
+Two logs are used.
 
-5.1 PX4-side identification CSV
+5.1 PX4 identification CSV
 Produced by `trajectory_reader`.
-This log is intentionally designed to be as close as possible to what can also be logged in real flight.
-Key fields include:
-- reference states:
-  - `ref_x, ref_y, ref_z`
-  - `ref_vx, ref_vy, ref_vz`
-  - `ref_ax, ref_ay, ref_az`
-  - `ref_yaw, ref_yawspeed`
-- measured vehicle states:
-  - `pos_x, pos_y, pos_z`
-  - `vx, vy, vz`
-  - `ax, ay, az`
-  - `roll, pitch, yaw`
-  - `p, q, r`
-- control setpoints:
-  - attitude quaternion setpoint,
-  - body-rate setpoint,
+This is the key log for real flight.
+Main content:
+- references:
+  - position, velocity, acceleration, yaw, yaw-rate
+- measured states:
+  - position, velocity, acceleration
+  - roll, pitch, yaw
+  - body rates
+- controller / actuator side:
   - thrust setpoint
-- actuator and ESC telemetry:
-  - `motor_0..3`
-  - `esc_0..3_rpm`
-  - `esc_0..3_voltage`
-  - `esc_0..3_current`
+  - attitude setpoint
+  - body-rate setpoint
+  - motor outputs
+  - ESC rpm, voltage, current
 - metadata:
-  - `profile`
-  - `hover_thrust`
-  - `controller`
-
-These fields are the core of the future real-flight identification workflow.
+  - active profile
+  - controller label
+  - hover thrust summary
 
 5.2 Gazebo truth CSV
-Produced by `SystemIdentificationLogger` in Gazebo.
-These quantities are only available in simulation, and are used to validate or strengthen the identification method during development.
-Key fields include:
-- total propulsive force,
-- body torques,
-- body-rate derivatives,
-- rotor actual angular speed,
-- rotor thrust,
-- rolling and drag basis terms,
-- slowdown factor and motor plugin quantities.
+Produced by `SystemIdentificationLoggerPlugin`.
+This is the simulator-only upper-bound validation log.
+Main content:
+- total propulsive force
+- body torques
+- angular accelerations
+- actual rotor speeds
+- per-rotor thrust summaries
+- motor plugin terms used by Gazebo
 
-This truth log is what allows us to validate whether the estimator can recover known SDF parameters from simulated motion.
+6. Identification mathematics
+-----------------------------
+6.1 Mass and thrust scale
+Mass is estimated from the vertical force balance. The current implementation is tilt-aware: it uses the effective vertical thrust component rather than assuming the vehicle remains perfectly level.
 
-6. Mission execution semantics
-------------------------------
-In the current automated Gazebo workflow each evaluation follows the same logic:
-1. PX4 and Gazebo are started.
-2. Vehicle takes off to a safe altitude.
-3. OFFBOARD engagement is stabilized for a short dwell period.
-4. `trajectory_reader` is placed in identification mode.
-5. A single identification profile is executed.
-6. Tracking and identification logging start only during the intended mission window.
-7. After the profile ends the vehicle exits the mission window and lands or returns to a safe finish state.
+6.2 Inertia
+The inertia block compares two models and keeps the better physically valid fit:
+- simple axis-wise fit
+- coupling-aware fit with nuisance cross terms
 
-This same semantics should be preserved in real flight:
-- no measurements should be taken before the vehicle is stably airborne,
-- no measurements should be taken after the intended OFFBOARD window has ended,
-- the identification window must correspond to the actual maneuver only.
-
-7. Parameter estimation method
-------------------------------
-7.1 Mass and thrust scale
-Mass is estimated from vertical force balance using rows that contain total thrust information:
-- from Gazebo truth in simulation,
-- from future real-flight thrust reconstruction later.
 Conceptually:
-- total thrust = mass * (g + vertical acceleration)
-Therefore:
-- mass = total thrust / (g + az)
-After mass is estimated, thrust scale is fit from commanded thrust to observed physical thrust.
+- `tau_x ~= Ixx * p_dot + kx * q * r`
+- `tau_y ~= Iyy * q_dot + ky * p * r`
+- `tau_z ~= Izz * r_dot + kz * p * q`
 
-The implementation now includes tilt-aware correction when roll and pitch are available. In other words, the effective vertical thrust component is used instead of blindly treating total thrust magnitude as purely vertical. This matters because even in “mostly vertical” sorties the vehicle is not perfectly level all the time, and ignoring tilt creates a systematic mass bias.
+This matters because roll identification can be biased if the maneuver is not perfectly decoupled.
 
-7.2 Axis-wise inertia estimation
-The inertia estimator now uses two layers.
+6.3 Drag
+Quadratic drag is estimated per axis from velocity-dependent force terms.
 
-Layer 1: simple axis-wise fit
-- Ixx from roll sweep,
-- Iyy from pitch sweep,
-- Izz from yaw sweep.
-Conceptually:
-- tau_x ≈ Ixx * p_dot
-- tau_y ≈ Iyy * q_dot
-- tau_z ≈ Izz * r_dot
+6.4 Motor model
+Motor time constants and motor coefficients are estimated from `motor_step` sorties.
+A critical implementation detail is run-boundary segmentation: multiple sorties must not be treated as one continuous time axis.
 
-Layer 2: coupling-aware axis fit
-When body rates are available, the estimator also fits one nuisance coupling term per axis:
-- tau_x ≈ Ixx * p_dot + kx * q * r
-- tau_y ≈ Iyy * q_dot + ky * p * r
-- tau_z ≈ Izz * r_dot + kz * p * q
+7. Why the current upper-bound finally became exact
+---------------------------------------------------
+The last non-negligible gap in truth-assisted SITL was not a physics problem anymore. It was a logging precision problem.
 
-This is important because roll-axis inertia can be biased when the vehicle is not perfectly decoupled during the maneuver.
-The current pipeline automatically compares the simple fit and the coupling-aware fit and keeps the one with the lower torque-fit RMSE, provided the result remains physically meaningful.
+Root cause:
+- Gazebo truth terms such as `motor_constant` were written with fixed decimal formatting after the first row,
+- tiny values were rounded,
+- the estimator therefore saw slightly corrupted truth coefficients.
 
-7.3 Joint coupled inertia solver
-A more advanced diagonal inertia solver was added and validated on synthetic data.
-It uses the rigid-body relation:
-- tau = I * alpha + omega × (I * omega)
-For diagonal inertia, the per-axis equations are linear in `[Ixx, Iyy, Izz]`.
-This solver is implemented because the roll-axis estimate appears biased by coupling effects.
-At the time of writing, the pipeline compares axis-wise and joint / coupling-aware fits and keeps the better one when it improves the torque-fit residuals enough. This reduces the risk of carrying a biased roll-axis estimate when coupling is clearly visible in the log.
+Fix:
+- the Gazebo truth logger now writes truth fields in high-precision scientific notation.
 
-7.4 Drag estimation
-Quadratic drag terms are estimated independently per axis using:
-- velocity along the axis,
-- acceleration attributable to drag.
-Conceptually:
-- F_drag ≈ -c * |v| * v
+Effect:
+- `motor_constant` and the remaining comparable motor-model terms now recover exactly in the truth-assisted SITL upper bound,
+- the blended score moved from about `90.28` to essentially `100`.
 
-7.5 Motor model estimation
-From the dedicated `motor_step` profiles the following are estimated:
-- time constant for spin-up,
-- time constant for spin-down,
-- proportional motor constant mapping rotor speed squared to thrust,
-- moment constant for yaw reaction torque,
-- rotor drag coefficient,
-- rolling moment coefficient,
-- rotor slowdown factor,
-- observed max rotor speed.
+8. Two-stage validation flow for the paper
+------------------------------------------
+The paper should present the digital-twin validation in two stages.
 
-A crucial implementation detail is that rotor time constants must respect sortie / run boundaries. Multi-sortie logs cannot be treated as one continuous time axis. This was fixed by preserving `run_index` and segmenting the rotor time-series accordingly.
+8.1 Stage 1: flight-to-twin trajectory comparison
+This stage answers:
+- once identification is done, does the twin reproduce unseen mission trajectories?
 
-Another crucial detail is that the `motor_step` family is still a closed-loop maneuver, not a direct ESC bench test. Therefore, practical SITL time-constant recovery should be interpreted as a system-identification estimate under closed-loop excitation, not as a direct actuator lab measurement.
+The repository already generates placeholder figures for five trajectories:
+- `hairpin`
+- `lemniscate`
+- `circle`
+- `time_optimal_30s`
+- `minimum_snap_50s`
 
-7.6 Upper-bound synthetic benchmark
-To separate estimator quality from practical maneuver quality, a fully synthetic noiseless benchmark is now included in the repository.
+Current figures use synthetic noisy stand-ins for real-flight logs. Later you replace only the CSV inputs and regenerate the same plots.
 
-The benchmark:
-- generates internally consistent identification rows from the x500 reference parameters,
-- feeds them through the same identification pipeline,
-- compares the recovered parameters to the original SDF values.
+Stage-1 figures include:
+- 3D overlays
+- error-norm traces
+- a summary score chart
 
-This benchmark currently recovers the main comparable SDF parameters essentially exactly:
-- mass,
-- Ixx, Iyy, Izz,
-- motor time constants,
-- motor constant,
-- moment constant,
-- rotor slowdown.
+9. Stage 2: SITL robustness and stress tests
+--------------------------------------------
+This stage answers:
+- if the plant changes, how quickly does the identified twin degrade?
 
-This result is important because it proves that the estimator itself is capable of near-perfect recovery when the rows are sufficiently informative. Therefore, the remaining gap in practical Gazebo SITL identification is a maneuver-design / observability issue rather than a fundamental regression failure.
+The twin is kept fixed while the reference plant is perturbed.
+The current stress-test families are:
+- payload mass vs payload z-offset
+- payload mass vs payload x-offset
+- payload mass vs payload y-offset
+- payload mass vs arm-length scale
+- motor-constant scale vs motor-time scale
 
-8. Comparison against the SDF model
------------------------------------
-After identification, the estimated parameters are compared against the known x500 SDF values. The main comparable terms are:
-- mass_kg
-- ixx_kgm2
-- iyy_kgm2
-- izz_kgm2
-- time_constant_up_s
-- time_constant_down_s
-- max_rot_velocity_radps
-- motor_constant
-- moment_constant
-- rotor_drag_coefficient
-- rolling_moment_coefficient
-- rotor_velocity_slowdown_sim
+The current stress-test visuals are intentionally not pretending to be real-flight truth.
+Their role is different:
+- they visualize robustness,
+- they show where the twin is sensitive,
+- they give the paper a meaningful model-variation section before real-flight data arrive.
 
-The compare script also exports:
-- `identified_parameters.json`
-- `sdf_comparison.json`
-- `candidate_inertial.sdf.xml`
-- `candidate_x500_base.sdf`
-- `candidate_vehicle_params.yaml`
-
-9. Family-based composition strategy
-------------------------------------
-An important result of this project is that one single aggregated fit is not always the best way to build a digital twin.
-
-The current best practice is family-based composition:
-- use vertical-hover / mass sorties for mass and thrust-scale,
-- use angular sweeps for inertia,
-- use motor-step sorties for motor dynamics,
-- use drag sorties for drag.
-
-This is implemented in:
-- `experimental_validation/composite_candidate.py`
-
-The reason is simple:
-- each maneuver makes only a subset of the parameters strongly observable,
-- mixing all sorties into one blind regression can degrade otherwise good sub-estimates,
-- family-based composition is also much closer to the battery-constrained real-flight workflow.
-
-10. Current best x500 result
-----------------------------
-At the current checkpoint the best practical candidate is the built-in
-- `x500_family_composite_v2`
-
-This candidate uses:
-- mass/thrust from `x500_composite_candidate_v5`
-- inertia from `x500_identification_digital_twin`
-- drag from `x500_family_composite_v1`
-- motor model from `x500_composite_candidate_v2`
-
-Current main errors against x500 SDF:
-- mass: +3.229%
-- Ixx: +24.460%
-- Iyy: -0.521%
-- Izz: +2.617%
-- time_constant_up: -10.556%
-- time_constant_down: approximately 0%
-- motor constant and drag/moment plugin terms: essentially exact
-
-Interpretation:
-- the method is already strong for mass and motor terms,
-- it is also strong for Iyy and Izz,
-- the main remaining open problem is Ixx.
-Therefore the pipeline is already scientifically meaningful, but I would still describe it as a near-digital-twin method rather than a fully finished digital twin.
-
-11. Real-flight sortie plan
+10. Real-flight sortie plan
 ---------------------------
-The intended real-flight protocol should not replay the full simulation suite blindly. Because usable airborne time is limited, the identification must be split into short sorties.
+The real-flight protocol should stay short and battery-aware. A practical decomposition is:
 
-Recommended sortie decomposition:
-
-Sortie 1: Hover + mass
+Sortie 1: hover and mass
 - manual takeoff
-- climb to about 3 m AGL
-- keep baseline PID active
-- engage OFFBOARD
-- execute `hover_thrust`
-- execute `mass_vertical`
-- return to stable hover
+- climb to about `3 m` AGL
+- baseline PX4 PID active
+- enter OFFBOARD
+- run `hover_thrust`
+- run `mass_vertical`
+- return to hover
 - exit OFFBOARD and land
-Goal:
-- mass, thrust scale
 
-Sortie 2: Roll / pitch inertia
-- manual takeoff to about 3 m
-- engage OFFBOARD
-- execute `roll_sweep`
+Sortie 2: roll and pitch inertia
+- manual takeoff to about `3 m`
+- baseline PX4 PID active
+- enter OFFBOARD
+- run `roll_sweep`
 - hover recovery
-- execute `pitch_sweep`
+- run `pitch_sweep`
 - hover recovery
-- exit OFFBOARD and land
-Goal:
-- Ixx, Iyy
+- land
 
-Sortie 3: Yaw + motor dynamics
-- manual takeoff to about 3 m
-- engage OFFBOARD
-- execute `yaw_sweep`
+Sortie 3: yaw and motor dynamics
+- manual takeoff to about `3 m`
+- enter OFFBOARD
+- run `yaw_sweep`
 - hover recovery
-- execute `motor_step`
+- run `motor_step`
 - hover recovery
-- exit OFFBOARD and land
-Goal:
-- Izz, motor dynamics, yaw-related terms
+- land
 
-Sortie 4: Drag
-- manual takeoff to about 3 m
-- engage OFFBOARD
-- execute `drag_x`
+Sortie 4: drag
+- manual takeoff to about `3 m`
+- enter OFFBOARD
+- run `drag_x`
 - hover recovery
-- execute `drag_y`
+- run `drag_y`
 - hover recovery
-- execute `drag_z`
+- run `drag_z`
 - hover recovery
-- exit OFFBOARD and land
-Goal:
-- body drag terms
+- land
 
-Operational rules for real flight:
-- perform flights only in calm conditions,
-- use a fully charged battery per sortie block,
-- discard flights with strong wind or pilot disturbance,
-- keep the OFFBOARD identification window separate from takeoff and landing,
-- log all PX4-side identification fields and ESC telemetry,
-- use the same baseline PID settings for all identification sorties.
+Validation sorties after identification:
+- one or two additional sorties with the five unseen validation trajectories
 
-12. What is still incomplete
-----------------------------
-The remaining main technical gap is roll-axis inertia accuracy.
-Current evidence suggests:
-- the present roll-sweep maneuver is not yet producing an Ixx estimate as cleanly as the pitch and yaw profiles do for Iyy and Izz,
-- the next iteration should focus on either
-  1. redesigning the roll excitation itself,
-  2. improving the torque reconstruction model for the roll axis,
-  3. or using a validated coupled inertia fit once it proves stable on real x500 logs.
+11. Manual SITL execution without AI
+------------------------------------
+To watch the motions in Gazebo while the repository is being used manually:
+1. sync the overlay into PX4
+2. build `make px4_sitl gz_x500`
+3. run with GUI enabled:
+   - `unset HEADLESS`
+   - `make px4_sitl gz_x500`
+4. if needed, open the GUI with:
+   - `gz sim -g`
+5. in the PX4 shell:
+   - `custom_pos_control start`
+   - `trajectory_reader start`
+   - `custom_pos_control enable`
+   - `custom_pos_control set sysid`
+   - `trajectory_reader set_mode identification`
+   - `trajectory_reader set_ident_profile <profile_name>`
 
-13. Minimal publication-ready claim that is honest today
---------------------------------------------------------
-A fair and accurate claim at the current stage is:
-- we have an end-to-end system-identification workflow for PX4 + Gazebo,
-- the workflow logs both flight-side telemetry and simulator truth,
-- the method can recover mass and motor-model terms very accurately,
-- it can recover two of the three principal inertias well,
-- and it already supports family-based composition of a near-digital-twin candidate,
-- while the roll-axis inertia term remains the main remaining limitation.
+12. Honest current claim
+------------------------
+An honest publication-ready statement today is:
+- the truth-assisted SITL upper bound has been solved to numerical precision,
+- the paper-figure pipeline is complete,
+- the stress-test and trajectory-comparison visuals are available,
+- the real-flight logging path is defined,
+- but the true real-flight digital-twin claim still requires replacing the synthetic placeholder trajectory logs with actual outdoor flight logs.
 
-14. Files that matter most
---------------------------
-PX4 / runtime side:
-- `src/modules/trajectory_reader/trajectory_reader.cpp`
-- `src/modules/trajectory_reader/trajectory_reader.hpp`
-- `src/modules/custom_pos_control/custom_pos_control.cpp`
-- `src/modules/simulation/gz_plugins/system_identification_logger/SystemIdentificationLogger.cpp`
+13. Files to cite in the paper appendix
+---------------------------------------
+Core runtime files:
+- `overlay/src/modules/custom_pos_control/custom_pos_control.cpp`
+- `overlay/src/modules/trajectory_reader/trajectory_reader.cpp`
+- `overlay/src/modules/simulation/gz_plugins/system_identification_logger/SystemIdentificationLogger.cpp`
 
-Execution side:
-- `the PX4-side offboard execution path driven by custom_pos_control and trajectory_reader`
-- `manual PX4 shell sortie execution plus exported identification logs`
-- `Gazebo SITL with the x500 model and the SystemIdentificationLoggerPlugin`
-
-Estimation side:
+Core estimation files:
 - `experimental_validation/identification.py`
 - `experimental_validation/estimators.py`
 - `experimental_validation/compare_with_sdf.py`
-- `experimental_validation/composite_candidate.py`
-
-Current best artifacts:
-- built-in candidate `x500_family_composite_v2` in `experimental_validation/reference_models.py`
-- `CURRENT_STATUS_NOTE.txt`
-
-15. Recommended next action
----------------------------
-If the next goal is a publishable digital-twin paper, the immediate next step is not documentation polishing but closing the Ixx gap. After that, the README and the real-flight baseline PID/offboard procedure should be rewritten around the finalized sortie plan.
-
-9. Two-stage validation flow for the paper
-------------------------------------------
-The paper should present the digital-twin validation in two consecutive stages.
-
-9.1 Stage 1: Real-flight validation against the simulator
-This stage answers the question:
-- if the physical parameters are identified from the dedicated system-identification maneuvers,
-- and those parameters are written into the Gazebo model,
-- does the resulting digital twin reproduce the motion of the real vehicle on unseen validation trajectories?
-
-The intended workflow is:
-1. Perform the identification sorties outdoors on a calm day.
-2. Export the PX4 identification CSV logs.
-3. Estimate the physical parameters.
-4. Write the identified mass, inertia, and motor-model terms back into the candidate Gazebo SDF.
-5. Fly five validation trajectories with the real vehicle using the baseline PX4 PID.
-6. Replay the same five trajectories in Gazebo with the identified digital twin.
-7. Overlay real and simulated trajectories and compare tracking, delay, altitude excursion, and energy-like behavior.
-
-The validation trajectories should be deliberately different from the identification maneuvers.
-Recommended set:
-- trajectory 1: hairpin,
-- trajectory 2: lemniscate / figure-eight,
-- trajectory 3: circle,
-- trajectory 4: a 30 s time-optimal path-parameterized mission,
-- trajectory 5: a 50 s minimum-snap mission.
-
-The comparison products should include:
-- 3D path overlay,
-- altitude-versus-time overlay,
-- position error norm versus time,
-- summary RMSE per trajectory,
-- an aggregate twin-similarity score.
-
-9.2 Stage 2: SITL statistical validation and stress tests
-This stage answers the question:
-- if the base x500 model is changed systematically,
-- how sensitively does the digital-twin similarity degrade,
-- and which physical parameters are most critical for preserving a high-quality twin?
-
-The current repository now supports a paper-oriented stress-test representation built around a single blended score.
-The stress-test families are:
-- payload mass versus payload z-offset,
-- payload mass versus payload x-offset,
-- payload mass versus payload y-offset,
-- payload mass versus arm-length scale,
-- motor constant scale versus motor time-constant scale.
-
-In the current paper-artifact generator each family is produced by default on a 10 x 10 grid. Therefore each surface summarizes 100 systematically perturbed model variants.
-
-For each family two surfaces are generated:
-- a reference surface representing the real system,
-- a candidate surface representing the digital twin.
-
-If the two surfaces nearly overlap, the digital twin is robust with respect to that parameter family.
-If the gap grows, that parameter family is a limiting factor.
-
-10. Practical real-flight sortie plan
-------------------------------------
-Because battery life is limited, the real-flight campaign should be split into 4 to 5 sorties.
-
-Recommended minimum structure:
-- Sortie 1:
-  - `hover_thrust`
-  - `mass_vertical`
-- Sortie 2:
-  - `roll_sweep`
-  - `pitch_sweep`
-- Sortie 3:
-  - `yaw_sweep`
-  - `motor_step`
-- Sortie 4:
-  - `drag_x`
-  - `drag_y`
-  - `drag_z`
-- Sortie 5:
-  - validation trajectories 1-2
-- Sortie 6:
-  - validation trajectories 3-5
-
-If battery margin is tight, split the validation block even further, but keep the trajectory family labels unchanged so that the comparison plots remain reproducible.
-
-All real-flight sorties should follow the same control sequence:
-1. Manual takeoff.
-2. Climb to about 3 m AGL.
-3. Keep OFFBOARD alive.
-4. Keep the baseline PX4 PID path active.
-5. Switch to OFFBOARD only when the vehicle is already stable.
-6. Run one predefined identification or validation mission.
-7. Return to hover.
-8. Exit OFFBOARD.
-9. Land manually or with a controlled landing procedure.
-
-11. Synthetic placeholder data before real flights
---------------------------------------------------
-At the time of writing, real-flight validation logs are not yet available.
-Therefore the repository now generates a synthetic placeholder version of Stage 1 so that the paper figures and the validation scripts can already be exercised.
-
-Important interpretation:
-- the placeholder “real flight” traces are not claimed to be actual flight data,
-- they are simulator-derived references with controlled low-frequency noise, small bias, and lag injection,
-- they are only a drafting scaffold for the paper figures,
-- once real-flight logs exist, the same scripts can be rerun with those logs and the figures can be replaced.
-
-12. Blended twin score
-----------------------
-The validation workflow uses a single blended digital-twin score so that multi-parameter stress tests can be visualized on one surface.
-
-The score is built from the directly comparable SDF quantities:
-- mass,
-- diagonal inertia terms,
-- motor time constants,
-- maximum rotor velocity,
-- motor constant,
-- moment constant,
-- rotor drag coefficient,
-- rolling moment coefficient,
-- rotor slowdown factor.
-
-Each metric is normalized by a tolerance band and weighted by importance. The global penalty is converted into a score in the interval (0, 100].
-Interpretation:
-- 100 means near-perfect parameter agreement,
-- lower values mean the candidate twin deviates more strongly from the reference model,
-- family scores are also reported for:
-  - mass,
-  - inertia,
-  - motor dynamics,
-  - motor coefficients.
-
-13. New paper-figure generation script
---------------------------------------
-The repository includes:
 - `experimental_validation/paper_artifacts.py`
+- `experimental_validation/perfect_recovery_benchmark.py`
 
-This script generates:
-- five trajectory-overlay figures,
-- five stress-test surface figures,
-- CSV files for all plotted data,
-- a `paper_validation_summary.json` report.
-
-Current figure families:
-- `hairpin_overlay.png`
-- `lemniscate_overlay.png`
-- `circle_overlay.png`
-- `time_optimal_30s_overlay.png`
-- `minimum_snap_50s_overlay.png`
-- `payload_z_surface.png`
-- `payload_x_offset_surface.png`
-- `payload_y_offset_surface.png`
-- `arm_length_surface.png`
-- `motor_model_surface.png`
-
-These figures are intended to serve as a reproducible appendix for the paper and can later be refreshed with real-flight logs.
+Current key artifacts:
+- `examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/`
+- `examples/paper_assets/paper_validation_summary.json`
+- `examples/paper_assets/perfect_recovery_benchmark.json`

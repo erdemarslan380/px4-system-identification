@@ -1,0 +1,26 @@
+{
+  "logs": [
+    "/home/earsub/px4-custom/Tools/optimization/plan_runs/x500_truth_assisted_single_pass/sysid_hover_truth_pass/identification_traces/eval_00001.csv"
+  ],
+  "primary_mode": "truth_assisted",
+  "modes": {
+    "px4_only": {
+      "truth_policy": "none",
+      "profile_counts": {
+        "hover_thrust": 1301
+      }
+    },
+    "telemetry_augmented": {
+      "truth_policy": "telemetry",
+      "profile_counts": {
+        "hover_thrust": 4558
+      }
+    },
+    "truth_assisted": {
+      "truth_policy": "full",
+      "profile_counts": {
+        "hover_thrust": 4558
+      }
+    }
+  }
+}

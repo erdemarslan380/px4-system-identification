@@ -1,0 +1,326 @@
+{
+  "px4_only": {
+    "mass": {
+      "mass_kg": 1.0,
+      "sample_count": 1301,
+      "std_kg": 0.0,
+      "gravity_mps2": 9.80665
+    },
+    "thrust_scale": {
+      "thrust_scale_n_per_cmd": 13.482946742447071,
+      "sample_count": 1301,
+      "rmse_n": 0.6769585135994726,
+      "gravity_mps2": 9.80665
+    },
+    "inertia": {
+      "x": {
+        "axis": "x",
+        "inertia_kgm2": 0.0,
+        "sample_count": 0,
+        "rmse_nm": 0.0
+      },
+      "y": {
+        "axis": "y",
+        "inertia_kgm2": 0.0,
+        "sample_count": 0,
+        "rmse_nm": 0.0
+      },
+      "z": {
+        "axis": "z",
+        "inertia_kgm2": 0.0,
+        "sample_count": 0,
+        "rmse_nm": 0.0
+      }
+    },
+    "drag": {
+      "x": {
+        "axis": "x",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      },
+      "y": {
+        "axis": "y",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      },
+      "z": {
+        "axis": "z",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      }
+    },
+    "motor_model": {
+      "time_constant_up_s": {
+        "value": 0.006603389237540114,
+        "sample_count": 3,
+        "rmse": 19.891229781486956
+      },
+      "time_constant_down_s": {
+        "value": 0.01647017140302154,
+        "sample_count": 3,
+        "rmse": 4.549842302657176
+      },
+      "max_rot_velocity_radps": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "motor_constant": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "moment_constant": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "rotor_drag_coefficient": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "rolling_moment_coefficient": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "rotor_velocity_slowdown_sim": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      }
+    },
+    "warnings": [
+      "hover_thrust samples do not contain thrust_n; using a nominal 1.0 kg mass fallback and estimating thrust scale from normalized command.",
+      "x-axis inertia profile missing; inertia_x set to 0.0 in this estimate.",
+      "y-axis inertia profile missing; inertia_y set to 0.0 in this estimate.",
+      "z-axis inertia profile missing; inertia_z set to 0.0 in this estimate.",
+      "drag_x profile missing; drag_x coefficient set to 0.0 in this estimate.",
+      "drag_y profile missing; drag_y coefficient set to 0.0 in this estimate.",
+      "drag_z profile missing; drag_z coefficient set to 0.0 in this estimate.",
+      "motor_constant profile missing; motor_constant set to 0.0 in this estimate.",
+      "moment_constant estimate unusable (no usable rows for ratio estimate using tau_z_nm / yaw_moment_basis_n); moment_constant set to 0.0 in this estimate.",
+      "rotor_drag_coefficient profile missing; rotor_drag_coefficient set to 0.0 in this estimate.",
+      "rolling_moment_coefficient profile missing; rolling_moment_coefficient set to 0.0 in this estimate.",
+      "rotor_velocity_slowdown_sim profile missing; rotor_velocity_slowdown_sim set to 0.0 in this estimate.",
+      "max_rot_velocity_radps estimate unusable (no usable rows for max estimate using observed_max_rot_velocity_radps); max_rot_velocity_radps set to 0.0 in this estimate."
+    ]
+  },
+  "telemetry_augmented": {
+    "mass": {
+      "mass_kg": 1.0,
+      "sample_count": 4558,
+      "std_kg": 0.0,
+      "gravity_mps2": 9.80665
+    },
+    "thrust_scale": {
+      "thrust_scale_n_per_cmd": 13.482946742447071,
+      "sample_count": 1301,
+      "rmse_n": 0.6769585135994726,
+      "gravity_mps2": 9.80665
+    },
+    "inertia": {
+      "x": {
+        "axis": "x",
+        "inertia_kgm2": 0.0,
+        "sample_count": 0,
+        "rmse_nm": 0.0
+      },
+      "y": {
+        "axis": "y",
+        "inertia_kgm2": 0.0,
+        "sample_count": 0,
+        "rmse_nm": 0.0
+      },
+      "z": {
+        "axis": "z",
+        "inertia_kgm2": 0.0,
+        "sample_count": 0,
+        "rmse_nm": 0.0
+      }
+    },
+    "drag": {
+      "x": {
+        "axis": "x",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      },
+      "y": {
+        "axis": "y",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      },
+      "z": {
+        "axis": "z",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      }
+    },
+    "motor_model": {
+      "time_constant_up_s": {
+        "value": 0.01249999983042293,
+        "sample_count": 52,
+        "rmse": 5.0541481019816495e-09
+      },
+      "time_constant_down_s": {
+        "value": 0.025000000016725026,
+        "sample_count": 50,
+        "rmse": 1.8792614483622184e-09
+      },
+      "max_rot_velocity_radps": {
+        "value": 868.749155,
+        "sample_count": 4558,
+        "rmse": 0.0
+      },
+      "motor_constant": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "moment_constant": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "rotor_drag_coefficient": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "rolling_moment_coefficient": {
+        "value": 0.0,
+        "sample_count": 0,
+        "rmse": 0.0
+      },
+      "rotor_velocity_slowdown_sim": {
+        "value": 10.000146363186339,
+        "sample_count": 12783,
+        "rmse": 0.04417968565824254
+      }
+    },
+    "warnings": [
+      "hover_thrust samples do not contain thrust_n; using a nominal 1.0 kg mass fallback and estimating thrust scale from normalized command.",
+      "x-axis inertia profile missing; inertia_x set to 0.0 in this estimate.",
+      "y-axis inertia profile missing; inertia_y set to 0.0 in this estimate.",
+      "z-axis inertia profile missing; inertia_z set to 0.0 in this estimate.",
+      "drag_x profile missing; drag_x coefficient set to 0.0 in this estimate.",
+      "drag_y profile missing; drag_y coefficient set to 0.0 in this estimate.",
+      "drag_z profile missing; drag_z coefficient set to 0.0 in this estimate.",
+      "motor_constant profile missing; motor_constant set to 0.0 in this estimate.",
+      "moment_constant estimate unusable (no usable rows for ratio estimate using tau_z_nm / yaw_moment_basis_n); moment_constant set to 0.0 in this estimate.",
+      "rotor_drag_coefficient profile missing; rotor_drag_coefficient set to 0.0 in this estimate.",
+      "rolling_moment_coefficient profile missing; rolling_moment_coefficient set to 0.0 in this estimate."
+    ]
+  },
+  "truth_assisted": {
+    "mass": {
+      "mass_kg": 2.0,
+      "sample_count": 4558,
+      "std_kg": 0.0,
+      "gravity_mps2": 9.80665
+    },
+    "thrust_scale": {
+      "thrust_scale_n_per_cmd": 26.94504383548539,
+      "sample_count": 4558,
+      "rmse_n": 0.6237476590330524,
+      "gravity_mps2": 9.80665
+    },
+    "inertia": {
+      "x": {
+        "axis": "x",
+        "inertia_kgm2": 0.02166666666667,
+        "sample_count": 4558,
+        "rmse_nm": 0.0
+      },
+      "y": {
+        "axis": "y",
+        "inertia_kgm2": 0.02166666666667,
+        "sample_count": 4558,
+        "rmse_nm": 0.0
+      },
+      "z": {
+        "axis": "z",
+        "inertia_kgm2": 0.04,
+        "sample_count": 4558,
+        "rmse_nm": 0.0
+      }
+    },
+    "drag": {
+      "x": {
+        "axis": "x",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      },
+      "y": {
+        "axis": "y",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      },
+      "z": {
+        "axis": "z",
+        "coefficient": 0.0,
+        "sample_count": 0,
+        "rmse_n": 0.0
+      }
+    },
+    "motor_model": {
+      "time_constant_up_s": {
+        "value": 0.0125,
+        "sample_count": 4558,
+        "rmse": 0.0
+      },
+      "time_constant_down_s": {
+        "value": 0.025,
+        "sample_count": 4558,
+        "rmse": 0.0
+      },
+      "max_rot_velocity_radps": {
+        "value": 1000.0,
+        "sample_count": 4558,
+        "rmse": 0.0
+      },
+      "motor_constant": {
+        "value": 8.54858e-06,
+        "sample_count": 4558,
+        "rmse": 0.0
+      },
+      "moment_constant": {
+        "value": 0.016,
+        "sample_count": 4558,
+        "rmse": 0.0
+      },
+      "rotor_drag_coefficient": {
+        "value": 8.06428e-05,
+        "sample_count": 4558,
+        "rmse": 0.0
+      },
+      "rolling_moment_coefficient": {
+        "value": 1e-06,
+        "sample_count": 4558,
+        "rmse": 0.0
+      },
+      "rotor_velocity_slowdown_sim": {
+        "value": 10.0,
+        "sample_count": 4558,
+        "rmse": 0.0
+      }
+    },
+    "warnings": [
+      "mass estimate used simulator truth inertia data in truth_assisted mode.",
+      "inertia estimate used simulator truth inertia data in truth_assisted mode.",
+      "drag_x profile missing; drag_x coefficient set to 0.0 in this estimate.",
+      "drag_y profile missing; drag_y coefficient set to 0.0 in this estimate.",
+      "drag_z profile missing; drag_z coefficient set to 0.0 in this estimate.",
+      "motor-model estimate used simulator truth configuration fields in truth_assisted mode."
+    ]
+  }
+}

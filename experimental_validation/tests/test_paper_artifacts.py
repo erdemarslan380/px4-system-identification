@@ -24,12 +24,20 @@ class PaperArtifactsTests(unittest.TestCase):
             self.assertTrue((root / "figures" / "time_optimal_30s_overlay.png").exists())
             self.assertTrue((root / "figures" / "minimum_snap_50s_overlay.png").exists())
             self.assertTrue((root / "figures" / "payload_z_surface.png").exists())
+            self.assertTrue((root / "figures" / "payload_z_lines.png").exists())
             self.assertTrue((root / "figures" / "motor_model_surface.png").exists())
+            self.assertTrue((root / "figures" / "motor_model_lines.png").exists())
+            self.assertTrue((root / "figures" / "parameter_error_bars.png").exists())
+            self.assertTrue((root / "figures" / "family_score_bars.png").exists())
+            self.assertTrue((root / "figures" / "trajectory_match_scores.png").exists())
             self.assertTrue((root / "data" / "hairpin_synthetic_real.csv").exists())
             self.assertTrue((root / "data" / "payload_z_surface.csv").exists())
 
             payload = json.loads((root / "paper_validation_summary.json").read_text(encoding="utf-8"))
             self.assertIn("surface_summaries", payload["stage_2_sitl_statistical_validation"])
+            self.assertIn("line_plot_summaries", payload["stage_2_sitl_statistical_validation"])
+            self.assertIn("base_model_fit_figures", payload)
+            self.assertIn("summary_figure", payload["stage_1_real_flight_validation"])
             self.assertGreater(payload["stage_2_sitl_statistical_validation"]["surface_summaries"]["payload_z"]["mean_similarity"], 0.0)
 
 

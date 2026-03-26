@@ -11,10 +11,31 @@ from experimental_validation.compare_with_sdf import (
     collect_identification_logs,
     compare_identified_to_sdf,
     parse_x500_sdf_reference,
+    resolve_px4_reference_path,
 )
 
 
 class SdfComparisonTests(unittest.TestCase):
+    def test_resolve_px4_reference_path_accepts_explicit_workspace_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "Tools" / "simulation" / "gz" / "models" / "x500" / "model.sdf"
+            target.parent.mkdir(parents=True)
+            target.write_text("<sdf version='1.9'></sdf>", encoding="utf-8")
+            old = Path.cwd()
+            import os
+
+            prev = os.environ.get("PX4_WORKSPACE")
+            os.environ["PX4_WORKSPACE"] = str(root)
+            try:
+                resolved = resolve_px4_reference_path("Tools/simulation/gz/models/x500/model.sdf")
+            finally:
+                if prev is None:
+                    os.environ.pop("PX4_WORKSPACE", None)
+                else:
+                    os.environ["PX4_WORKSPACE"] = prev
+            self.assertEqual(resolved, target.resolve())
+
     def test_parse_x500_sdf_reference_reads_mass_inertia_and_motor_terms(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -46,10 +47,33 @@ def _find_first_text(root: ET.Element, path: str, default: float = 0.0) -> float
     return float(element.text.strip())
 
 
+def resolve_px4_reference_path(raw_path: str | Path) -> Path:
+    path = Path(raw_path)
+    if path.is_absolute():
+        return path.resolve()
+
+    candidates = [
+        (REPO_ROOT / path).resolve(),
+    ]
+    for env_name in ("PX4_WORKSPACE", "PX4_SYSID_PX4_ROOT"):
+        env_value = os.environ.get(env_name, "").strip()
+        if env_value:
+            candidates.append((Path(env_value).expanduser().resolve() / path).resolve())
+    for sibling_name in ("px4-custom", "PX4-Autopilot"):
+        candidates.append((REPO_ROOT.parent / sibling_name / path).resolve())
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    searched = "\n".join(f"- {candidate}" for candidate in candidates)
+    raise FileNotFoundError(f"Could not resolve PX4 reference path for '{raw_path}'. Searched:\n{searched}")
+
+
 def parse_x500_sdf_reference(model_sdf: str | Path, base_model_sdf: str | Path | None = None) -> dict:
-    model_path = Path(model_sdf).resolve()
+    model_path = resolve_px4_reference_path(model_sdf)
     if base_model_sdf:
-        base_path = Path(base_model_sdf).resolve()
+        base_path = resolve_px4_reference_path(base_model_sdf)
     else:
         base_path = model_path.parent.parent / "x500_base" / "model.sdf"
 
@@ -349,8 +373,8 @@ def main() -> int:
         raise RuntimeError("provide --results-root or at least one --csv")
 
     sdf_reference = parse_x500_sdf_reference(
-        (repo_root / args.sdf_model).resolve() if not Path(args.sdf_model).is_absolute() else Path(args.sdf_model).resolve(),
-        (repo_root / args.sdf_base_model).resolve() if not Path(args.sdf_base_model).is_absolute() else Path(args.sdf_base_model).resolve(),
+        Path(args.sdf_model).resolve() if Path(args.sdf_model).is_absolute() else args.sdf_model,
+        Path(args.sdf_base_model).resolve() if Path(args.sdf_base_model).is_absolute() else args.sdf_base_model,
     )
     reports_by_mode = build_identification_mode_reports(csv_paths, sdf_reference)
     out_dir = (repo_root / args.out_dir).resolve() if not Path(args.out_dir).is_absolute() else Path(args.out_dir).resolve()

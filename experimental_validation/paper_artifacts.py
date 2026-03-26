@@ -141,7 +141,10 @@ def _scenario_difficulty(**scenario: float) -> float:
 
 def _mission_scores(reference_metrics: dict[str, float], candidate_metrics: dict[str, float], **scenario: float) -> tuple[float, float, dict[str, Any]]:
     ref_effective = _effective_metric_vector(reference_metrics, **scenario)
-    cand_effective = _effective_metric_vector(candidate_metrics, **scenario)
+    # In the stress tests, the identified twin remains fixed while the
+    # reference plant is perturbed. This makes the plots reflect model
+    # robustness instead of trivially applying the same perturbation to both.
+    cand_effective = dict(candidate_metrics)
     difficulty = _scenario_difficulty(**scenario)
     match = build_blended_twin_score_from_values(cand_effective, ref_effective)
     real_score = 100.0 * math.exp(-difficulty)
@@ -309,38 +312,160 @@ def _grid_scores(
     scenario_builder,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     X, Y = np.meshgrid(x_values, y_values, indexing="xy")
-    real_surface = np.zeros_like(X, dtype=float)
-    twin_surface = np.zeros_like(X, dtype=float)
-    similarity_surface = np.zeros_like(X, dtype=float)
+    match_surface = np.zeros_like(X, dtype=float)
+    penalty_surface = np.zeros_like(X, dtype=float)
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
             scenario = scenario_builder(float(X[i, j]), float(Y[i, j]))
             real_score, twin_score, payload = _mission_scores(reference_metrics, candidate_metrics, **scenario)
-            real_surface[i, j] = real_score
-            twin_surface[i, j] = twin_score
-            similarity_surface[i, j] = 100.0 * max(0.0, 1.0 - abs(real_score - twin_score) / max(real_score, 1.0))
-    return X, Y, real_surface, twin_surface, similarity_surface
+            match_surface[i, j] = float(payload["match"]["score"])
+            penalty_surface[i, j] = 100.0 * max(0.0, 1.0 - (twin_score / max(real_score, 1e-6)))
+    return X, Y, match_surface, penalty_surface
 
 
-def _write_surface_csv(path: Path, X: np.ndarray, Y: np.ndarray, real_surface: np.ndarray, twin_surface: np.ndarray, similarity_surface: np.ndarray) -> None:
-    lines = ["x_axis,y_axis,real_score,twin_score,similarity_score\n"]
+def _write_surface_csv(path: Path, X: np.ndarray, Y: np.ndarray, match_surface: np.ndarray, penalty_surface: np.ndarray) -> None:
+    lines = ["x_axis,y_axis,twin_similarity_score,expected_tracking_penalty_pct\n"]
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
             lines.append(
-                f"{X[i, j]:.6f},{Y[i, j]:.6f},{real_surface[i, j]:.6f},{twin_surface[i, j]:.6f},{similarity_surface[i, j]:.6f}\n"
+                f"{X[i, j]:.6f},{Y[i, j]:.6f},{match_surface[i, j]:.6f},{penalty_surface[i, j]:.6f}\n"
             )
     path.write_text("".join(lines), encoding="utf-8")
 
 
-def _plot_dual_surface(out_path: Path, title: str, xlabel: str, ylabel: str, X: np.ndarray, Y: np.ndarray, real_surface: np.ndarray, twin_surface: np.ndarray, similarity_surface: np.ndarray) -> None:
+def _plot_surface(out_path: Path, title: str, xlabel: str, ylabel: str, X: np.ndarray, Y: np.ndarray, match_surface: np.ndarray, penalty_surface: np.ndarray) -> None:
     fig = plt.figure(figsize=(11, 6))
     ax = fig.add_subplot(1, 1, 1, projection="3d")
-    ax.plot_surface(X, Y, real_surface, color="tab:blue", alpha=0.55, linewidth=0.0)
-    ax.plot_surface(X, Y, twin_surface, color="tab:orange", alpha=0.55, linewidth=0.0)
-    ax.set_title(f"{title}\nMean surface similarity = {float(np.mean(similarity_surface)):.2f}%")
+    surface = ax.plot_surface(X, Y, match_surface, cmap="viridis", linewidth=0.0, antialiased=True)
+    ax.set_title(
+        f"{title}\nMean twin similarity = {float(np.mean(match_surface)):.2f}% | "
+        f"Mean tracking penalty = {float(np.mean(penalty_surface)):.2f}%"
+    )
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    ax.set_zlabel("Blended twin score")
+    ax.set_zlabel("Twin similarity score [%]")
+    fig.colorbar(surface, shrink=0.72, aspect=20, pad=0.08, label="Twin similarity score [%]")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def _plot_line_family(
+    out_path: Path,
+    title: str,
+    xlabel: str,
+    x_values: np.ndarray,
+    y_values: np.ndarray,
+    match_surface: np.ndarray,
+    y_label_fmt,
+) -> None:
+    fig, ax = plt.subplots(figsize=(9, 5))
+    if len(y_values) >= 3:
+        indices = [0, len(y_values) // 2, len(y_values) - 1]
+    else:
+        indices = list(range(len(y_values)))
+    for idx in indices:
+        ax.plot(x_values, match_surface[idx, :], linewidth=2.0, label=y_label_fmt(float(y_values[idx])))
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Twin similarity score [%]")
+    ax.set_ylim(0.0, 102.0)
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def _plot_parameter_error_bars(
+    out_path: Path,
+    candidate_metrics: dict[str, float],
+    reference_metrics: dict[str, float],
+) -> None:
+    labels = [
+        ("mass_kg", "Mass"),
+        ("ixx_kgm2", "Ixx"),
+        ("iyy_kgm2", "Iyy"),
+        ("izz_kgm2", "Izz"),
+        ("time_constant_up_s", "Tau up"),
+        ("time_constant_down_s", "Tau down"),
+        ("motor_constant", "Motor k"),
+        ("moment_constant", "Moment k"),
+        ("rotor_drag_coefficient", "Rotor drag"),
+        ("rolling_moment_coefficient", "Roll moment"),
+    ]
+    names = []
+    values = []
+    for key, label in labels:
+        ref = float(reference_metrics[key])
+        ident = float(candidate_metrics[key])
+        pct = 0.0 if abs(ref) < 1e-12 else abs((ident - ref) / ref) * 100.0
+        names.append(label)
+        values.append(pct)
+
+    fig, ax = plt.subplots(figsize=(11, 5))
+    bars = ax.bar(names, values, color="tab:green", alpha=0.82)
+    ax.set_ylabel("Absolute parameter error [%]")
+    ax.set_title("Comparable SDF parameter errors for the identified twin")
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.set_ylim(0.0, max(1.0, max(values) * 1.25))
+    for bar, value in zip(bars, values, strict=False):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height(),
+            f"{value:.3g}%",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+    plt.setp(ax.get_xticklabels(), rotation=25, ha="right")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def _plot_family_score_bars(out_path: Path, family_scores: dict[str, float]) -> None:
+    names = list(family_scores.keys())
+    values = [float(family_scores[name]) for name in names]
+    fig, ax = plt.subplots(figsize=(8, 5))
+    bars = ax.bar(names, values, color="tab:blue", alpha=0.82)
+    ax.set_ylabel("Family score [%]")
+    ax.set_title("Blended twin score by parameter family")
+    ax.set_ylim(0.0, 102.0)
+    ax.grid(True, axis="y", alpha=0.25)
+    for bar, value in zip(bars, values, strict=False):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height(),
+            f"{value:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def _plot_trajectory_match_scores(out_path: Path, trajectory_summaries: list[dict[str, Any]]) -> None:
+    names = [item["name"] for item in trajectory_summaries]
+    real_scores = [float(item["real_score"]) for item in trajectory_summaries]
+    twin_scores = [float(item["twin_score"]) for item in trajectory_summaries]
+    match_scores = [float(item["match_score"]) for item in trajectory_summaries]
+
+    x = np.arange(len(names))
+    width = 0.24
+    fig, ax = plt.subplots(figsize=(11, 5))
+    ax.bar(x - width, real_scores, width=width, label="Synthetic real-flight score", color="tab:blue", alpha=0.85)
+    ax.bar(x, twin_scores, width=width, label="Digital twin score", color="tab:orange", alpha=0.85)
+    ax.bar(x + width, match_scores, width=width, label="Twin similarity score", color="tab:green", alpha=0.85)
+    ax.set_xticks(x, names)
+    ax.set_ylim(0.0, 102.0)
+    ax.set_ylabel("Score [%]")
+    ax.set_title("Validation trajectory summary scores")
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.legend(loc="best")
+    plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
     fig.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -365,6 +490,8 @@ def generate_paper_artifacts(
     reference_metrics = flatten_reference_metrics(reference)
     candidate_metrics = flatten_identified_metrics(candidate)
     base_match = build_blended_twin_score_from_values(candidate_metrics, reference_metrics)
+    _plot_parameter_error_bars(figures_dir / "parameter_error_bars.png", candidate_metrics, reference_metrics)
+    _plot_family_score_bars(figures_dir / "family_score_bars.png", base_match["family_scores"])
 
     rng = np.random.default_rng(seed)
     trajectory_summaries: list[dict[str, Any]] = []
@@ -400,69 +527,82 @@ def generate_paper_artifacts(
         trajectory_summaries.append(summary)
         _plot_overlay(figures_dir / f"{case.name}_overlay.png", case, ref_track, real_track, twin_track, summary)
 
+    _plot_trajectory_match_scores(figures_dir / "trajectory_match_scores.png", trajectory_summaries)
+
     surface_summaries: dict[str, Any] = {}
+    line_summaries: dict[str, Any] = {}
 
     payload_values = np.linspace(0.0, 0.9, grid_points)
     z_values = np.linspace(-0.12, 0.12, grid_points)
-    X, Y, real_surface, twin_surface, similarity_surface = _grid_scores(
+    X, Y, match_surface, penalty_surface = _grid_scores(
         reference_metrics,
         candidate_metrics,
         payload_values,
         z_values,
         lambda payload_mass, com_z: {"payload_mass": payload_mass, "com_z": com_z},
     )
-    _write_surface_csv(data_dir / "payload_z_surface.csv", X, Y, real_surface, twin_surface, similarity_surface)
-    _plot_dual_surface(figures_dir / "payload_z_surface.png", "Payload mass vs Z-axis payload location", "Payload mass [kg]", "Payload z-offset [m]", X, Y, real_surface, twin_surface, similarity_surface)
-    surface_summaries["payload_z"] = {"mean_similarity": float(np.mean(similarity_surface)), "csv": str(data_dir / "payload_z_surface.csv")}
+    _write_surface_csv(data_dir / "payload_z_surface.csv", X, Y, match_surface, penalty_surface)
+    _plot_surface(figures_dir / "payload_z_surface.png", "Payload mass vs Z-axis payload location", "Payload mass [kg]", "Payload z-offset [m]", X, Y, match_surface, penalty_surface)
+    _plot_line_family(figures_dir / "payload_z_lines.png", "Twin similarity slices for payload mass / z-offset", "Payload mass [kg]", payload_values, z_values, match_surface, lambda v: f"z = {v:+.03f} m")
+    surface_summaries["payload_z"] = {"mean_similarity": float(np.mean(match_surface)), "mean_tracking_penalty_pct": float(np.mean(penalty_surface)), "csv": str(data_dir / "payload_z_surface.csv")}
+    line_summaries["payload_z"] = {"figure": str(figures_dir / "payload_z_lines.png")}
 
     x_offsets = np.linspace(-0.12, 0.12, grid_points)
-    X, Y, real_surface, twin_surface, similarity_surface = _grid_scores(
+    X, Y, match_surface, penalty_surface = _grid_scores(
         reference_metrics,
         candidate_metrics,
         payload_values,
         x_offsets,
         lambda payload_mass, com_x: {"payload_mass": payload_mass, "com_x": com_x, "com_z": 0.0},
     )
-    _write_surface_csv(data_dir / "payload_x_offset_surface.csv", X, Y, real_surface, twin_surface, similarity_surface)
-    _plot_dual_surface(figures_dir / "payload_x_offset_surface.png", "Payload mass vs X-axis payload offset", "Payload mass [kg]", "Payload x-offset [m]", X, Y, real_surface, twin_surface, similarity_surface)
-    surface_summaries["payload_x_offset"] = {"mean_similarity": float(np.mean(similarity_surface)), "csv": str(data_dir / "payload_x_offset_surface.csv")}
+    _write_surface_csv(data_dir / "payload_x_offset_surface.csv", X, Y, match_surface, penalty_surface)
+    _plot_surface(figures_dir / "payload_x_offset_surface.png", "Payload mass vs X-axis payload offset", "Payload mass [kg]", "Payload x-offset [m]", X, Y, match_surface, penalty_surface)
+    _plot_line_family(figures_dir / "payload_x_offset_lines.png", "Twin similarity slices for payload mass / x-offset", "Payload mass [kg]", payload_values, x_offsets, match_surface, lambda v: f"x = {v:+.03f} m")
+    surface_summaries["payload_x_offset"] = {"mean_similarity": float(np.mean(match_surface)), "mean_tracking_penalty_pct": float(np.mean(penalty_surface)), "csv": str(data_dir / "payload_x_offset_surface.csv")}
+    line_summaries["payload_x_offset"] = {"figure": str(figures_dir / "payload_x_offset_lines.png")}
 
     y_offsets = np.linspace(-0.12, 0.12, grid_points)
-    X, Y, real_surface, twin_surface, similarity_surface = _grid_scores(
+    X, Y, match_surface, penalty_surface = _grid_scores(
         reference_metrics,
         candidate_metrics,
         payload_values,
         y_offsets,
         lambda payload_mass, com_y: {"payload_mass": payload_mass, "com_y": com_y, "com_z": 0.0},
     )
-    _write_surface_csv(data_dir / "payload_y_offset_surface.csv", X, Y, real_surface, twin_surface, similarity_surface)
-    _plot_dual_surface(figures_dir / "payload_y_offset_surface.png", "Payload mass vs Y-axis payload offset", "Payload mass [kg]", "Payload y-offset [m]", X, Y, real_surface, twin_surface, similarity_surface)
-    surface_summaries["payload_y_offset"] = {"mean_similarity": float(np.mean(similarity_surface)), "csv": str(data_dir / "payload_y_offset_surface.csv")}
+    _write_surface_csv(data_dir / "payload_y_offset_surface.csv", X, Y, match_surface, penalty_surface)
+    _plot_surface(figures_dir / "payload_y_offset_surface.png", "Payload mass vs Y-axis payload offset", "Payload mass [kg]", "Payload y-offset [m]", X, Y, match_surface, penalty_surface)
+    _plot_line_family(figures_dir / "payload_y_offset_lines.png", "Twin similarity slices for payload mass / y-offset", "Payload mass [kg]", payload_values, y_offsets, match_surface, lambda v: f"y = {v:+.03f} m")
+    surface_summaries["payload_y_offset"] = {"mean_similarity": float(np.mean(match_surface)), "mean_tracking_penalty_pct": float(np.mean(penalty_surface)), "csv": str(data_dir / "payload_y_offset_surface.csv")}
+    line_summaries["payload_y_offset"] = {"figure": str(figures_dir / "payload_y_offset_lines.png")}
 
     arm_scale_values = np.linspace(0.90, 1.10, grid_points)
-    X, Y, real_surface, twin_surface, similarity_surface = _grid_scores(
+    X, Y, match_surface, penalty_surface = _grid_scores(
         reference_metrics,
         candidate_metrics,
         payload_values,
         arm_scale_values,
         lambda payload_mass, arm_scale: {"payload_mass": payload_mass, "arm_scale": arm_scale},
     )
-    _write_surface_csv(data_dir / "arm_length_surface.csv", X, Y, real_surface, twin_surface, similarity_surface)
-    _plot_dual_surface(figures_dir / "arm_length_surface.png", "Payload mass vs arm length scale", "Payload mass [kg]", "Arm length scale", X, Y, real_surface, twin_surface, similarity_surface)
-    surface_summaries["arm_length"] = {"mean_similarity": float(np.mean(similarity_surface)), "csv": str(data_dir / "arm_length_surface.csv")}
+    _write_surface_csv(data_dir / "arm_length_surface.csv", X, Y, match_surface, penalty_surface)
+    _plot_surface(figures_dir / "arm_length_surface.png", "Payload mass vs arm length scale", "Payload mass [kg]", "Arm length scale", X, Y, match_surface, penalty_surface)
+    _plot_line_family(figures_dir / "arm_length_lines.png", "Twin similarity slices for payload mass / arm scale", "Payload mass [kg]", payload_values, arm_scale_values, match_surface, lambda v: f"arm scale = {v:.02f}")
+    surface_summaries["arm_length"] = {"mean_similarity": float(np.mean(match_surface)), "mean_tracking_penalty_pct": float(np.mean(penalty_surface)), "csv": str(data_dir / "arm_length_surface.csv")}
+    line_summaries["arm_length"] = {"figure": str(figures_dir / "arm_length_lines.png")}
 
     motor_constant_scale_values = np.linspace(0.90, 1.10, grid_points)
     tau_scale_values = np.linspace(0.85, 1.15, grid_points)
-    X, Y, real_surface, twin_surface, similarity_surface = _grid_scores(
+    X, Y, match_surface, penalty_surface = _grid_scores(
         reference_metrics,
         candidate_metrics,
         motor_constant_scale_values,
         tau_scale_values,
         lambda motor_scale, tau_scale: {"motor_constant_scale": motor_scale, "tau_scale": tau_scale},
     )
-    _write_surface_csv(data_dir / "motor_model_surface.csv", X, Y, real_surface, twin_surface, similarity_surface)
-    _plot_dual_surface(figures_dir / "motor_model_surface.png", "Motor constant vs motor time-constant scale", "Motor constant scale", "Motor time-scale", X, Y, real_surface, twin_surface, similarity_surface)
-    surface_summaries["motor_model"] = {"mean_similarity": float(np.mean(similarity_surface)), "csv": str(data_dir / "motor_model_surface.csv")}
+    _write_surface_csv(data_dir / "motor_model_surface.csv", X, Y, match_surface, penalty_surface)
+    _plot_surface(figures_dir / "motor_model_surface.png", "Motor constant vs motor time-constant scale", "Motor constant scale", "Motor time-scale", X, Y, match_surface, penalty_surface)
+    _plot_line_family(figures_dir / "motor_model_lines.png", "Twin similarity slices for motor/time-constant mismatch", "Motor constant scale", motor_constant_scale_values, tau_scale_values, match_surface, lambda v: f"tau scale = {v:.02f}")
+    surface_summaries["motor_model"] = {"mean_similarity": float(np.mean(match_surface)), "mean_tracking_penalty_pct": float(np.mean(penalty_surface)), "csv": str(data_dir / "motor_model_surface.csv")}
+    line_summaries["motor_model"] = {"figure": str(figures_dir / "motor_model_lines.png")}
 
     summary = {
         "candidate_json": str(Path(candidate_json).resolve()) if candidate_json else "builtin:x500_family_composite_v2",
@@ -471,10 +611,16 @@ def generate_paper_artifacts(
         "stage_1_real_flight_validation": {
             "note": "Synthetic noisy flight data generated from the reference x500 model. Replace the CSV files with real-flight logs later and regenerate the figures.",
             "trajectory_overlays": trajectory_summaries,
+            "summary_figure": str(figures_dir / "trajectory_match_scores.png"),
         },
         "stage_2_sitl_statistical_validation": {
-            "note": "Stress-test surfaces compare the reference x500 model against the current digital-twin candidate over payload, center-of-mass, arm-length, and motor-parameter sweeps.",
+            "note": "Stress-test figures keep the identified twin fixed and perturb the reference plant across payload, center-of-mass, arm-length, and motor-model variations. The surface height is the twin-similarity score, and the line plots show representative slices through each surface.",
             "surface_summaries": surface_summaries,
+            "line_plot_summaries": line_summaries,
+        },
+        "base_model_fit_figures": {
+            "parameter_error_bars": str(figures_dir / "parameter_error_bars.png"),
+            "family_score_bars": str(figures_dir / "family_score_bars.png"),
         },
     }
     (out_dir / "paper_validation_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

@@ -576,7 +576,8 @@ void SystemIdentificationLogger::PreUpdate(const UpdateInfo &_info,
 	const math::Vector3d euler = base_pose->Rot().Euler();
 	const auto sim_time_us = std::chrono::duration_cast<std::chrono::microseconds>(_info.simTime).count();
 
-	this->dataPtr->stream << sim_time_us << ','
+	this->dataPtr->stream << std::scientific << std::setprecision(12)
+		<< sim_time_us << ','
 		<< this->dataPtr->model_name << ','
 		<< truth_mass_kg << ',' << truth_ixx_kgm2 << ',' << truth_iyy_kgm2 << ',' << truth_izz_kgm2 << ','
 		<< truth_time_constant_up_s << ',' << truth_time_constant_down_s << ',' << truth_max_rot_velocity_radps << ','

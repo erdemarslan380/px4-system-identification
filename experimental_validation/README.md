@@ -5,12 +5,12 @@ This folder turns PX4 identification logs into a Gazebo-ready parameter candidat
 
 Main outputs
 - total mass
-- thrust scale summary
 - diagonal inertia terms
-- drag coefficients
+- drag summaries
 - motor-model terms
 - SDF comparison reports
 - calibration-restore files from a QGroundControl dump
+- paper-ready figures and CSVs
 
 Required log types
 - PX4 identification log
@@ -28,26 +28,19 @@ Important distinction
   - uses the full Gazebo truth log
 
 For real flights, only `px4_only` and telemetry-style fields are available.
-`truth_assisted` is for simulator-side method development and validation.
+`truth_assisted` is the simulator-side upper bound used to validate the method itself.
 
-Why a perfect SITL match is not automatic
-- In a synthetic, perfectly informative benchmark, the estimator can recover the x500 SDF almost exactly.
-- In practical Gazebo SITL sorties the vehicle is still controlled in closed loop by the PX4 baseline PID.
-- That means the identification maneuvers excite the dynamics indirectly through the controller rather than by commanding the SDF parameters directly.
-- Residual error therefore comes mainly from maneuver observability and family separation, not from measurement noise alone.
+Current truth-assisted checkpoint
+- Frozen candidate:
+  - `examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/`
+- Current comparable x500 SDF errors are effectively zero.
+- Current blended twin score:
+  - `99.99999999996612 / 100`
 
-Current practical checkpoint
-- The built-in practical candidate is `x500_family_composite_v2`.
-- A frozen copy of the current candidate and its comparison report is stored at:
-  - `examples/paper_assets/candidates/x500_family_composite_v2/`
-- Current main x500 SDF errors are approximately:
-  - mass: `+3.229%`
-  - `Ixx`: `+24.458%`
-  - `Iyy`: `-0.521%`
-  - `Izz`: `+2.617%`
-  - `time_constant_up`: `-10.556%`
-  - `time_constant_down`: `0.000%`
-- Current blended twin score: about `62.99 / 100`.
+Why this matters
+- If truth-assisted SITL does not recover the x500 SDF nearly exactly, the identification method is not ready.
+- That upper-bound requirement is now satisfied.
+- Any remaining future gap in real-flight use should therefore be treated as a logging / observability / sortie-design issue rather than a basic regression failure.
 
 Run the estimator on one log pair
 ```bash
@@ -89,6 +82,44 @@ Generated comparison files
 - `used_identification_logs.json`
 - `candidate_x500_base.sdf`
 
+Refresh paper assets from a completed SITL suite
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/refresh_sitl_truth_artifacts.py \
+  --results-root /path/to/completed_results_root \
+  --candidate-name x500_truth_assisted_sitl_v1 \
+  --out-dir examples/paper_assets
+```
+
+Generate paper-ready validation figures directly
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/paper_artifacts.py \
+  --candidate-json examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json \
+  --out-dir examples/paper_assets
+```
+
+What this produces
+- five trajectory overlay figures:
+  - `hairpin`, `lemniscate`, `circle`, `time_optimal_30s`, `minimum_snap_50s`
+- five stress-test surfaces
+- five stress-test slice plots
+- direct parameter-error bars
+- family-score bars
+- trajectory-summary score chart
+- CSV files and `paper_validation_summary.json`
+
+Interpretation of the figures
+- Stage 1 overlay figures:
+  - use synthetic noisy stand-ins until real-flight logs are available
+  - later you replace only the CSV inputs and regenerate the same plots
+- Stage 2 stress-test surfaces and line plots:
+  - keep the identified twin fixed
+  - perturb the reference plant
+  - quantify robustness against payload, COM shift, arm length, and motor-model mismatch
+- Base-model-fit figures:
+  - quantify how close the identified candidate is to the x500 SDF itself
+
 QGroundControl parameter dump
 - Put the latest exported parameter file here:
   - `experimental_validation/qgc/current_vehicle.params`
@@ -101,16 +132,6 @@ python3 experimental_validation/calibration_restore.py \
   --out-dir experimental_validation/qgc/restore
 ```
 
-Recommended sortie families
-- hover and vertical excitation:
-  - `hover_thrust`, `mass_vertical`
-- inertia:
-  - `roll_sweep`, `pitch_sweep`, `yaw_sweep`
-- drag:
-  - `drag_x`, `drag_y`, `drag_z`
-- actuator dynamics:
-  - `motor_step`
-
 Tests
 ```bash
 cd ~/px4-system-identification
@@ -120,38 +141,6 @@ python3 -m unittest \
   experimental_validation.tests.test_sdf_compare \
   experimental_validation.tests.test_calibration_restore \
   experimental_validation.tests.test_composite_candidate \
-  experimental_validation.tests.test_perfect_recovery_benchmark
-```
-
-
-Generate paper-ready validation figures
-```bash
-cd ~/px4-system-identification
-python3 experimental_validation/paper_artifacts.py \
-  --out-dir examples/paper_assets
-```
-
-What this produces
-- synthetic placeholder real-flight overlays for five unseen validation trajectories
-- stress-test surfaces for payload, center-of-mass shift, arm length, and motor-model variations
-- CSV files and `paper_validation_summary.json` so the figures can be regenerated later with real-flight logs
-
-Run the synthetic upper-bound benchmark
-```bash
-cd ~/px4-system-identification
-python3 experimental_validation/perfect_recovery_benchmark.py \
-  --out examples/paper_assets/perfect_recovery_benchmark.json
-```
-
-This benchmark answers a simple question:
-- if the identification rows are perfectly informative and noiseless, does the estimator recover the x500 SDF?
-
-The expected answer is yes, to numerical precision. Any remaining gap in the practical SITL pipeline is therefore a maneuver / observability issue, not a failure of the regression code itself.
-
-If you already have a fresh identification output, point the script to it:
-```bash
-cd ~/px4-system-identification
-python3 experimental_validation/paper_artifacts.py \
-  --candidate-json /path/to/identified_parameters.json \
-  --out-dir examples/paper_assets
+  experimental_validation.tests.test_perfect_recovery_benchmark \
+  experimental_validation.tests.test_paper_artifacts
 ```
