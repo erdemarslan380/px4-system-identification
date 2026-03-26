@@ -173,3 +173,22 @@ Repository layout
 - `experimental_validation/`: identification and SDF estimation pipeline
 - `examples/`: operator-facing examples
 - `system_identification.txt`: method description for reports and papers
+
+
+Paper validation assets
+- Generate the current paper-style figures and summary with:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/paper_artifacts.py \
+  --out-dir examples/paper_assets
+```
+- This writes:
+  - three synthetic placeholder real-flight overlay figures
+  - five statistical stress-test surface figures
+  - CSV files and `paper_validation_summary.json`
+
+Example figures
+
+![Trajectory overlay](examples/paper_assets/figures/trajectory_1_lemniscate_overlay.png)
+
+![Payload vs z surface](examples/paper_assets/figures/payload_z_surface.png)

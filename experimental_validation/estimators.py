@@ -337,6 +337,86 @@ def _solve_3x3_linear_system(a: list[list[float]], b: list[float]) -> list[float
     return [mat[row][n] for row in range(n)]
 
 
+def _solve_2x2_linear_system(a11: float, a12: float, a22: float, b1: float, b2: float) -> tuple[float, float]:
+    det = a11 * a22 - a12 * a12
+    if abs(det) <= 1e-12:
+        raise ValueError("singular 2x2 normal matrix")
+    x1 = (b1 * a22 - b2 * a12) / det
+    x2 = (a11 * b2 - a12 * b1) / det
+    return x1, x2
+
+
+def estimate_axis_inertia_with_coupling(
+    rows: Iterable[dict[str, float]],
+    *,
+    axis: str,
+    torque_column: str,
+    angular_accel_column: str,
+    min_angular_accel: float = 1e-4,
+) -> AxisInertiaEstimate:
+    axis = str(axis).lower()
+    if axis not in {"x", "y", "z"}:
+        raise ValueError(f"unsupported axis {axis}")
+
+    def _coupling_feature(row: dict[str, float]) -> float | None:
+        if axis == "x":
+            q = row.get("q")
+            r = row.get("r")
+            if q is None or r is None:
+                return None
+            return float(q) * float(r)
+        if axis == "y":
+            p = row.get("p")
+            r = row.get("r")
+            if p is None or r is None:
+                return None
+            return float(p) * float(r)
+        p = row.get("p")
+        q = row.get("q")
+        if p is None or q is None:
+            return None
+        return float(p) * float(q)
+
+    torques: list[float] = []
+    angular_accels: list[float] = []
+    coupling_terms: list[float] = []
+    for row in rows:
+        torque = row.get(torque_column)
+        alpha = row.get(angular_accel_column)
+        coupling = _coupling_feature(row)
+        if torque is None or alpha is None or coupling is None:
+            continue
+        torque = float(torque)
+        alpha = float(alpha)
+        if not math.isfinite(torque) or not math.isfinite(alpha) or not math.isfinite(coupling):
+            continue
+        if abs(alpha) < min_angular_accel:
+            continue
+        torques.append(torque)
+        angular_accels.append(alpha)
+        coupling_terms.append(coupling)
+
+    if not torques:
+        raise ValueError(f"no usable rows for coupled inertia estimate on axis {axis}")
+
+    a11 = sum(alpha * alpha for alpha in angular_accels)
+    a12 = sum(alpha * coupling for alpha, coupling in zip(angular_accels, coupling_terms))
+    a22 = sum(coupling * coupling for coupling in coupling_terms)
+    b1 = sum(alpha * torque for alpha, torque in zip(angular_accels, torques))
+    b2 = sum(coupling * torque for coupling, torque in zip(coupling_terms, torques))
+    inertia, coupling_coeff = _solve_2x2_linear_system(a11, a12, a22, b1, b2)
+    prediction = [
+        inertia * alpha + coupling_coeff * coupling
+        for alpha, coupling in zip(angular_accels, coupling_terms)
+    ]
+    return AxisInertiaEstimate(
+        axis=axis,
+        inertia_kgm2=inertia,
+        sample_count=len(torques),
+        rmse_nm=_rmse(prediction, torques),
+    )
+
+
 def estimate_diagonal_inertia_tensor(
     rows: Iterable[dict[str, float]],
     *,

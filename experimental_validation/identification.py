@@ -15,6 +15,7 @@ from experimental_validation.estimators import (
     ScalarEstimate,
     ThrustScaleEstimate,
     estimate_axis_inertia,
+    estimate_axis_inertia_with_coupling,
     estimate_diagonal_inertia_tensor,
     estimate_hover_mass,
     estimate_max_value,
@@ -426,16 +427,55 @@ def _safe_inertia_estimate(
     if not rows:
         warnings.append(f"{axis}-axis inertia profile missing; inertia_{axis} set to 0.0 in this estimate.")
         return _zero_inertia(axis)
+
+    simple_estimate: AxisInertiaEstimate | None = None
+    coupled_estimate: AxisInertiaEstimate | None = None
+    simple_error: ValueError | None = None
+    coupled_error: ValueError | None = None
+
     try:
-        return estimate_axis_inertia(
+        simple_estimate = estimate_axis_inertia(
             rows,
             axis=axis,
             torque_column=torque_column,
             angular_accel_column=angular_accel_column,
         )
     except ValueError as exc:
-        warnings.append(f"{axis}-axis inertia estimate unusable ({exc}); inertia_{axis} set to 0.0 in this estimate.")
+        simple_error = exc
+
+    try:
+        coupled_estimate = estimate_axis_inertia_with_coupling(
+            rows,
+            axis=axis,
+            torque_column=torque_column,
+            angular_accel_column=angular_accel_column,
+        )
+    except ValueError as exc:
+        coupled_error = exc
+
+    if simple_estimate is None and coupled_estimate is None:
+        detail = simple_error or coupled_error or ValueError("unknown error")
+        warnings.append(f"{axis}-axis inertia estimate unusable ({detail}); inertia_{axis} set to 0.0 in this estimate.")
         return _zero_inertia(axis)
+
+    if simple_estimate is None:
+        warnings.append(f"{axis}-axis inertia estimate used coupling-aware fit because the simple fit was unavailable ({simple_error}).")
+        return coupled_estimate  # type: ignore[return-value]
+
+    if coupled_estimate is None:
+        return simple_estimate
+
+    simple_positive = simple_estimate.inertia_kgm2 > 0.0
+    coupled_positive = coupled_estimate.inertia_kgm2 > 0.0
+    if not simple_positive and coupled_positive:
+        warnings.append(f"{axis}-axis inertia estimate used coupling-aware fit because the simple fit was non-physical.")
+        return coupled_estimate
+
+    if coupled_estimate.rmse_nm < simple_estimate.rmse_nm * 0.92:
+        warnings.append(f"{axis}-axis inertia estimate used coupling-aware fit because it reduced torque-fit RMSE from {simple_estimate.rmse_nm:.4f} to {coupled_estimate.rmse_nm:.4f}.")
+        return coupled_estimate
+
+    return simple_estimate
 
 
 def _safe_joint_inertia_estimate(

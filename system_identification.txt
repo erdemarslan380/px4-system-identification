@@ -210,7 +210,9 @@ Therefore:
 After mass is estimated, thrust scale is fit from commanded thrust to observed physical thrust.
 
 7.2 Axis-wise inertia estimation
-The baseline inertia estimator fits one diagonal inertia per axis using the corresponding torque and angular acceleration:
+The inertia estimator now uses two layers.
+
+Layer 1: simple axis-wise fit
 - Ixx from roll sweep,
 - Iyy from pitch sweep,
 - Izz from yaw sweep.
@@ -218,7 +220,15 @@ Conceptually:
 - tau_x ≈ Ixx * p_dot
 - tau_y ≈ Iyy * q_dot
 - tau_z ≈ Izz * r_dot
-This works reasonably well for Iyy and Izz in the current x500 experiments.
+
+Layer 2: coupling-aware axis fit
+When body rates are available, the estimator also fits one nuisance coupling term per axis:
+- tau_x ≈ Ixx * p_dot + kx * q * r
+- tau_y ≈ Iyy * q_dot + ky * p * r
+- tau_z ≈ Izz * r_dot + kz * p * q
+
+This is important because roll-axis inertia can be biased when the vehicle is not perfectly decoupled during the maneuver.
+The current pipeline automatically compares the simple fit and the coupling-aware fit and keeps the one with the lower torque-fit RMSE, provided the result remains physically meaningful.
 
 7.3 Joint coupled inertia solver
 A more advanced diagonal inertia solver was added and validated on synthetic data.

@@ -126,6 +126,46 @@ class IdentificationPipelineTests(unittest.TestCase):
         self.assertAlmostEqual(report["drag"]["y"]["coefficient"], drag_y, places=5)
         self.assertAlmostEqual(report["drag"]["z"]["coefficient"], drag_z, places=5)
 
+    def test_pipeline_prefers_coupling_aware_roll_estimate_when_needed(self) -> None:
+        rows = []
+        thrust_scale = 33.0
+        mass_kg = 2.0
+        gravity = 9.80665
+        ixx = 0.02166666666666667
+        iyy = 0.02166666666666667
+        izz = 0.04000000000000001
+        coupling_coeff = izz - iyy
+
+        for i in range(1, 41):
+            thrust_cmd = 0.42 + 0.003 * i
+            thrust_n = thrust_scale * thrust_cmd
+            az = (thrust_scale * thrust_cmd / mass_kg) - gravity
+            rows.append({
+                "timestamp_us": float(i),
+                "profile": "hover_thrust",
+                "thrust_cmd": thrust_cmd,
+                "thrust_n": thrust_n,
+                "az_world_mps2": az,
+            })
+
+        for i in range(1, 81):
+            p_dot = 0.35 + 0.015 * i
+            q = 0.55 + 0.004 * i
+            r = -0.45 + 0.003 * i
+            tau_x = ixx * p_dot + coupling_coeff * q * r
+            rows.append({
+                "timestamp_us": float(100 + i),
+                "profile": "roll_sweep",
+                "tau_x_nm": tau_x,
+                "p_dot_radps2": p_dot,
+                "q": q,
+                "r": r,
+            })
+
+        report = estimate_parameters_from_identification_log(rows)
+        self.assertAlmostEqual(report["inertia"]["x"]["inertia_kgm2"], ixx, places=4)
+        self.assertTrue(any("coupling-aware fit" in warning for warning in report["warnings"]))
+
     def test_joint_inertia_solver_recovers_coupled_diagonal_inertia(self) -> None:
         rows = []
         ixx = 0.02166666666666667

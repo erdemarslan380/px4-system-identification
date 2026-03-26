@@ -9,6 +9,7 @@ from pathlib import Path
 from experimental_validation.cli import main as cli_main
 from experimental_validation.estimators import (
     estimate_axis_inertia,
+    estimate_axis_inertia_with_coupling,
     estimate_hover_mass,
     estimate_quadratic_drag,
     estimate_time_constant,
@@ -93,6 +94,27 @@ class ExperimentalValidationTests(unittest.TestCase):
         self.assertAlmostEqual(rx.inertia_kgm2, self.inertia["x"], places=6)
         self.assertAlmostEqual(ry.inertia_kgm2, self.inertia["y"], places=6)
         self.assertAlmostEqual(rz.inertia_kgm2, self.inertia["z"], places=6)
+
+    def test_estimate_axis_inertia_with_coupling_recovers_roll_inertia(self) -> None:
+        rows = []
+        ixx = 0.02166666666666667
+        coupling_coeff = 0.01833333333333334
+        for i in range(1, 81):
+            p_dot = 0.4 + 0.02 * i
+            q = 0.6 + 0.005 * i
+            r = -0.5 + 0.004 * i
+            tau_x = ixx * p_dot + coupling_coeff * q * r
+            rows.append({
+                "tau_x_nm": tau_x,
+                "p_dot_radps2": p_dot,
+                "q": q,
+                "r": r,
+            })
+        simple = estimate_axis_inertia(rows, axis="x", torque_column="tau_x_nm", angular_accel_column="p_dot_radps2")
+        coupled = estimate_axis_inertia_with_coupling(rows, axis="x", torque_column="tau_x_nm", angular_accel_column="p_dot_radps2")
+        self.assertGreater(abs(simple.inertia_kgm2 - ixx), 1e-3)
+        self.assertAlmostEqual(coupled.inertia_kgm2, ixx, places=6)
+        self.assertLess(coupled.rmse_nm, simple.rmse_nm)
 
     def test_estimate_quadratic_drag(self) -> None:
         dx = estimate_quadratic_drag(self.rows, axis="x", mass_kg=self.mass_kg, velocity_column="vx_mps", accel_column="ax_drag_mps2")

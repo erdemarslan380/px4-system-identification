@@ -1,0 +1,97 @@
+{
+  "candidate_json": "builtin:x500_family_composite_v1",
+  "base_blended_twin_score": 62.80615438480349,
+  "base_family_scores": {
+    "inertia": 35.303607114060156,
+    "mass": 51.49940148687553,
+    "motor_coefficients": 96.13373624788004,
+    "motor_dynamics": 74.44467317123275
+  },
+  "stage_1_real_flight_validation": {
+    "note": "Synthetic noisy flight data generated from the reference x500 model. Replace the CSV files with real-flight logs later and regenerate the figures.",
+    "trajectory_overlays": [
+      {
+        "name": "trajectory_1_lemniscate",
+        "scenario": {
+          "payload_mass": 0.1,
+          "com_z": 0.01,
+          "tau_scale": 1.02
+        },
+        "real_rmse_m": 0.03412204290357118,
+        "twin_rmse_m": 0.1639343460768073,
+        "real_score": 95.36104731326263,
+        "twin_score": 60.06139825048453,
+        "match_score": 62.98315710940321,
+        "csv": {
+          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_1_lemniscate_reference.csv",
+          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_1_lemniscate_synthetic_real.csv",
+          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_1_lemniscate_digital_twin.csv"
+        }
+      },
+      {
+        "name": "trajectory_2_climb_spiral",
+        "scenario": {
+          "payload_mass": 0.22,
+          "com_x": 0.02,
+          "com_y": -0.01,
+          "com_z": 0.03
+        },
+        "real_rmse_m": 0.11980285336759672,
+        "twin_rmse_m": 0.2629823760980677,
+        "real_score": 90.384264410209,
+        "twin_score": 57.258307385439615,
+        "match_score": 63.349862676950906,
+        "csv": {
+          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_2_climb_spiral_reference.csv",
+          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_2_climb_spiral_synthetic_real.csv",
+          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_2_climb_spiral_digital_twin.csv"
+        }
+      },
+      {
+        "name": "trajectory_3_aggressive_box",
+        "scenario": {
+          "payload_mass": 0.32,
+          "com_x": 0.03,
+          "com_y": 0.02,
+          "tau_scale": 1.05,
+          "arm_scale": 1.02
+        },
+        "real_rmse_m": 0.11473673876924988,
+        "twin_rmse_m": 0.5282048025858656,
+        "real_score": 81.86488840961913,
+        "twin_score": 51.91639591647214,
+        "match_score": 63.417170566095784,
+        "csv": {
+          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_3_aggressive_box_reference.csv",
+          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_3_aggressive_box_synthetic_real.csv",
+          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_3_aggressive_box_digital_twin.csv"
+        }
+      }
+    ]
+  },
+  "stage_2_sitl_statistical_validation": {
+    "note": "Stress-test surfaces compare the reference x500 model against the current digital-twin candidate over payload, center-of-mass, arm-length, and motor-parameter sweeps.",
+    "surface_summaries": {
+      "payload_z": {
+        "mean_similarity": 65.26065131459609,
+        "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/payload_z_surface.csv"
+      },
+      "payload_x_offset": {
+        "mean_similarity": 63.53091329621006,
+        "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/payload_x_offset_surface.csv"
+      },
+      "payload_y_offset": {
+        "mean_similarity": 65.31233803286942,
+        "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/payload_y_offset_surface.csv"
+      },
+      "arm_length": {
+        "mean_similarity": 63.418202036929024,
+        "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/arm_length_surface.csv"
+      },
+      "motor_model": {
+        "mean_similarity": 62.806154384803484,
+        "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/motor_model_surface.csv"
+      }
+    }
+  }
+}
