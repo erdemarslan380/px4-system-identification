@@ -1,0 +1,3303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unified Controller Tuning Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffaf0;
+      --ink: #14213d;
+      --accent: #ef476f;
+      --accent2: #06d6a0;
+      --traj-ref: #1d4ed8;
+      --traj-act: #d97706;
+      --grid: #d0c8ba;
+      --energy: #0f766e;
+    }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 10% 10%, #fefae0 0%, var(--bg) 60%);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--ink);
+    }
+    .wrap {
+      max-width: 1450px;
+      margin: 20px auto;
+      padding: 16px;
+    }
+    .top_nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+    .top_links {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .top_links a {
+      text-decoration: none;
+      color: var(--ink);
+      border: 1px solid #d8d1c4;
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: rgba(255, 250, 240, 0.78);
+      font: 12px/1.2 "Space Mono", "Courier New", monospace;
+    }
+    .view_hidden {
+      display: none !important;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-family: "Space Mono", "Courier New", monospace;
+      letter-spacing: 0.5px;
+      font-size: 24px;
+    }
+    h2 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-family: "Space Mono", "Courier New", monospace;
+      letter-spacing: 0.3px;
+    }
+    .meta {
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    .hero_grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .hero_card {
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #fffaf0 0%, #fff3d8 100%);
+      border: 1px solid #d8d1c4;
+      border-radius: 14px;
+      box-shadow: 0 10px 18px rgba(20, 33, 61, 0.06);
+    }
+    .hero_label {
+      font: 11px/1.2 "Space Mono", "Courier New", monospace;
+      color: #5f6b82;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+    .hero_value {
+      font: 700 28px/1 "Space Mono", "Courier New", monospace;
+      color: var(--ink);
+    }
+    .hero_sub {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #5f6b82;
+    }
+    .progress_panel {
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .queue_panel,
+    .scrubber_panel,
+    .report_panel,
+    .manual_panel {
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .queue_head,
+    .manual_head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 10px;
+    }
+    .queue_meta,
+    .report_meta,
+    .manual_meta {
+      font-size: 13px;
+      color: #5f6b82;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+    }
+    .queue_cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .queue_card {
+      padding: 10px 12px;
+      border: 1px solid #d8d1c4;
+      border-radius: 12px;
+      background: rgba(255, 247, 232, 0.92);
+      min-height: 90px;
+    }
+    .queue_card.running {
+      border-color: #ef476f;
+      background: #fff1f3;
+    }
+    .queue_card.ok {
+      border-color: #06d6a0;
+      background: #effcf7;
+    }
+    .queue_card.failed {
+      border-color: #dc2626;
+      background: #fff1f2;
+    }
+    .queue_title {
+      font: 12px/1.25 "Space Mono", "Courier New", monospace;
+      margin-bottom: 6px;
+    }
+    .queue_body {
+      font: 11px/1.45 "Space Mono", "Courier New", monospace;
+      color: #43506d;
+      white-space: pre-wrap;
+    }
+    .queue_delta {
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px dashed #d9ceb9;
+      font: 11px/1.45 "Space Mono", "Courier New", monospace;
+      color: #284163;
+      white-space: pre-wrap;
+    }
+    .queue_delta.good {
+      color: #0f5c38;
+    }
+    .queue_delta.bad {
+      color: #8d1f1f;
+    }
+    .scrubber_grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1.1fr 1.1fr 1.2fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+    .scrubber_field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font: 12px/1.2 "Space Mono", "Courier New", monospace;
+    }
+    .scrubber_field select,
+    .scrubber_field input {
+      width: 100%;
+    }
+    .btn {
+      border: 1px solid #d8c7a7;
+      background: linear-gradient(135deg, #fff6e3 0%, #ffe4bc 100%);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font: 12px/1.2 "Space Mono", "Courier New", monospace;
+      cursor: pointer;
+    }
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+    .report_table_wrap {
+      border: 1px solid #d8d1c4;
+      border-radius: 12px;
+      background: #fff7e8;
+      overflow: hidden;
+    }
+    .report_layout {
+      display: grid;
+      grid-template-columns: 210px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 12px;
+    }
+    .report_legend {
+      border: 1px solid #ded4c2;
+      border-radius: 12px;
+      background: rgba(255, 251, 242, 0.92);
+      padding: 12px;
+      position: sticky;
+      top: 10px;
+    }
+    .report_legend_title {
+      margin: 0 0 8px;
+      font: 700 12px/1.3 "Space Mono", "Courier New", monospace;
+      color: #35445f;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .report_legend_bar {
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid #d9cfbc;
+      background: linear-gradient(90deg, rgba(220, 38, 38, 0.88) 0%, rgba(234, 88, 12, 0.78) 45%, rgba(21, 128, 61, 0.90) 100%);
+      margin-bottom: 8px;
+    }
+    .report_legend_scale {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font: 11px/1.3 "Space Mono", "Courier New", monospace;
+      color: #4f5d78;
+      margin-bottom: 8px;
+    }
+    .report_legend_note {
+      font: 11px/1.45 "Space Mono", "Courier New", monospace;
+      color: #5f6b82;
+      white-space: pre-wrap;
+    }
+    .report_tables_host {
+      min-width: 0;
+      overflow-x: auto;
+    }
+    .report_table {
+      width: 100%;
+      border-collapse: collapse;
+      font: 12px/1.4 "Space Mono", "Courier New", monospace;
+    }
+    .report_table th,
+    .report_table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2d8c7;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .report_table th {
+      color: #5f6b82;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+    .report_table tbody tr {
+      cursor: pointer;
+    }
+    .report_table tbody tr.selected {
+      background: #fff0d6;
+    }
+    .report_section + .report_section {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px dashed #dbcdb0;
+    }
+    .report_section h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+    .report_optimizer_block + .report_optimizer_block {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed #e3d7bd;
+    }
+    .report_optimizer_block h4 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-family: "Space Mono", "Courier New", monospace;
+      color: #35445f;
+    }
+    .report_hint {
+      margin: 0 0 10px;
+      color: #5f6b82;
+      font: 12px/1.5 "Space Mono", "Courier New", monospace;
+    }
+    .algo_stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 190px;
+    }
+    .algo_chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 10px;
+      border: 1px solid color-mix(in srgb, var(--algo-color) 40%, #d8d1c4);
+      background: color-mix(in srgb, var(--algo-color) 12%, #fff8ec);
+      font: 600 11px/1.25 "Space Mono", "Courier New", monospace;
+      color: #24334f;
+    }
+    .algo_chip.best {
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--algo-color) 70%, #14213d);
+      font-weight: 800;
+    }
+    .manual_body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 12px;
+      align-items: start;
+    }
+    .manual_form {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .manual_input {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font: 11px/1.2 "Space Mono", "Courier New", monospace;
+    }
+    .manual_input input {
+      width: 100%;
+      border: 1px solid #d9ccb7;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff7e8;
+      color: var(--ink);
+      font: 12px/1.2 "Space Mono", "Courier New", monospace;
+    }
+    .manual_side pre {
+      margin: 0;
+      padding: 10px;
+      background: #fff7e8;
+      border: 1px dashed #dccfb7;
+      border-radius: 10px;
+      font: 11px/1.35 "Space Mono", "Courier New", monospace;
+      white-space: pre-wrap;
+      min-height: 180px;
+    }
+    .manual_actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      align-items: flex-start;
+    }
+    .manual_status {
+      font: 11px/1.35 "Space Mono", "Courier New", monospace;
+      color: #5f6b82;
+      padding: 0 4px;
+      min-height: 34px;
+      min-width: 230px;
+      display: flex;
+      align-items: center;
+    }
+    .progress_row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+      font: 13px/1.3 "Space Mono", "Courier New", monospace;
+    }
+    .progress_track {
+      height: 16px;
+      border-radius: 999px;
+      background: #e7dcc8;
+      border: 1px solid #d7c8ab;
+      overflow: hidden;
+    }
+    .progress_fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #06d6a0 0%, #ef476f 100%);
+      transition: width 0.4s ease;
+    }
+    .worker_strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .worker_card {
+      padding: 10px 12px;
+      background: rgba(255, 250, 240, 0.9);
+      border: 1px solid #d8d1c4;
+      border-radius: 12px;
+      min-height: 92px;
+    }
+    .worker_card.running {
+      border-color: #ef476f;
+      box-shadow: 0 0 0 1px rgba(239, 71, 111, 0.18);
+    }
+    .worker_head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font: 12px/1.2 "Space Mono", "Courier New", monospace;
+      margin-bottom: 8px;
+    }
+    .worker_state {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #efe5d3;
+    }
+    .worker_state.running {
+      background: #ffd8e3;
+      color: #7d1732;
+    }
+    .worker_meta {
+      font: 11px/1.45 "Space Mono", "Courier New", monospace;
+      color: #43506d;
+      white-space: pre-wrap;
+    }
+    .panel {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid #d8d1c4;
+      border-radius: 12px;
+      box-shadow: 0 12px 24px rgba(20, 33, 61, 0.08);
+      position: relative;
+      overflow: hidden;
+    }
+    #fit_plot {
+      height: 380px;
+      margin-bottom: 8px;
+    }
+    .legend {
+      font-size: 13px;
+      margin: 8px 0 14px;
+    }
+    .traj_block {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 12px;
+      margin-bottom: 14px;
+      align-items: stretch;
+    }
+    .traj_panel {
+      height: 430px;
+    }
+    .params_panel {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      min-height: 430px;
+    }
+    .params_panel pre {
+      margin: 0;
+      padding: 10px;
+      background: #fff7e8;
+      border: 1px dashed #dccfb7;
+      border-radius: 10px;
+      font: 12px/1.35 "Space Mono", "Courier New", monospace;
+      overflow: auto;
+      white-space: pre;
+      flex: 1;
+    }
+    .caption {
+      padding: 8px 10px;
+      font-size: 12px;
+      border-top: 1px dashed #ddd2be;
+      background: #fff7e8;
+      min-height: 38px;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+    }
+    .formula_panel {
+      padding: 12px;
+      margin-top: 4px;
+    }
+    .hover_tip {
+      position: fixed;
+      z-index: 50;
+      pointer-events: none;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #dccfb7;
+      background: rgba(20, 33, 61, 0.96);
+      color: #fffaf0;
+      font: 12px/1.35 "Space Mono", "Courier New", monospace;
+      white-space: pre;
+      box-shadow: 0 8px 20px rgba(20, 33, 61, 0.25);
+      max-width: 320px;
+    }
+    #formula_text {
+      margin: 0;
+      white-space: pre-wrap;
+      font: 13px/1.45 "Space Mono", "Courier New", monospace;
+    }
+    canvas {
+      width: 100%;
+      height: calc(100% - 34px);
+      display: block;
+      cursor: default;
+      touch-action: none;
+    }
+    @media (max-width: 1200px) {
+      .hero_grid,
+      .worker_strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .queue_cards,
+      .manual_form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .scrubber_grid,
+      .manual_body {
+        grid-template-columns: 1fr;
+      }
+      .report_layout {
+        grid-template-columns: 1fr;
+      }
+      .report_legend {
+        position: static;
+      }
+      .traj_block {
+        grid-template-columns: 1fr;
+      }
+      .params_panel {
+        min-height: 220px;
+      }
+      .traj_panel {
+        height: 460px;
+      }
+    }
+    @media (max-width: 720px) {
+      .hero_grid,
+      .worker_strip {
+        grid-template-columns: 1fr;
+      }
+      .hero_value {
+        font-size: 23px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top_nav">
+      <h1>Unified Controller Tuning Dashboard</h1>
+      <div class="top_links">
+        <a href="/planner">Planner</a>
+        <a href="/dashboard">Live Monitor</a>
+        <a href="/review">Results Review</a>
+      </div>
+    </div>
+    <div class="meta" id="meta">loading...</div>
+
+    <div class="panel queue_panel" id="plan_queue">
+      <div class="queue_head">
+        <div>
+          <h2>Plan Queue</h2>
+          <div class="queue_meta" id="plan_meta">waiting for plan...</div>
+        </div>
+        <div class="queue_meta" id="report_meta">report waiting...</div>
+      </div>
+      <div class="queue_cards" id="queue_cards"></div>
+    </div>
+
+    <div class="panel scrubber_panel" id="eval_selector">
+      <div class="scrubber_grid">
+        <label class="scrubber_field">
+          <span>Plan Source</span>
+          <select id="plan_source_select"></select>
+        </label>
+        <label class="scrubber_field">
+          <span>Task Group</span>
+          <select id="task_select"></select>
+        </label>
+        <label class="scrubber_field">
+          <span>Optimizer</span>
+          <select id="optimizer_select"></select>
+        </label>
+        <label class="scrubber_field">
+          <span>Completed Eval Selector</span>
+          <input type="range" id="eval_slider" min="0" max="0" step="1" value="0" disabled />
+        </label>
+        <div class="scrubber_field">
+          <span>Selection</span>
+          <div id="eval_label">No completed eval yet</div>
+        </div>
+        <button class="btn" id="latest_btn" type="button">Live</button>
+      </div>
+      <div class="caption">This slider opens one completed successful eval from the selected task and shows that eval's parameters and trace. It does not change the running optimizer.</div>
+    </div>
+
+    <div class="hero_grid" id="hero_cards">
+      <div class="hero_card">
+        <div class="hero_label">Active Task</div>
+        <div class="hero_value" id="active_task_value">-</div>
+        <div class="hero_sub" id="active_task_sub">controller / trajectory / optimizer</div>
+      </div>
+      <div class="hero_card">
+        <div class="hero_label">Next Task</div>
+        <div class="hero_value" id="next_task_value">-</div>
+        <div class="hero_sub" id="next_task_sub">next queued item</div>
+      </div>
+      <div class="hero_card">
+        <div class="hero_label">Workers</div>
+        <div class="hero_value" id="workers_value">-</div>
+        <div class="hero_sub" id="workers_sub">busy/idle</div>
+      </div>
+      <div class="hero_card">
+        <div class="hero_label">Avg Eval</div>
+        <div class="hero_value" id="avg_eval_value">-</div>
+        <div class="hero_sub" id="avg_eval_sub">mean completed eval duration</div>
+      </div>
+      <div class="hero_card">
+        <div class="hero_label">Throughput</div>
+        <div class="hero_value" id="throughput_value">-</div>
+        <div class="hero_sub" id="throughput_sub">eval/min</div>
+      </div>
+      <div class="hero_card">
+        <div class="hero_label">Task ETA</div>
+        <div class="hero_value" id="eta_value">-</div>
+        <div class="hero_sub" id="eta_sub">active task remaining estimate</div>
+      </div>
+      <div class="hero_card">
+        <div class="hero_label">Plan ETA</div>
+        <div class="hero_value" id="plan_eta_value">-</div>
+        <div class="hero_sub" id="plan_eta_sub">full YAML plan remaining estimate</div>
+      </div>
+      <div class="hero_card">
+        <div class="hero_label">Heartbeat</div>
+        <div class="hero_value" id="heartbeat_value">-</div>
+        <div class="hero_sub" id="heartbeat_sub">pool status freshness</div>
+      </div>
+      <div class="hero_card">
+        <div class="hero_label">Phase Step</div>
+        <div class="hero_value" id="phase_step_value">-</div>
+        <div class="hero_sub" id="phase_step_sub">seed/global/local step</div>
+      </div>
+    </div>
+
+    <div class="panel progress_panel" id="task_progress">
+      <div class="progress_row">
+        <div id="progress_label">progress waiting...</div>
+        <div id="progress_eta">ETA n/a</div>
+      </div>
+      <div class="progress_track">
+        <div class="progress_fill" id="progress_fill"></div>
+      </div>
+    </div>
+
+    <div class="worker_strip" id="worker_strip"></div>
+
+    <div class="panel" id="fit_plot"><canvas id="fit_canvas"></canvas></div>
+    <div class="caption" id="fit_caption">eval summary waiting...</div>
+    <div class="legend">Red: eval fitness. Green: best-so-far. The Y axis is log-scale. Hover to inspect values, use the wheel to zoom, double-click to reset, and click a point to select that eval.</div>
+
+    <div class="traj_block">
+      <div class="panel traj_panel">
+        <canvas id="active_canvas"></canvas>
+        <div class="caption" id="active_meta">Active trace waiting...</div>
+      </div>
+      <div class="panel params_panel">
+        <h2>Selected / Live Params</h2>
+        <pre id="active_params">waiting...</pre>
+      </div>
+    </div>
+
+    <div class="traj_block">
+      <div class="panel traj_panel">
+        <canvas id="start_canvas"></canvas>
+        <div class="caption" id="start_meta">Tune start snapshot waiting...</div>
+      </div>
+      <div class="panel params_panel">
+        <h2>Tune Start Params</h2>
+        <pre id="start_params">waiting...</pre>
+      </div>
+    </div>
+
+    <div class="traj_block">
+      <div class="panel traj_panel">
+        <canvas id="best_canvas"></canvas>
+        <div class="caption" id="best_meta">Best snapshot waiting...</div>
+      </div>
+      <div class="panel params_panel">
+        <h2>Best-so-far Params</h2>
+        <pre id="best_params">waiting...</pre>
+      </div>
+    </div>
+
+    <div class="panel formula_panel">
+      <h2>Cost Summary</h2>
+      <pre id="formula_text">loading...</pre>
+    </div>
+
+    <div class="panel report_panel" id="integrated_report">
+      <div class="queue_head">
+        <div>
+          <h2>Integrated Report</h2>
+          <div class="report_meta" id="report_summary_meta">waiting...</div>
+        </div>
+        <label class="scrubber_field" style="max-width: 220px;">
+          <span>Report Scope</span>
+          <select id="report_scope_select">
+            <option value="combined">Combined Latest</option>
+            <option value="active">Active Plan</option>
+          </select>
+        </label>
+      </div>
+      <div class="report_table_wrap">
+        <div class="report_hint">Grouped as trajectory → optimizer. Each table is isolated. Only percentage columns are heat-colored: positive means improvement vs start, negative means regression vs start.</div>
+        <div class="report_layout">
+          <aside class="report_legend">
+            <div class="report_legend_title">Percent Legend</div>
+            <div class="report_legend_bar"></div>
+            <div class="report_legend_scale">
+              <span>-100%</span>
+              <span>0%</span>
+              <span>+100%</span>
+            </div>
+            <div class="report_legend_note">-100% = strongest visible regression
+0% = no change vs start
++100% = strongest visible improvement</div>
+          </aside>
+          <div class="report_tables_host">
+            <div id="report_tables"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel manual_panel" id="manual_replay">
+      <div class="manual_head">
+        <div>
+          <h2>Manual Replay / Param Inspect</h2>
+          <div class="manual_meta" id="manual_meta">Load start, best or selected params; then run isolated visual replay with the same mission semantics used by the evaluator.</div>
+        </div>
+        <div class="manual_actions">
+          <div class="manual_status" id="replay_source_label">Replay source: n/a</div>
+          <label class="scrubber_field" style="min-width: 150px;">
+            <span>Replay Mode</span>
+            <select id="replay_mode_select">
+              <option value="strict">Strict Eval Match</option>
+              <option value="relaxed">Relaxed Visual Inspect</option>
+            </select>
+          </label>
+          <button class="btn" id="load_start_btn" type="button">Load Start</button>
+          <button class="btn" id="load_best_btn" type="button">Load Best</button>
+          <button class="btn" id="load_selected_btn" type="button">Load Selected</button>
+          <button class="btn" id="run_replay_btn" type="button">Run Visual Replay</button>
+          <button class="btn" id="stop_replay_btn" type="button">Stop Visual Replay</button>
+        </div>
+      </div>
+      <div class="manual_body">
+        <div class="manual_form" id="manual_form"></div>
+        <div class="manual_side">
+          <pre id="manual_fixed_params">fixed params waiting...</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="traj_block" id="replay_section">
+      <div class="panel traj_panel">
+        <canvas id="replay_canvas"></canvas>
+        <div class="caption" id="replay_meta">Replay trace waiting...</div>
+      </div>
+      <div class="panel params_panel">
+        <h2>Replay Runtime</h2>
+        <pre id="replay_info">waiting...</pre>
+      </div>
+    </div>
+
+    <div class="legend">Each block contains 4 plots: XY, Z(t), Energy(t), and 3D. XY/Z/Energy support hover, zoom, and double-click reset. Drag inside the 3D panel to rotate and double-click to reset the view.</div>
+  </div>
+  <div class="hover_tip" id="hover_tip" hidden></div>
+
+  <script>
+    const FALLBACK_PARAM_NAMES = [];
+
+    const fitCanvas = document.getElementById('fit_canvas');
+    const fitCtx = fitCanvas.getContext('2d');
+    const fitCaption = document.getElementById('fit_caption');
+    const hoverTip = document.getElementById('hover_tip');
+
+    const activeCanvas = document.getElementById('active_canvas');
+    const activeCtx = activeCanvas.getContext('2d');
+    const startCanvas = document.getElementById('start_canvas');
+    const startCtx = startCanvas.getContext('2d');
+    const bestCanvas = document.getElementById('best_canvas');
+    const bestCtx = bestCanvas.getContext('2d');
+    const replayCanvas = document.getElementById('replay_canvas');
+    const replayCtx = replayCanvas.getContext('2d');
+
+    const meta = document.getElementById('meta');
+    const planMeta = document.getElementById('plan_meta');
+    const queueCards = document.getElementById('queue_cards');
+    const reportMeta = document.getElementById('report_meta');
+    const reportSummaryMeta = document.getElementById('report_summary_meta');
+    const reportTables = document.getElementById('report_tables');
+    const planSourceSelect = document.getElementById('plan_source_select');
+    const workersValue = document.getElementById('workers_value');
+    const workersSub = document.getElementById('workers_sub');
+    const activeTaskValue = document.getElementById('active_task_value');
+    const activeTaskSub = document.getElementById('active_task_sub');
+    const nextTaskValue = document.getElementById('next_task_value');
+    const nextTaskSub = document.getElementById('next_task_sub');
+    const avgEvalValue = document.getElementById('avg_eval_value');
+    const avgEvalSub = document.getElementById('avg_eval_sub');
+    const throughputValue = document.getElementById('throughput_value');
+    const throughputSub = document.getElementById('throughput_sub');
+    const etaValue = document.getElementById('eta_value');
+    const etaSub = document.getElementById('eta_sub');
+    const planEtaValue = document.getElementById('plan_eta_value');
+    const planEtaSub = document.getElementById('plan_eta_sub');
+    const heartbeatValue = document.getElementById('heartbeat_value');
+    const heartbeatSub = document.getElementById('heartbeat_sub');
+    const phaseStepValue = document.getElementById('phase_step_value');
+    const phaseStepSub = document.getElementById('phase_step_sub');
+    const progressLabel = document.getElementById('progress_label');
+    const progressEta = document.getElementById('progress_eta');
+    const progressFill = document.getElementById('progress_fill');
+    const workerStrip = document.getElementById('worker_strip');
+    const activeMeta = document.getElementById('active_meta');
+    const startMeta = document.getElementById('start_meta');
+    const bestMeta = document.getElementById('best_meta');
+    const activeParams = document.getElementById('active_params');
+    const startParams = document.getElementById('start_params');
+    const bestParams = document.getElementById('best_params');
+    const formulaText = document.getElementById('formula_text');
+    const taskSelect = document.getElementById('task_select');
+    const optimizerSelect = document.getElementById('optimizer_select');
+    const reportScopeSelect = document.getElementById('report_scope_select');
+    const replayModeSelect = document.getElementById('replay_mode_select');
+    const evalSlider = document.getElementById('eval_slider');
+    const evalLabel = document.getElementById('eval_label');
+    const latestBtn = document.getElementById('latest_btn');
+    const manualForm = document.getElementById('manual_form');
+    const manualMeta = document.getElementById('manual_meta');
+    const manualFixedParams = document.getElementById('manual_fixed_params');
+    const loadStartBtn = document.getElementById('load_start_btn');
+    const loadBestBtn = document.getElementById('load_best_btn');
+    const loadSelectedBtn = document.getElementById('load_selected_btn');
+    const runReplayBtn = document.getElementById('run_replay_btn');
+    const stopReplayBtn = document.getElementById('stop_replay_btn');
+    const replaySourceLabel = document.getElementById('replay_source_label');
+    const replayMeta = document.getElementById('replay_meta');
+    const replayInfo = document.getElementById('replay_info');
+    const heroCards = document.getElementById('hero_cards');
+    const taskProgressPanel = document.getElementById('task_progress');
+    const planQueuePanel = document.getElementById('plan_queue');
+    const reviewPanel = document.getElementById('integrated_report');
+    const manualPanel = document.getElementById('manual_replay');
+    const replaySection = document.getElementById('replay_section');
+    const pageTitle = document.querySelector('.top_nav h1');
+    const urlState = new URLSearchParams(window.location.search);
+    const defaultViewMode = (urlState.get('view') || localStorage.getItem('dashboard_view_mode') || 'live').toLowerCase();
+    const defaultResultsRoot = urlState.get('results_root') || localStorage.getItem('dashboard_results_root') || '';
+
+    function makeTraceView() {
+      return {
+        yaw: 0.78,
+        pitch: -0.55,
+        dragging: false,
+        pointerId: null,
+        lastX: 0,
+        lastY: 0,
+        isoBox: null,
+        plots: {},
+        zoom: { xy: null, zt: null, et: null },
+        hover: null,
+      };
+    }
+
+    const state = {
+      records: [],
+      poolStatus: null,
+      prevMaxEval: -1,
+      traceCache: new Map(),
+      liveTrace: null,
+      startTraceObj: null,
+      bestTraceObj: null,
+      selectedTraceObj: null,
+      runConfig: null,
+      dashboardState: null,
+      reportCases: [],
+      reportCasesActive: [],
+      reportCasesCombined: [],
+      reportScope: localStorage.getItem('report_scope') || 'combined',
+      availablePlans: [],
+      selectedResultsRoot: defaultResultsRoot,
+      viewMode: defaultViewMode === 'review' ? 'review' : 'live',
+      selectedTaskId: null,
+      selectedTaskGroupId: null,
+      selectedOptimizer: null,
+      selectedTask: null,
+      selectedRecord: null,
+      selectedEvalCursor: -1,
+      selectionMode: 'live',
+      replayState: null,
+      replayTrace: null,
+      manualValues: {},
+      manualSourceLabel: 'n/a',
+      currentParamNames: [...FALLBACK_PARAM_NAMES],
+      currentFixedParams: {},
+      fitView: { box: null, points: [], zoom: null, hover: null, base: null, range: null },
+      views: {
+        active: makeTraceView(),
+        start: makeTraceView(),
+        best: makeTraceView(),
+        replay: makeTraceView(),
+      },
+    };
+    window.__dashboardState = state;
+    reportScopeSelect.value = state.reportScope;
+
+    function apiUrl(path, extra = {}) {
+      const qs = new URLSearchParams();
+      if (state.selectedResultsRoot) qs.set('results_root', state.selectedResultsRoot);
+      for (const [key, value] of Object.entries(extra || {})) {
+        if (value === null || value === undefined || value === '') continue;
+        qs.set(key, String(value));
+      }
+      qs.set('ts', String(Date.now()));
+      const query = qs.toString();
+      return `${path}${query ? `?${query}` : ''}`;
+    }
+
+    function syncLocation() {
+      const qs = new URLSearchParams(window.location.search);
+      qs.set('view', state.viewMode);
+      if (state.selectedResultsRoot) qs.set('results_root', state.selectedResultsRoot);
+      else qs.delete('results_root');
+      const next = `${window.location.pathname}?${qs.toString()}`;
+      window.history.replaceState({}, '', next);
+      localStorage.setItem('dashboard_view_mode', state.viewMode);
+      localStorage.setItem('dashboard_results_root', state.selectedResultsRoot || '');
+    }
+
+    function applyViewMode() {
+      const review = state.viewMode === 'review';
+      document.title = review ? 'PX4 Results Review' : 'PX4 Live Monitor';
+      pageTitle.textContent = review ? 'PX4 Results Review' : 'PX4 Live Monitor';
+      planQueuePanel.classList.toggle('view_hidden', review);
+      heroCards.classList.toggle('view_hidden', review);
+      taskProgressPanel.classList.toggle('view_hidden', review);
+      workerStrip.classList.toggle('view_hidden', review);
+      reviewPanel.classList.toggle('view_hidden', !review);
+      manualPanel.classList.toggle('view_hidden', !review);
+      replaySection.classList.toggle('view_hidden', !review);
+      reportScopeSelect.value = review ? 'combined' : state.reportScope;
+      if (review) {
+        reportScopeSelect.value = 'combined';
+      }
+      syncLocation();
+    }
+
+    function syncPlanSourceSelect() {
+      const plans = state.availablePlans || [];
+      if (!plans.length) {
+        planSourceSelect.innerHTML = '<option value="">No plan history</option>';
+        planSourceSelect.disabled = true;
+        return;
+      }
+      planSourceSelect.innerHTML = plans.map((plan) => {
+        const counts = plan.counts || {};
+        const tag = plan.is_active ? ' [active]' : '';
+        const label = `${plan.name || 'plan'}${tag} | ok=${counts.ok || 0} run=${counts.running || 0} fail=${counts.failed || 0}`;
+        return `<option value="${plan.results_root}">${label}</option>`;
+      }).join('');
+      const currentValues = plans.map((plan) => String(plan.results_root || ''));
+      if (!currentValues.includes(String(state.selectedResultsRoot || ''))) {
+        const active = plans.find((plan) => plan.is_active) || plans[0];
+        state.selectedResultsRoot = String(active?.results_root || '');
+      }
+      planSourceSelect.disabled = false;
+      planSourceSelect.value = String(state.selectedResultsRoot || '');
+    }
+
+    function resizeCanvas(canvas, ctx) {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * devicePixelRatio;
+      canvas.height = rect.height * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+
+    function parseJsonl(text) {
+      const out = [];
+      for (const line of text.split('\n')) {
+        const s = line.trim();
+        if (!s) continue;
+        try {
+          out.push(JSON.parse(s));
+        } catch (_) {}
+      }
+      return out;
+    }
+
+    function fmt(v, digits = 6) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 'n/a';
+      return n.toFixed(digits);
+    }
+
+    function fmtSeconds(sec) {
+      const s = Number(sec);
+      if (!Number.isFinite(s) || s < 0) return 'n/a';
+      if (s < 60) return `${s.toFixed(1)}s`;
+      if (s < 3600) return `${(s / 60).toFixed(1)}m`;
+      return `${(s / 3600).toFixed(2)}h`;
+    }
+
+    function fmtClockEta(sec) {
+      const s = Number(sec);
+      if (!Number.isFinite(s) || s < 0) return 'n/a';
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const ss = Math.floor(s % 60);
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${ss}s`;
+      return `${ss}s`;
+    }
+
+    function clamp(v, lo, hi) {
+      return Math.max(lo, Math.min(hi, v));
+    }
+
+    function fmtAxis(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 'n/a';
+      const a = Math.abs(n);
+      if (a >= 100) return n.toFixed(1);
+      if (a >= 10) return n.toFixed(2);
+      if (a >= 1) return n.toFixed(3);
+      return n.toFixed(4);
+    }
+
+    function niceTicks(min, max, approxCount = 5) {
+      const lo = Number(min);
+      const hi = Number(max);
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [];
+      if (Math.abs(hi - lo) < 1e-12) {
+        return [lo - 1, lo, lo + 1];
+      }
+      const span = hi - lo;
+      const rawStep = span / Math.max(2, approxCount);
+      const mag = Math.pow(10, Math.floor(Math.log10(Math.abs(rawStep) || 1)));
+      const norm = rawStep / mag;
+      const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+      const step = niceNorm * mag;
+      const start = Math.floor(lo / step) * step;
+      const end = Math.ceil(hi / step) * step;
+      const ticks = [];
+      for (let v = start; v <= end + 0.5 * step; v += step) {
+        if (v >= lo - 0.5 * step && v <= hi + 0.5 * step) {
+          ticks.push(Number(v.toPrecision(12)));
+        }
+      }
+      return ticks;
+    }
+
+    function showTooltip(evt, lines) {
+      if (!lines || !lines.length) {
+        hoverTip.hidden = true;
+        return;
+      }
+      hoverTip.textContent = lines.join('\n');
+      hoverTip.hidden = false;
+      const pad = 14;
+      const x = Math.min(window.innerWidth - 20, evt.clientX + pad);
+      const y = Math.min(window.innerHeight - 20, evt.clientY + pad);
+      hoverTip.style.left = `${x}px`;
+      hoverTip.style.top = `${y}px`;
+    }
+
+    function hideTooltip() {
+      hoverTip.hidden = true;
+    }
+
+    function applyZoomRange(currentMin, currentMax, baseMin, baseMax, anchorRatio, factor) {
+      const baseSpan = Math.max(1e-9, baseMax - baseMin);
+      const curSpan = Math.max(1e-9, currentMax - currentMin);
+      const nextSpan = clamp(curSpan * factor, baseSpan * 0.002, baseSpan);
+      const anchorValue = currentMin + anchorRatio * curSpan;
+      let nextMin = anchorValue - anchorRatio * nextSpan;
+      let nextMax = anchorValue + (1 - anchorRatio) * nextSpan;
+      if (nextMin < baseMin) {
+        nextMax += baseMin - nextMin;
+        nextMin = baseMin;
+      }
+      if (nextMax > baseMax) {
+        nextMin -= nextMax - baseMax;
+        nextMax = baseMax;
+      }
+      nextMin = Math.max(baseMin, nextMin);
+      nextMax = Math.min(baseMax, nextMax);
+      return { min: nextMin, max: nextMax };
+    }
+
+    function findNearestScreenPoint(seriesList, pt, maxDist = 14) {
+      let best = null;
+      let bestD2 = maxDist * maxDist;
+      for (const series of seriesList || []) {
+        for (const p of series.points || []) {
+          const dx = p.sx - pt.x;
+          const dy = p.sy - pt.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = { series: series.name, color: series.color, point: p, kind: series.kind };
+          }
+        }
+      }
+      return best;
+    }
+
+    function drawAxisTicks(ctx, box, xMin, xMax, yMin, yMax, xLabel, yLabel, opts = {}) {
+      ctx.save();
+      ctx.fillStyle = '#43506d';
+      ctx.strokeStyle = '#c4b79d';
+      ctx.font = '10px monospace';
+
+      const xTicks = opts.xTicks || niceTicks(xMin, xMax, 4);
+      const yTicks = opts.yTicks || niceTicks(yMin, yMax, 4);
+      const xFormatter = opts.xFormatter || fmtAxis;
+      const yFormatter = opts.yFormatter || fmtAxis;
+
+      for (const xv of xTicks) {
+        const r = (xv - xMin) / Math.max(1e-9, xMax - xMin);
+        const sx = box.x + r * box.w;
+        ctx.beginPath();
+        ctx.moveTo(sx, box.y + box.h);
+        ctx.lineTo(sx, box.y + box.h + 4);
+        ctx.stroke();
+        ctx.fillText(xFormatter(xv), sx - 10, box.y + box.h + 14);
+      }
+
+      for (const yv of yTicks) {
+        const r = (yv - yMin) / Math.max(1e-9, yMax - yMin);
+        const sy = box.y + box.h - r * box.h;
+        ctx.beginPath();
+        ctx.moveTo(box.x - 4, sy);
+        ctx.lineTo(box.x, sy);
+        ctx.stroke();
+        ctx.fillText(yFormatter(yv), box.x + 4, sy - 2);
+      }
+
+      ctx.fillText(xLabel, box.x + box.w - 18, box.y + box.h - 4);
+      ctx.fillText(yLabel, box.x + 4, box.y + 14);
+      ctx.restore();
+    }
+
+    function padRange(min, max, frac = 0.08, minPad = 1e-6) {
+      const lo = Number(min);
+      const hi = Number(max);
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+        return { min: -1, max: 1 };
+      }
+      if (Math.abs(hi - lo) < 1e-12) {
+        const pad = Math.max(minPad, Math.abs(lo) * frac, 1e-3);
+        return { min: lo - pad, max: hi + pad };
+      }
+      const pad = Math.max(minPad, Math.abs(hi - lo) * frac);
+      return { min: lo - pad, max: hi + pad };
+    }
+
+    function resolveZoom(base, zoom) {
+      if (!base) return null;
+      if (!zoom) return { ...base };
+      return {
+        xMin: clamp(Number(zoom.xMin), base.xMin, base.xMax),
+        xMax: clamp(Number(zoom.xMax), base.xMin, base.xMax),
+        yMin: clamp(Number(zoom.yMin), base.yMin, base.yMax),
+        yMax: clamp(Number(zoom.yMax), base.yMin, base.yMax),
+      };
+    }
+
+    function drawMessage(ctx, x, y, title, detail) {
+      ctx.save();
+      ctx.fillStyle = '#14213d';
+      ctx.font = '14px monospace';
+      const lines = [title].concat(String(detail || '').split('\n').filter(Boolean));
+      lines.forEach((line, idx) => ctx.fillText(line, x, y + idx * 18));
+      ctx.restore();
+    }
+
+    function trapz(y, t) {
+      if (!y || !t || y.length < 2 || t.length < 2) return 0;
+      let s = 0;
+      const n = Math.min(y.length, t.length);
+      for (let i = 1; i < n; i++) {
+        const dt = Math.max(1e-6, t[i] - t[i - 1]);
+        s += 0.5 * (y[i] + y[i - 1]) * dt;
+      }
+      return s;
+    }
+
+    function computeDerived(trace) {
+      const rx0 = trace?.ref?.x || [];
+      const ry0 = trace?.ref?.y || [];
+      const rz0 = trace?.ref?.z || [];
+      const ax0 = trace?.act?.x || [];
+      const ay0 = trace?.act?.y || [];
+      const az0 = trace?.act?.z || [];
+      const t0 = trace?.t || [];
+
+      const n = Math.min(rx0.length, ry0.length, rz0.length, ax0.length, ay0.length, az0.length);
+      if (n <= 0) {
+        return {
+          n: 0,
+          t: [], rx: [], ry: [], rz: [], ax: [], ay: [], az: [],
+          err: [], speed: [], power: [],
+          errArea: 0, energyArea: 0,
+        };
+      }
+
+      const rx = rx0.slice(0, n);
+      const ry = ry0.slice(0, n);
+      const rz = rz0.slice(0, n);
+      const ax = ax0.slice(0, n);
+      const ay = ay0.slice(0, n);
+      const az = az0.slice(0, n);
+
+      let t;
+      if (t0.length >= n) {
+        t = t0.slice(0, n).map((v) => Number(v));
+      } else {
+        t = Array.from({ length: n }, (_, i) => i * 0.05);
+      }
+      for (let i = 1; i < t.length; i++) {
+        if (!(t[i] > t[i - 1])) {
+          t[i] = t[i - 1] + 0.05;
+        }
+      }
+
+      const err = new Array(n);
+      const speed = new Array(n).fill(0);
+      const power = new Array(n).fill(0);
+
+      for (let i = 0; i < n; i++) {
+        const dx = rx[i] - ax[i];
+        const dy = ry[i] - ay[i];
+        const dz = rz[i] - az[i];
+        err[i] = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (i > 0) {
+          const dt = Math.max(1e-6, t[i] - t[i - 1]);
+          const vx = (ax[i] - ax[i - 1]) / dt;
+          const vy = (ay[i] - ay[i - 1]) / dt;
+          const vz = (az[i] - az[i - 1]) / dt;
+          const v = Math.sqrt(vx * vx + vy * vy + vz * vz);
+          speed[i] = v;
+          power[i] = v * v; // kinetic power proxy
+        }
+      }
+
+      return {
+        n,
+        t, rx, ry, rz, ax, ay, az,
+        err, speed, power,
+        errArea: trapz(err, t),
+        energyArea: trapz(power, t),
+      };
+    }
+
+    function meanDuration(records, fallback = 0) {
+      const vals = (records || [])
+        .map((r) => Number(r.duration_s))
+        .filter((v) => Number.isFinite(v) && v > 0);
+      if (!vals.length) return Number(fallback || 0);
+      return vals.reduce((a, b) => a + b, 0) / vals.length;
+    }
+
+    function trimmedMean(values, fallback = 0) {
+      const vals = (values || []).filter((v) => Number.isFinite(v) && v > 0);
+      if (!vals.length) return Number(fallback || 0);
+      if (vals.length < 5) {
+        return vals.reduce((a, b) => a + b, 0) / vals.length;
+      }
+      const sorted = [...vals].sort((a, b) => a - b);
+      const cut = Math.max(1, Math.floor(sorted.length * 0.1));
+      const core = sorted.slice(cut, sorted.length - cut);
+      return core.reduce((a, b) => a + b, 0) / Math.max(1, core.length);
+    }
+
+    function recentDurations(records, predicate, limit = 16) {
+      const vals = [];
+      const rows = records || [];
+      for (let i = rows.length - 1; i >= 0 && vals.length < limit; i -= 1) {
+        const row = rows[i];
+        if (predicate && !predicate(row)) continue;
+        const v = Number(row?.duration_s);
+        if (Number.isFinite(v) && v > 0) vals.push(v);
+      }
+      return vals.reverse();
+    }
+
+    function recentMean(records, predicate, fallback = 0, limit = 16) {
+      const vals = recentDurations(records, predicate, limit);
+      return trimmedMean(vals, fallback);
+    }
+
+    function scheduleMakespan(workerCount, initialLoads, queuedCount, taskDuration) {
+      const workers = Math.max(1, Number(workerCount || 1));
+      const dur = Number(taskDuration);
+      const loads = Array.from({ length: workers }, (_, idx) => {
+        const v = Number((initialLoads || [])[idx] || 0);
+        return Number.isFinite(v) && v > 0 ? v : 0;
+      });
+      for (let i = 0; i < Math.max(0, Number(queuedCount || 0)); i += 1) {
+        let minIdx = 0;
+        for (let j = 1; j < loads.length; j += 1) {
+          if (loads[j] < loads[minIdx]) minIdx = j;
+        }
+        loads[minIdx] += Number.isFinite(dur) && dur > 0 ? dur : 0;
+      }
+      return Math.max(...loads, 0);
+    }
+
+    function estimateActiveResidual(avgDuration, startedAtS, nowS) {
+      const avg = Number(avgDuration);
+      const started = Number(startedAtS);
+      const now = Number(nowS);
+      if (!Number.isFinite(avg) || avg <= 0) return 0;
+      if (!Number.isFinite(started) || started <= 0 || !Number.isFinite(now) || now <= 0) return avg;
+      const elapsed = Math.max(0, now - started);
+      const floor = Math.min(3.0, avg * 0.05);
+      return Math.max(0, avg - elapsed, floor);
+    }
+
+    function deriveParamDim(runConfig, records) {
+      const totalExpected = Number(runConfig?.total_expected_evals || 0);
+      const globalIters = Number(runConfig?.global_iters || 0);
+      const localIters = Number(runConfig?.local_iters || 0);
+      if (localIters > 0) {
+        const perLocal = (totalExpected - globalIters) / localIters;
+        const dim = Math.round((perLocal - 1) / 2);
+        if (Number.isFinite(dim) && dim > 0) return dim;
+      }
+      for (const rec of (records || [])) {
+        const n = Object.keys(rec?.params || {}).length;
+        if (n > 0) return n;
+      }
+      return 0;
+    }
+
+    function computeEtaModel(status, records, runConfig) {
+      const fallbackEta = Number(status?.eta_s || 0);
+      if (!status || !runConfig) {
+        return { etaS: fallbackEta, label: 'throughput ETA' };
+      }
+
+      const nowS = Date.now() * 0.001;
+      const workers = Math.max(1, Number(status.workers_total || runConfig.workers || 1));
+      const globalIters = Math.max(0, Number(runConfig.global_iters || 0));
+      const localIters = Math.max(0, Number(runConfig.local_iters || 0));
+      const hasSeedEval = !!runConfig.seed_eval;
+      const paramDim = deriveParamDim(runConfig, records);
+      const perturbPerIter = Math.max(0, 2 * paramDim);
+
+      const seedRecs = (records || []).filter((r) => r.phase === 'seed');
+      const globalRecs = (records || []).filter((r) => r.phase === 'global');
+      const localBaseRecs = (records || []).filter((r) => r.phase === 'local' && r.candidate === 'base');
+      const localPertRecs = (records || []).filter((r) => r.phase === 'local' && r.candidate !== 'base');
+
+      const overallAvg = recentMean(records, () => true, Number(status.avg_eval_s || 0), 24) || meanDuration(records, Number(status.avg_eval_s || 0));
+      const avgSeed = recentMean(records, (r) => r.phase === 'seed', overallAvg || 40, 6);
+      const avgGlobal = recentMean(records, (r) => r.phase === 'global', overallAvg || 40, 16);
+      const avgBase = recentMean(records, (r) => r.phase === 'local' && r.candidate === 'base', avgGlobal || overallAvg || 40, 10);
+      const avgPert = recentMean(records, (r) => r.phase === 'local' && r.candidate !== 'base', avgBase || avgGlobal || overallAvg || 40, 20);
+
+      const workerStates = Array.isArray(status.workers) ? status.workers : [];
+      const runningWorkers = workerStates.filter((w) => w?.state === 'running');
+      const activeSeedResiduals = [];
+      const activeGlobalResiduals = [];
+
+      const localProgress = new Map();
+      for (const rec of (records || [])) {
+        if (rec.phase !== 'local') continue;
+        const iter = Number(rec.iteration);
+        const slot = localProgress.get(iter) || { baseDone: false, perturbDone: 0, activeBaseResiduals: [], activePertResiduals: [] };
+        if (rec.candidate === 'base') {
+          slot.baseDone = true;
+        } else {
+          slot.perturbDone += 1;
+        }
+        localProgress.set(iter, slot);
+      }
+
+      for (const worker of runningWorkers) {
+        const phase = String(worker?.phase || '');
+        const candidate = String(worker?.candidate || '');
+        const iter = Number(worker?.current_iteration);
+        const startedAt = Number(worker?.started_at || 0);
+        if (phase === 'seed') {
+          activeSeedResiduals.push(estimateActiveResidual(avgSeed, startedAt, nowS));
+          continue;
+        }
+        if (phase === 'global') {
+          activeGlobalResiduals.push(estimateActiveResidual(avgGlobal, startedAt, nowS));
+          continue;
+        }
+        if (phase !== 'local' || !Number.isFinite(iter) || iter < globalIters) continue;
+        const slot = localProgress.get(iter) || { baseDone: false, perturbDone: 0, activeBaseResiduals: [], activePertResiduals: [] };
+        if (candidate === 'base') {
+          slot.activeBaseResiduals.push(estimateActiveResidual(avgBase, startedAt, nowS));
+        } else {
+          slot.activePertResiduals.push(estimateActiveResidual(avgPert, startedAt, nowS));
+        }
+        localProgress.set(iter, slot);
+      }
+
+      let etaS = 0;
+      if (hasSeedEval && seedRecs.length === 0) {
+        const queuedSeed = Math.max(0, 1 - activeSeedResiduals.length);
+        etaS += scheduleMakespan(1, activeSeedResiduals, queuedSeed, avgSeed);
+      }
+
+      const remainingGlobal = Math.max(0, globalIters - globalRecs.length - activeGlobalResiduals.length);
+      etaS += scheduleMakespan(workers, activeGlobalResiduals, remainingGlobal, avgGlobal);
+
+      for (let iter = globalIters; iter < globalIters + localIters; iter += 1) {
+        const slot = localProgress.get(iter) || { baseDone: false, perturbDone: 0, activeBaseResiduals: [], activePertResiduals: [] };
+        if (!slot.baseDone) {
+          const queuedBase = slot.activeBaseResiduals.length > 0 ? 0 : 1;
+          etaS += scheduleMakespan(1, slot.activeBaseResiduals, queuedBase, avgBase);
+          const remainingPerturb = Math.max(0, perturbPerIter - slot.perturbDone - slot.activePertResiduals.length);
+          etaS += scheduleMakespan(workers, slot.activePertResiduals, remainingPerturb, avgPert);
+        } else {
+          const remainingPerturb = Math.max(0, perturbPerIter - slot.perturbDone - slot.activePertResiduals.length);
+          etaS += scheduleMakespan(workers, slot.activePertResiduals, remainingPerturb, avgPert);
+        }
+      }
+
+      let currentPhase = 'rolling model';
+      if (activeSeedResiduals.length > 0 || (hasSeedEval && seedRecs.length === 0)) {
+        currentPhase = 'seed rolling';
+      } else if ((globalRecs.length + activeGlobalResiduals.length) < globalIters) {
+        currentPhase = 'global rolling';
+      } else {
+        const activeBase = Array.from(localProgress.values()).some((slot) => (slot.activeBaseResiduals || []).length > 0);
+        currentPhase = activeBase ? 'local base-aware' : 'local perturb-aware';
+      }
+      return {
+        etaS,
+        label: `${currentPhase} model`,
+      };
+    }
+
+    function computePlanEta(planProgress, etaModel = null, status = null, activePlan = null) {
+      if (!planProgress) {
+        return { etaS: null, label: 'plan remaining wall-clock', progressText: 'plan progress waiting...' };
+      }
+      const totalTasks = Number(planProgress.tasks_total || 0);
+      const completedTasks = Number(planProgress.tasks_completed || 0);
+      const remainingTasks = Number(planProgress.tasks_remaining || Math.max(0, totalTasks - completedTasks));
+      const totalEvals = Number(planProgress.evals_total_expected || 0);
+      const completedEvals = Number(planProgress.evals_completed || 0);
+      const rawEta = planProgress.remaining_eta_s;
+      let etaS = (rawEta === null || rawEta === undefined || rawEta === '')
+        ? NaN
+        : Number(rawEta);
+      const taskSummaries = planProgress.task_summaries || [];
+      const activeTasks = activePlan?.tasks || [];
+      const currentTaskId = String(activePlan?.current_task_id || '');
+      const summaryMap = new Map(taskSummaries.map((item) => [String(item.task_id || ''), item]));
+      const currentTask = activeTasks.find((task) => String(task.task_id || '') === currentTaskId) || null;
+      const currentSummary = summaryMap.get(currentTaskId) || null;
+
+      const controllerSecPerEval = new Map();
+      const finishedTasks = activeTasks.filter((task) => {
+        const statusTxt = String(task.status || '');
+        return statusTxt === 'ok' || statusTxt === 'failed';
+      });
+      const globalSecPerEval = [];
+      for (const task of finishedTasks) {
+        const total = Number(task.total_expected_evals || 0);
+        const dur = Number(task.duration_s || 0);
+        if (!(Number.isFinite(total) && total > 0 && Number.isFinite(dur) && dur > 0)) continue;
+        const secPerEval = dur / total;
+        globalSecPerEval.push(secPerEval);
+        const key = String(task.controller || '');
+        const arr = controllerSecPerEval.get(key) || [];
+        arr.push(secPerEval);
+        controllerSecPerEval.set(key, arr);
+      }
+
+      const fallbackSecPerEval = trimmedMean(globalSecPerEval, Number(status?.avg_eval_s || 0));
+      const currentRemaining = currentTask
+        ? Math.max(0, Number(currentTask.total_expected_evals || 0) - Number(currentSummary?.completed || 0))
+        : 0;
+      const currentEta = Number(etaModel?.etaS);
+      const currentController = String(currentTask?.controller || '');
+      if (Number.isFinite(currentEta) && currentRemaining > 0 && currentController) {
+        const currentSecPerEval = currentEta / Math.max(1, currentRemaining);
+        const prev = controllerSecPerEval.get(currentController) || [];
+        controllerSecPerEval.set(currentController, [...prev, currentSecPerEval]);
+      }
+
+      const dynamicPlanEta = (() => {
+        let acc = Number.isFinite(currentEta) ? currentEta : 0;
+        let hasSignal = Number.isFinite(currentEta) && currentEta >= 0;
+        for (const task of activeTasks) {
+          if (String(task.status || '') !== 'pending') continue;
+          const controller = String(task.controller || '');
+          const total = Number(task.total_expected_evals || 0);
+          const controllerVals = controllerSecPerEval.get(controller) || [];
+          const secPerEval = trimmedMean(controllerVals, fallbackSecPerEval);
+          if (!(Number.isFinite(secPerEval) && secPerEval > 0 && Number.isFinite(total) && total > 0)) continue;
+          acc += total * secPerEval;
+          hasSignal = true;
+        }
+        return hasSignal ? acc : NaN;
+      })();
+
+      if (Number.isFinite(dynamicPlanEta)) {
+        etaS = dynamicPlanEta;
+      } else if (!Number.isFinite(etaS)) {
+        const throughput = Number(status?.throughput_eval_per_min || 0);
+        const pendingExpected = activeTasks
+          .filter((task) => String(task.status || '') === 'pending')
+          .reduce((sum, task) => sum + Number(task.total_expected_evals || 0), 0);
+        if (throughput > 0) {
+          etaS = ((currentRemaining + pendingExpected) / throughput) * 60.0;
+        } else {
+          etaS = NaN;
+        }
+      }
+      return {
+        etaS: Number.isFinite(etaS) ? etaS : null,
+        label: `${completedTasks}/${totalTasks} tasks done, controller-aware rolling ETA`,
+        progressText: `${completedEvals}/${totalEvals} expected evals completed | remaining tasks=${remainingTasks}`,
+      };
+    }
+
+    function drawPoolStatus(status, etaModel = null) {
+      state.poolStatus = status || null;
+      if (!status) {
+        activeTaskValue.textContent = '-';
+        activeTaskSub.textContent = 'controller / trajectory / optimizer';
+        nextTaskValue.textContent = '-';
+        nextTaskSub.textContent = 'next queued item';
+        workersValue.textContent = '-';
+        workersSub.textContent = 'busy/idle';
+        avgEvalValue.textContent = '-';
+        avgEvalSub.textContent = 'mean completed eval duration';
+        throughputValue.textContent = '-';
+        throughputSub.textContent = 'eval/min';
+        etaValue.textContent = '-';
+        etaSub.textContent = 'active task remaining estimate';
+        planEtaValue.textContent = '-';
+        planEtaSub.textContent = 'full YAML plan remaining estimate';
+        heartbeatValue.textContent = '-';
+        heartbeatSub.textContent = 'pool status freshness';
+        phaseStepValue.textContent = '-';
+        phaseStepSub.textContent = 'seed/global/local step';
+        progressLabel.textContent = 'progress waiting...';
+        progressEta.textContent = 'ETA n/a';
+        progressFill.style.width = '0%';
+        workerStrip.innerHTML = '';
+        return;
+      }
+
+      const activeRuntimeTask = state.dashboardState?.current_task || {};
+      const configuredWorkers = Number(
+        activeRuntimeTask.workers_effective
+        || activeRuntimeTask.workers
+        || state.selectedTask?.workers_effective
+        || state.selectedTask?.workers
+        || 0
+      );
+      const rawTotal = Number(status.workers_total || 0);
+      const total = rawTotal > 0 ? rawTotal : Math.max(0, configuredWorkers);
+      const busy = Number(status.workers_busy || 0);
+      const idle = Number(status.workers_idle || Math.max(0, total - busy));
+      const completed = Number(status.completed_evals || 0);
+      const expected = Number(status.total_expected_evals || 0);
+      const selectedTaskStatus = String(state.selectedTask?.status || '');
+      const taskFinished = selectedTaskStatus === 'ok' || selectedTaskStatus === 'failed';
+      const attempted = completed + Number(status.failed_evals || 0);
+      const pct = taskFinished
+        ? 1
+        : (expected > 0 ? Math.max(0, Math.min(1, completed / expected)) : 0);
+      const throughput = Number(status.throughput_eval_per_min || 0);
+      const liveElapsed = status.started_at
+        ? Math.max(0, (Date.now() * 0.001) - Number(status.started_at))
+        : Number(status.elapsed_s || 0);
+
+      workersValue.textContent = total > 0 ? `${busy}/${total}` : '-';
+      workersSub.textContent = total > 0
+        ? ((busy === 0 && completed === 0 && Number(status.failed_evals || 0) === 0)
+            ? `starting, idle=${idle}`
+            : `busy, idle=${idle}`)
+        : 'busy/idle';
+      avgEvalValue.textContent = fmtSeconds(status.avg_eval_s);
+      avgEvalSub.textContent = 'mean completed eval duration';
+      throughputValue.textContent = Number.isFinite(throughput) ? throughput.toFixed(2) : 'n/a';
+      const throughputMode = String(status.throughput_mode || 'concurrency_aware');
+      throughputSub.textContent = throughputMode === 'rolling_completion'
+        ? 'rolling completed eval/min'
+        : 'concurrency-aware eval/min';
+      const etaDisplay = taskFinished ? 0 : (etaModel && Number.isFinite(etaModel.etaS) ? etaModel.etaS : status.eta_s);
+      const etaLabel = taskFinished ? 'task finished' : (etaModel?.label || `failed=${Number(status.failed_evals || 0)}`);
+      etaValue.textContent = fmtClockEta(etaDisplay);
+      etaSub.textContent = `estimate | ${etaLabel} | failed=${Number(status.failed_evals || 0)}`;
+
+      progressLabel.textContent = taskFinished
+        ? `finished | ${completed} successful evals + ${Number(status.failed_evals || 0)} penalized evals | expected ${expected}`
+        : `active task progress | ${completed} successful evals + ${Number(status.failed_evals || 0)} penalized evals | expected ${expected}`;
+      progressEta.textContent = `remaining estimate: ${fmtClockEta(etaDisplay)}`;
+      progressFill.style.width = `${(pct * 100).toFixed(1)}%`;
+
+      const workers = Array.isArray(status.workers) ? status.workers : [];
+      workerStrip.innerHTML = workers.map((w) => {
+        const running = w.state === 'running';
+        const evalTxt = Number(w.current_eval) >= 0 ? `eval=${w.current_eval}` : `last=${fmtSeconds(w.last_duration_s)}`;
+        const iterTxt = Number(w.current_iteration) >= 0 ? `iter=${w.current_iteration}` : `done=${w.completed}`;
+        const phaseTxt = w.phase || 'idle';
+        const candTxt = w.candidate || '-';
+        const elapsedTxt = running && Number(w.started_at) > 0
+          ? `run=${fmtSeconds((Date.now() * 0.001) - Number(w.started_at))}`
+          : '';
+        const errTxt = w.error ? `\nerr=${String(w.error).slice(0, 42)}` : '';
+        return `
+          <div class="worker_card ${running ? 'running' : ''}">
+            <div class="worker_head">
+              <span>worker ${w.worker_id}</span>
+              <span class="worker_state ${running ? 'running' : ''}">${w.state}</span>
+            </div>
+            <div class="worker_meta">port=${w.tcp_port}
+${evalTxt}  ${iterTxt}
+${phaseTxt} :: ${candTxt} ${elapsedTxt}${errTxt}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function describeHeartbeat(mtime) {
+      const ts = Number(mtime);
+      if (!Number.isFinite(ts) || ts <= 0) {
+        return { value: 'n/a', sub: 'pool status freshness' };
+      }
+      const age = Math.max(0, (Date.now() * 0.001) - ts);
+      const value = age < 10 ? `${age.toFixed(1)}s` : fmtClockEta(age);
+      let freshness = 'stale';
+      if (age < 3) freshness = 'live';
+      else if (age < 8) freshness = 'warming';
+      return { value, sub: `pool_status age, ${freshness}` };
+    }
+
+    function describePhaseStep(status, records, runConfig) {
+      const workers = Array.isArray(status?.workers) ? status.workers : [];
+      const running = workers.filter((w) => String(w.state || '') === 'running');
+      if (!running.length) {
+        return { value: 'idle', sub: 'no active worker' };
+      }
+
+      const activeWorkerId = Number(status.active_worker_id);
+      const current = running.find((w) => Number(w.worker_id) === activeWorkerId) || running[0];
+      const phase = String(current.phase || 'idle');
+      const iter = Number(current.current_iteration);
+      const globalIters = Number(runConfig?.global_iters || 0);
+      const localIters = Number(runConfig?.local_iters || 0);
+      const paramCount = Array.isArray(runConfig?.param_names) ? runConfig.param_names.length : 0;
+      const perturbTotal = Math.max(0, 2 * paramCount);
+
+      if (phase === 'seed') {
+        return { value: 'seed', sub: 'start params eval' };
+      }
+      if (phase === 'global') {
+        const globalIdx = Number.isFinite(iter) ? iter + 1 : 0;
+        return { value: `g ${globalIdx}/${Math.max(globalIters, globalIdx)}`, sub: current.candidate || 'bo candidate' };
+      }
+      if (phase === 'local') {
+        const localIdx = Number.isFinite(iter) ? Math.max(0, iter - globalIters + 1) : 0;
+        const iterRecords = (records || []).filter((r) => Number(r.iteration) === iter && String(r.phase || '') === 'local');
+        const baseDone = iterRecords.some((r) => String(r.candidate || '') === 'base');
+        const perturbDone = iterRecords.filter((r) => String(r.candidate || '') !== 'base').length;
+        const sameIterRunning = running.filter((w) => Number(w.current_iteration) === iter && String(w.phase || '') === 'local');
+        const runningBase = sameIterRunning.some((w) => String(w.candidate || '') === 'base');
+        const runningPerturb = sameIterRunning.filter((w) => String(w.candidate || '') !== 'base').length;
+        if (!baseDone || runningBase) {
+          return {
+            value: `l ${localIdx}/${Math.max(localIters, localIdx)}`,
+            sub: `base ${runningBase ? 'running' : 'pending'}`,
+          };
+        }
+        const doneNow = perturbTotal > 0 ? Math.min(perturbTotal, perturbDone + runningPerturb) : perturbDone + runningPerturb;
+        return {
+          value: `l ${localIdx}/${Math.max(localIters, localIdx)}`,
+          sub: `perturb ${doneNow}/${perturbTotal || '?'}`
+        };
+      }
+      return { value: phase || 'idle', sub: current.candidate || '-' };
+    }
+
+    function drawFitness(records) {
+      const w = fitCanvas.getBoundingClientRect().width;
+      const h = fitCanvas.getBoundingClientRect().height;
+      fitCtx.clearRect(0, 0, w, h);
+      state.fitView.box = null;
+      state.fitView.points = [];
+
+      if (!records.length) {
+        drawMessage(fitCtx, 20, 30, 'No fitness data yet', '');
+        meta.textContent = 'waiting for fitness data...';
+        fitCaption.textContent = 'iter summary waiting...';
+        return;
+      }
+
+      const pts = records
+        .map((r) => ({
+          evalIndex: Number(r.eval_index),
+          iteration: Number(r.iteration),
+          fitness: Number(r.fitness),
+          phase: r.phase || 'n/a',
+          candidate: r.candidate || '-',
+          failed: !!r.failed,
+        }))
+        .filter((r) => Number.isFinite(r.evalIndex) && Number.isFinite(r.fitness))
+        .sort((a, b) => a.evalIndex - b.evalIndex);
+
+      if (!pts.length) {
+        drawMessage(fitCtx, 20, 30, 'No valid fitness points', '');
+        return;
+      }
+
+      const minX = pts[0].evalIndex;
+      const maxX = pts[pts.length - 1].evalIndex || (minX + 1);
+      const ys = pts.map((p) => p.fitness);
+      const minPositive = Math.min(...ys.filter((v) => Number.isFinite(v) && v > 0));
+      const logFloor = Number.isFinite(minPositive) ? Math.max(1e-6, minPositive * 0.5) : 1e-6;
+      const fitToPlot = (v) => Math.log10(Math.max(logFloor, Number(v)));
+      const yPlotVals = ys.map(fitToPlot);
+      const yPad = padRange(Math.min(...yPlotVals), Math.max(...yPlotVals), 0.12, 1e-4);
+      const xPad = padRange(minX, maxX, 0.02, 1.0);
+      state.fitView.base = {
+        xMin: xPad.min,
+        xMax: xPad.max,
+        yMin: yPad.min,
+        yMax: yPad.max,
+      };
+      state.fitView.range = resolveZoom(state.fitView.base, state.fitView.zoom);
+      const range = state.fitView.range;
+      const ySpan = Math.max(1e-9, range.yMax - range.yMin);
+
+      const left = 62, right = 20, top = 16, bottom = 50;
+      const pw = w - left - right;
+      const ph = h - top - bottom;
+      const box = { x: left, y: top, w: pw, h: ph };
+      state.fitView.box = box;
+
+      const tickLo = Math.floor(range.yMin);
+      const tickHi = Math.ceil(range.yMax);
+      const yTicks = [];
+      for (let p = tickLo; p <= tickHi; p += 1) yTicks.push(p);
+
+      drawGrid(fitCtx, box, 6, 5);
+      drawAxisTicks(fitCtx, box, range.xMin, range.xMax, range.yMin, range.yMax, 'eval', 'fitness(log)', {
+        yTicks,
+        yFormatter: (yv) => fmtAxis(Math.pow(10, yv)),
+      });
+
+      function pxX(evalIndex) {
+        if (Math.abs(range.xMax - range.xMin) < 1e-12) return left + pw / 2;
+        return left + ((evalIndex - range.xMin) * pw / (range.xMax - range.xMin));
+      }
+      function pxY(f) {
+        return top + ((range.yMax - fitToPlot(f)) * ph / ySpan);
+      }
+
+      let best = Number.POSITIVE_INFINITY;
+      const bestLine = pts.map((p) => {
+        best = Math.min(best, p.fitness);
+        return { sx: pxX(p.evalIndex), sy: pxY(best) };
+      });
+
+      fitCtx.save();
+      fitCtx.beginPath();
+      fitCtx.rect(box.x, box.y, box.w, box.h);
+      fitCtx.clip();
+      drawPolyline(fitCtx, bestLine, '#06d6a0');
+
+      fitCtx.fillStyle = '#ef476f';
+      fitCtx.font = '10px monospace';
+      const annStep = Math.max(1, Math.ceil(pts.length / 18));
+      const screenPoints = [];
+      pts.forEach((p, idx) => {
+        const sx = pxX(p.evalIndex);
+        const sy = pxY(p.fitness);
+        if (sx < box.x - 8 || sx > box.x + box.w + 8 || sy < box.y - 8 || sy > box.y + box.h + 8) {
+          return;
+        }
+        fitCtx.beginPath();
+        fitCtx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+        fitCtx.fill();
+        if (idx % annStep === 0 || idx === pts.length - 1) {
+          fitCtx.fillText(`e${p.evalIndex}`, sx + 4, sy - 5);
+        }
+        screenPoints.push({ sx, sy, ...p });
+      });
+      fitCtx.restore();
+      state.fitView.points = screenPoints;
+
+      const bestSoFar = Math.min(...pts.map((p) => p.fitness));
+      const poolTxt = state.poolStatus
+        ? ` | eval=${state.poolStatus.completed_evals}/${state.poolStatus.total_expected_evals}`
+        : '';
+      meta.textContent = `evals=${pts.length} best_so_far=${bestSoFar.toFixed(6)}${poolTxt}`;
+      fitCaption.textContent = pts.slice(-10).map((p) => `e${p.evalIndex}/i${p.iteration}:${p.fitness.toFixed(4)}`).join(' | ');
+    }
+
+    function drawPolyline(ctx, points, color, width = 2) {
+      if (!points || points.length < 2) return;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(points[0].sx, points[0].sy);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].sx, points[i].sy);
+      }
+      ctx.stroke();
+    }
+
+    function drawGrid(ctx, box, nx = 4, ny = 4) {
+      ctx.strokeStyle = '#d0c8ba';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= ny; i++) {
+        const y = box.y + box.h * i / ny;
+        ctx.beginPath();
+        ctx.moveTo(box.x, y);
+        ctx.lineTo(box.x + box.w, y);
+        ctx.stroke();
+      }
+      for (let i = 0; i <= nx; i++) {
+        const x = box.x + box.w * i / nx;
+        ctx.beginPath();
+        ctx.moveTo(x, box.y);
+        ctx.lineTo(x, box.y + box.h);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#c4b79d';
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+    }
+
+    function drawBigMetric(ctx, x, y, label, value, color) {
+      const text = `${label}: ${value}`;
+      ctx.save();
+      ctx.font = 'bold 16px "Space Mono", monospace';
+      const tw = ctx.measureText(text).width;
+      const padX = 8;
+      const padY = 6;
+      ctx.fillStyle = 'rgba(255, 247, 232, 0.86)';
+      ctx.fillRect(x, y - 18, tw + padX * 2, 24);
+      ctx.strokeStyle = '#cbbd9f';
+      ctx.strokeRect(x, y - 18, tw + padX * 2, 24);
+      ctx.fillStyle = color;
+      ctx.fillText(text, x + padX, y);
+      ctx.restore();
+    }
+
+    function pctImprove(startValue, currentValue) {
+      const start = Number(startValue);
+      const current = Number(currentValue);
+      if (!Number.isFinite(start) || !Number.isFinite(current) || Math.abs(start) < 1e-12) return null;
+      return 100.0 * (start - current) / start;
+    }
+
+    function fmtPct(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 'n/a';
+      const sign = n > 0 ? '+' : '';
+      return `${sign}${n.toFixed(1)}%`;
+    }
+
+    function drawTraceQuad(ctx, canvas, trace, view, title, extraMetrics = []) {
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      ctx.clearRect(0, 0, w, h);
+      view.plots = {};
+
+      const d = computeDerived(trace);
+      if (d.n <= 0) {
+        view.isoBox = null;
+        const detail = trace?.message || 'trace unavailable';
+        drawMessage(ctx, 20, 30, `${title}: trace unavailable`, detail);
+        return;
+      }
+
+      const left = 14, right = 14, top = 18, bottom = 20;
+      const outerW = w - left - right;
+      const outerH = h - top - bottom;
+      const gap = 8;
+      const panelW = (outerW - 3 * gap) / 4;
+
+      const xy = { x: left, y: top, w: panelW, h: outerH };
+      const zt = { x: left + (panelW + gap), y: top, w: panelW, h: outerH };
+      const et = { x: left + 2 * (panelW + gap), y: top, w: panelW, h: outerH };
+      const iso = { x: left + 3 * (panelW + gap), y: top, w: panelW, h: outerH };
+      view.isoBox = iso;
+
+      drawGrid(ctx, xy, 4, 4);
+      drawGrid(ctx, zt, 6, 4);
+      drawGrid(ctx, et, 6, 4);
+      drawGrid(ctx, iso, 4, 4);
+
+      const allX = d.rx.concat(d.ax);
+      const allY = d.ry.concat(d.ay);
+      const allZ = d.rz.concat(d.az);
+      const minX = Math.min(...allX), maxX = Math.max(...allX);
+      const minY = Math.min(...allY), maxY = Math.max(...allY);
+      const minZ = Math.min(...allZ), maxZ = Math.max(...allZ);
+
+      const cx = 0.5 * (minX + maxX);
+      const cy = 0.5 * (minY + maxY);
+      const cz = 0.5 * (minZ + maxZ);
+      const globalSpan = Math.max(0.5, maxX - minX, maxY - minY, maxZ - minZ);
+
+      const xyBase = {
+        xMin: cx - globalSpan / 2,
+        xMax: cx + globalSpan / 2,
+        yMin: cy - globalSpan / 2,
+        yMax: cy + globalSpan / 2,
+      };
+      const tBase = padRange(d.t[0], d.t[d.t.length - 1] > d.t[0] ? d.t[d.t.length - 1] : d.t[0] + 1e-6, 0.02, 0.05);
+      const zBase = {
+        xMin: tBase.min,
+        xMax: tBase.max,
+        yMin: cz - globalSpan / 2,
+        yMax: cz + globalSpan / 2,
+      };
+      const pPad = padRange(0, Math.max(1e-6, ...d.power), 0.10, 0.05);
+      const eBase = {
+        xMin: tBase.min,
+        xMax: tBase.max,
+        yMin: Math.max(0, pPad.min),
+        yMax: pPad.max,
+      };
+      const xyRange = resolveZoom(xyBase, view.zoom.xy);
+      const ztRange = resolveZoom(zBase, view.zoom.zt);
+      const etRange = resolveZoom(eBase, view.zoom.et);
+
+      function mapXY(x, y) {
+        return {
+          sx: xy.x + ((x - xyRange.xMin) / Math.max(1e-9, xyRange.xMax - xyRange.xMin)) * xy.w,
+          sy: xy.y + ((xyRange.yMax - y) / Math.max(1e-9, xyRange.yMax - xyRange.yMin)) * xy.h,
+        };
+      }
+
+      function mapZT(t, z) {
+        return {
+          sx: zt.x + ((t - ztRange.xMin) / Math.max(1e-9, ztRange.xMax - ztRange.xMin)) * zt.w,
+          sy: zt.y + ((ztRange.yMax - z) / Math.max(1e-9, ztRange.yMax - ztRange.yMin)) * zt.h,
+        };
+      }
+
+      function mapET(t, p) {
+        return {
+          sx: et.x + ((t - etRange.xMin) / Math.max(1e-9, etRange.xMax - etRange.xMin)) * et.w,
+          sy: et.y + ((etRange.yMax - p) / Math.max(1e-9, etRange.yMax - etRange.yMin)) * et.h,
+        };
+      }
+
+      function mapISO3D(x, y, z) {
+        const ux = x - cx;
+        const uy = y - cy;
+        const uz = z - cz;
+        const cyaw = Math.cos(view.yaw);
+        const syaw = Math.sin(view.yaw);
+        const cp = Math.cos(view.pitch);
+        const sp = Math.sin(view.pitch);
+
+        const x1 = cyaw * ux - syaw * uy;
+        const y1 = syaw * ux + cyaw * uy;
+        const z1 = uz;
+
+        const x2 = x1;
+        const y2 = cp * y1 - sp * z1;
+        const z2 = sp * y1 + cp * z1;
+
+        const camera = 2.6 * globalSpan;
+        const depth = Math.max(0.2, camera + z2 + 0.9 * globalSpan);
+        const persp = camera / depth;
+        return {
+          sx: iso.x + iso.w * 0.5 + (x2 / globalSpan) * iso.w * 0.44 * persp,
+          sy: iso.y + iso.h * 0.5 - (y2 / globalSpan) * iso.h * 0.44 * persp,
+        };
+      }
+
+      const refXY = d.rx.map((x, i) => mapXY(x, d.ry[i]));
+      const actXY = d.ax.map((x, i) => mapXY(x, d.ay[i]));
+      const refZT = d.t.map((tt, i) => mapZT(tt, d.rz[i]));
+      const actZT = d.t.map((tt, i) => mapZT(tt, d.az[i]));
+      const enET = d.t.map((tt, i) => mapET(tt, d.power[i]));
+      const refISO = d.rx.map((x, i) => mapISO3D(x, d.ry[i], d.rz[i]));
+      const actISO = d.ax.map((x, i) => mapISO3D(x, d.ay[i], d.az[i]));
+
+      drawAxisTicks(ctx, xy, xyRange.xMin, xyRange.xMax, xyRange.yMin, xyRange.yMax, 'x', 'y');
+      drawAxisTicks(ctx, zt, ztRange.xMin, ztRange.xMax, ztRange.yMin, ztRange.yMax, 't', 'z');
+      drawAxisTicks(ctx, et, etRange.xMin, etRange.xMax, etRange.yMin, etRange.yMax, 't', 'P');
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(xy.x, xy.y, xy.w, xy.h);
+      ctx.clip();
+      drawPolyline(ctx, refXY, '#1d4ed8');
+      drawPolyline(ctx, actXY, '#d97706');
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(zt.x, zt.y, zt.w, zt.h);
+      ctx.clip();
+      drawPolyline(ctx, refZT, '#1d4ed8');
+      drawPolyline(ctx, actZT, '#d97706');
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(et.x, et.y, et.w, et.h);
+      ctx.clip();
+      drawPolyline(ctx, enET, '#0f766e');
+      ctx.restore();
+
+      const axis = 0.45 * globalSpan;
+      const o = mapISO3D(cx, cy, cz);
+      const axx = mapISO3D(cx + axis, cy, cz);
+      const ayy = mapISO3D(cx, cy + axis, cz);
+      const azz = mapISO3D(cx, cy, cz + axis);
+      drawPolyline(ctx, [o, axx], '#b91c1c', 1.6);
+      drawPolyline(ctx, [o, ayy], '#166534', 1.6);
+      drawPolyline(ctx, [o, azz], '#1e40af', 1.6);
+      drawPolyline(ctx, refISO, '#1d4ed8');
+      drawPolyline(ctx, actISO, '#d97706');
+
+      function dot(p, c) {
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, 3.0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      dot(refXY[0], '#1d4ed8');
+      dot(refXY[refXY.length - 1], '#1d4ed8');
+      dot(actXY[0], '#d97706');
+      dot(actXY[actXY.length - 1], '#d97706');
+      dot(refZT[0], '#1d4ed8');
+      dot(refZT[refZT.length - 1], '#1d4ed8');
+      dot(actZT[0], '#d97706');
+      dot(actZT[actZT.length - 1], '#d97706');
+      dot(enET[0], '#0f766e');
+      dot(enET[enET.length - 1], '#0f766e');
+      dot(refISO[0], '#1d4ed8');
+      dot(refISO[refISO.length - 1], '#1d4ed8');
+      dot(actISO[0], '#d97706');
+      dot(actISO[actISO.length - 1], '#d97706');
+
+      ctx.fillStyle = '#14213d';
+      ctx.font = '12px monospace';
+      ctx.fillText('XY top-view', xy.x + 6, xy.y + 14);
+      ctx.fillText('Z(t)', zt.x + 6, zt.y + 14);
+      ctx.fillText('Energy(t)', et.x + 6, et.y + 14);
+      ctx.fillText('3D view (drag)', iso.x + 6, iso.y + 14);
+
+      const metricRows = [
+        { label: '∫P dt', value: fmt(d.energyArea, 3), color: '#0f766e' },
+        { label: '∫|e| dt', value: fmt(d.errArea, 3), color: '#7c2d12' },
+        ...extraMetrics,
+      ];
+      metricRows.forEach((metric, idx) => {
+        drawBigMetric(ctx, et.x + 8, et.y + 32 + idx * 30, metric.label, metric.value, metric.color);
+      });
+
+      ctx.fillStyle = '#7c2d12';
+      ctx.font = '11px monospace';
+      ctx.fillText('P=v² proxy', et.x + 8, et.y + et.h - 8);
+
+      view.plots = {
+        xy: {
+          box: xy,
+          series: [
+            {
+              name: 'ref',
+              kind: 'xy',
+              color: '#1d4ed8',
+              points: d.rx.map((x, i) => ({ sx: refXY[i].sx, sy: refXY[i].sy, idx: i, t: d.t[i], x, y: d.ry[i], z: d.rz[i] })),
+            },
+            {
+              name: 'act',
+              kind: 'xy',
+              color: '#d97706',
+              points: d.ax.map((x, i) => ({ sx: actXY[i].sx, sy: actXY[i].sy, idx: i, t: d.t[i], x, y: d.ay[i], z: d.az[i] })),
+            },
+          ],
+          base: xyBase,
+          range: xyRange,
+        },
+        zt: {
+          box: zt,
+          series: [
+            {
+              name: 'ref',
+              kind: 'zt',
+              color: '#1d4ed8',
+              points: d.t.map((tt, i) => ({ sx: refZT[i].sx, sy: refZT[i].sy, idx: i, t: tt, z: d.rz[i] })),
+            },
+            {
+              name: 'act',
+              kind: 'zt',
+              color: '#d97706',
+              points: d.t.map((tt, i) => ({ sx: actZT[i].sx, sy: actZT[i].sy, idx: i, t: tt, z: d.az[i] })),
+            },
+          ],
+          base: zBase,
+          range: ztRange,
+        },
+        et: {
+          box: et,
+          series: [
+            {
+              name: 'energy',
+              kind: 'et',
+              color: '#0f766e',
+              points: d.t.map((tt, i) => ({ sx: enET[i].sx, sy: enET[i].sy, idx: i, t: tt, power: d.power[i], speed: d.speed[i], err: d.err[i] })),
+            },
+          ],
+          base: eBase,
+          range: etRange,
+        },
+      };
+    }
+
+    function canvasPoint(canvas, evt) {
+      const r = canvas.getBoundingClientRect();
+      return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+    }
+
+    function inBox(pt, box) {
+      if (!box) return false;
+      return pt.x >= box.x && pt.x <= box.x + box.w && pt.y >= box.y && pt.y <= box.y + box.h;
+    }
+
+    function attachDrag(canvas, view, redraw) {
+      canvas.addEventListener('pointerdown', (evt) => {
+        const pt = canvasPoint(canvas, evt);
+        if (!inBox(pt, view.isoBox)) return;
+        view.dragging = true;
+        view.pointerId = evt.pointerId;
+        view.lastX = pt.x;
+        view.lastY = pt.y;
+        canvas.setPointerCapture(evt.pointerId);
+        evt.preventDefault();
+      });
+
+      canvas.addEventListener('pointermove', (evt) => {
+        const pt = canvasPoint(canvas, evt);
+        if (view.dragging && evt.pointerId === view.pointerId) {
+          const dx = pt.x - view.lastX;
+          const dy = pt.y - view.lastY;
+          view.lastX = pt.x;
+          view.lastY = pt.y;
+          view.yaw += dx * 0.012;
+          view.pitch += dy * 0.012;
+          view.pitch = Math.max(-1.35, Math.min(1.35, view.pitch));
+          redraw();
+          return;
+        }
+
+        const plotEntry = Object.entries(view.plots || {}).find(([, plot]) => inBox(pt, plot.box));
+        if (!plotEntry) {
+          hideTooltip();
+          return;
+        }
+        const [plotName, plot] = plotEntry;
+        const nearest = findNearestScreenPoint(plot.series, pt);
+        if (!nearest) {
+          hideTooltip();
+          return;
+        }
+        const p = nearest.point;
+        if (plotName === 'xy') {
+          showTooltip(evt, [
+            `${nearest.series} XY`,
+            `t=${fmtAxis(p.t)} s`,
+            `x=${fmtAxis(p.x)}`,
+            `y=${fmtAxis(p.y)}`,
+            `z=${fmtAxis(p.z)}`,
+          ]);
+          return;
+        }
+        if (plotName === 'zt') {
+          showTooltip(evt, [
+            `${nearest.series} Z(t)`,
+            `t=${fmtAxis(p.t)} s`,
+            `z=${fmtAxis(p.z)}`,
+          ]);
+          return;
+        }
+        if (plotName === 'et') {
+          showTooltip(evt, [
+            `Energy(t)`,
+            `t=${fmtAxis(p.t)} s`,
+            `P=${fmtAxis(p.power)}`,
+            `|e|=${fmtAxis(p.err)}`,
+            `|v|=${fmtAxis(p.speed)}`,
+          ]);
+        }
+      });
+
+      function stopDrag(evt) {
+        if (!view.dragging) return;
+        if (evt.pointerId !== undefined && evt.pointerId !== view.pointerId) return;
+        view.dragging = false;
+        view.pointerId = null;
+      }
+
+      canvas.addEventListener('pointerup', stopDrag);
+      canvas.addEventListener('pointercancel', stopDrag);
+      canvas.addEventListener('mouseleave', hideTooltip);
+      canvas.addEventListener('wheel', (evt) => {
+        const pt = canvasPoint(canvas, evt);
+        const plotEntry = Object.entries(view.plots || {}).find(([, plot]) => inBox(pt, plot.box));
+        if (!plotEntry) return;
+        const [plotName, plot] = plotEntry;
+        if (!plot?.base || plotName === 'iso') return;
+        const factor = evt.deltaY < 0 ? 0.86 : 1.16;
+        const xRatio = clamp((pt.x - plot.box.x) / Math.max(1, plot.box.w), 0, 1);
+        const yRatio = clamp(1 - ((pt.y - plot.box.y) / Math.max(1, plot.box.h)), 0, 1);
+        const zoomKey = plotName;
+        const current = view.zoom[zoomKey] || plot.range || plot.base;
+        view.zoom[zoomKey] = {
+          xMin: applyZoomRange(current.xMin, current.xMax, plot.base.xMin, plot.base.xMax, xRatio, factor).min,
+          xMax: applyZoomRange(current.xMin, current.xMax, plot.base.xMin, plot.base.xMax, xRatio, factor).max,
+          yMin: applyZoomRange(current.yMin, current.yMax, plot.base.yMin, plot.base.yMax, yRatio, factor).min,
+          yMax: applyZoomRange(current.yMin, current.yMax, plot.base.yMin, plot.base.yMax, yRatio, factor).max,
+        };
+        redraw();
+        evt.preventDefault();
+      }, { passive: false });
+      canvas.addEventListener('dblclick', (evt) => {
+        const pt = canvasPoint(canvas, evt);
+        if (inBox(pt, view.isoBox)) {
+          view.yaw = 0.78;
+          view.pitch = -0.55;
+          redraw();
+          return;
+        }
+        const plotEntry = Object.entries(view.plots || {}).find(([, plot]) => inBox(pt, plot.box));
+        if (!plotEntry) return;
+        view.zoom[plotEntry[0]] = null;
+        redraw();
+      });
+    }
+
+    function attachFitInteractions() {
+      fitCanvas.addEventListener('mousemove', (evt) => {
+        if (!state.fitView.box || !inBox(canvasPoint(fitCanvas, evt), state.fitView.box)) {
+          hideTooltip();
+          return;
+        }
+        const pt = canvasPoint(fitCanvas, evt);
+        const nearest = findNearestScreenPoint([
+          { name: 'fitness', kind: 'fitness', color: '#ef476f', points: state.fitView.points },
+        ], pt);
+        if (!nearest) {
+          hideTooltip();
+          return;
+        }
+        const p = nearest.point;
+        showTooltip(evt, [
+          `fitness`,
+          `eval=${p.evalIndex}`,
+          `iter=${p.iteration}`,
+          `value=${fmtAxis(p.fitness)}`,
+          `phase=${p.phase}`,
+          `candidate=${p.candidate}`,
+        ]);
+      });
+      fitCanvas.addEventListener('mouseleave', hideTooltip);
+      fitCanvas.addEventListener('wheel', (evt) => {
+        if (!state.fitView.box || !state.fitView.base || !state.fitView.range) return;
+        const pt = canvasPoint(fitCanvas, evt);
+        if (!inBox(pt, state.fitView.box)) return;
+        const factor = evt.deltaY < 0 ? 0.86 : 1.16;
+        const xRatio = clamp((pt.x - state.fitView.box.x) / Math.max(1, state.fitView.box.w), 0, 1);
+        const yRatio = clamp(1 - ((pt.y - state.fitView.box.y) / Math.max(1, state.fitView.box.h)), 0, 1);
+        const cur = state.fitView.range;
+        const nextX = applyZoomRange(cur.xMin, cur.xMax, state.fitView.base.xMin, state.fitView.base.xMax, xRatio, factor);
+        const nextY = applyZoomRange(cur.yMin, cur.yMax, state.fitView.base.yMin, state.fitView.base.yMax, yRatio, factor);
+        state.fitView.zoom = {
+          xMin: nextX.min,
+          xMax: nextX.max,
+          yMin: nextY.min,
+          yMax: nextY.max,
+        };
+        drawFitness(visibleRecords(state.records));
+        evt.preventDefault();
+      }, { passive: false });
+      fitCanvas.addEventListener('dblclick', () => {
+        state.fitView.zoom = null;
+        drawFitness(visibleRecords(state.records));
+      });
+      fitCanvas.addEventListener('click', async (evt) => {
+        if (!state.fitView.box || !inBox(canvasPoint(fitCanvas, evt), state.fitView.box)) return;
+        const pt = canvasPoint(fitCanvas, evt);
+        const nearest = findNearestScreenPoint([
+          { name: 'fitness', kind: 'fitness', color: '#ef476f', points: state.fitView.points },
+        ], pt);
+        if (!nearest || !nearest.point) return;
+        const visible = visibleRecords(state.records);
+        const idx = visible.findIndex((row) => Number(row.eval_index) === Number(nearest.point.evalIndex));
+        if (idx < 0) return;
+        state.selectionMode = 'selected';
+        state.selectedEvalCursor = idx;
+        await updateSnapshotPanels();
+      });
+    }
+
+
+    function currentFailPenalty() {
+      return Number(state.runConfig?.fail_penalty ?? 1000000);
+    }
+
+    function visibleRecords(records) {
+      const failPenalty = currentFailPenalty();
+      return (records || [])
+        .filter((r) => Number.isFinite(Number(r.eval_index)) && Number.isFinite(Number(r.fitness)))
+        .filter((r) => !r.failed)
+        .filter((r) => Number(r.fitness) < failPenalty);
+    }
+
+    function paramsMapFromSource(source) {
+      if (!source) return null;
+      if (source.full_params) return source.full_params;
+      if (source.params) return { ...state.currentFixedParams, ...source.params };
+      return source;
+    }
+
+    function formatParams(source) {
+      const p = paramsMapFromSource(source);
+      if (!p) return 'waiting...';
+      const configured = state.runConfig?.param_names || state.currentParamNames || FALLBACK_PARAM_NAMES;
+      const keys = configured.length ? [...configured] : Object.keys(p).sort();
+      const extra = Object.keys(p).filter((k) => !keys.includes(k)).sort();
+      return [...keys, ...extra]
+        .filter((k) => Object.prototype.hasOwnProperty.call(p, k))
+        .map((k) => `${k}=${Number(p[k]).toFixed(2)}`)
+        .join('\n');
+    }
+
+    function setParamsText(el, source) {
+      el.textContent = formatParams(source);
+    }
+
+    function findStartRecord(records) {
+      const seed = (records || []).filter((r) => r.phase === 'seed' && !r.failed && Number.isFinite(Number(r.eval_index)));
+      if (seed.length) {
+        seed.sort((a, b) => Number(a.eval_index) - Number(b.eval_index));
+        return seed[0];
+      }
+      const good = visibleRecords(records);
+      return good.length ? good[0] : null;
+    }
+
+    function findBestRecord(records) {
+      const good = visibleRecords(records);
+      if (!good.length) return null;
+      good.sort((a, b) => {
+        const df = Number(a.fitness) - Number(b.fitness);
+        if (Math.abs(df) > 1e-12) return df;
+        return Number(a.eval_index) - Number(b.eval_index);
+      });
+      return good[0];
+    }
+
+    function findLatestRecord(records) {
+      const good = visibleRecords(records);
+      return good.length ? good[good.length - 1] : null;
+    }
+
+    async function fetchTraceForEval(taskId, evalIndex) {
+      if (evalIndex === null || evalIndex === undefined) return null;
+      const caseInfo = caseByTaskId(taskId);
+      const resultsDir = caseInfo?.results_dir || '';
+      const key = `${resultsDir || taskId || 'legacy'}:${String(evalIndex)}`;
+      if (state.traceCache.has(key)) return state.traceCache.get(key);
+      const url = apiUrl('api/trace_from_eval', {
+        task_id: taskId || '',
+        results_dir: resultsDir,
+        eval_index: evalIndex,
+      });
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const obj = await res.json();
+      state.traceCache.set(key, obj);
+      return obj;
+    }
+
+    async function fetchLiveTrace(taskId) {
+      const caseInfo = caseByTaskId(taskId);
+      const resultsDir = caseInfo?.results_dir || '';
+      const url = apiUrl('api/live_trace', {
+        task_id: taskId || '',
+        results_dir: resultsDir,
+        worker_id: 0,
+      });
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    async function fetchReplayTrace() {
+      const res = await fetch(apiUrl('api/replay_trace'));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    function optimizerRank(name) {
+      const key = String(name || 'bayes').toLowerCase();
+      return ({ bayes: 0, random: 1, anneal: 2 })[key] ?? 99;
+    }
+
+    function taskById(taskId) {
+      return (state.dashboardState?.active_plan?.tasks || []).find((task) => String(task.task_id || '') === String(taskId || '')) || null;
+    }
+
+    function caseByTaskId(taskId) {
+      const candidates = (state.reportCases || []).filter((c) => String(c.task_id || '') === String(taskId || ''));
+      if (!candidates.length) return null;
+      return candidates.find((c) => String(c.results_root || '') === String(state.selectedResultsRoot || '')) || candidates[0];
+    }
+
+    function visibleReportCases() {
+      return state.reportScope === 'active' ? state.reportCasesActive : state.reportCasesCombined;
+    }
+
+    function caseGroupId(item) {
+      if (!item) return '';
+      return String(item.task_group_id || `${String(item.controller || '').toLowerCase()}_traj${item.traj_id}`);
+    }
+
+    function caseOptimizer(item) {
+      return String(item?.optimizer || 'bayes').toLowerCase();
+    }
+
+    function groupLabel(item) {
+      if (!item) return 'n/a';
+      return `${String(item.controller || '').toUpperCase()} / Traj ${item.traj_id}`;
+    }
+
+    function taskForGroupAndOptimizer(groupId, optimizer) {
+      const tasks = state.dashboardState?.active_plan?.tasks || [];
+      return tasks.find((task) => caseGroupId(task) === String(groupId || '') && caseOptimizer(task) === String(optimizer || 'bayes')) || null;
+    }
+
+    function caseForGroupAndOptimizer(groupId, optimizer) {
+      return (state.reportCases || []).find((item) => caseGroupId(item) === String(groupId || '') && caseOptimizer(item) === String(optimizer || 'bayes')) || null;
+    }
+
+    function availableAlgorithmsForGroup(groupId) {
+      const combined = [];
+      for (const task of (state.dashboardState?.active_plan?.tasks || [])) {
+        if (caseGroupId(task) === String(groupId || '')) combined.push(task);
+      }
+      for (const item of (state.reportCases || [])) {
+        if (caseGroupId(item) === String(groupId || '')) combined.push(item);
+      }
+      const uniq = new Map();
+      for (const item of combined) {
+        const key = caseOptimizer(item);
+        if (!uniq.has(key)) uniq.set(key, item);
+      }
+      return Array.from(uniq.values()).sort((a, b) => optimizerRank(caseOptimizer(a)) - optimizerRank(caseOptimizer(b)));
+    }
+
+    function taskLabel(task) {
+      if (!task) return 'n/a';
+      return task.label || `${String(task.controller || '').toUpperCase()} / Traj ${task.traj_id}`;
+    }
+
+    function shortTaskLabel(task) {
+      if (!task) return 'n/a';
+      const controller = String(task.controller || 'n/a').toUpperCase();
+      const traj = `traj ${task.traj_id ?? 'n/a'}`;
+      const opt = String(task.optimizer_short_label || task.optimizer || 'bayes');
+      return `${controller} · ${traj} · ${opt}`;
+    }
+
+    function formatReplayInfo(replay, trace) {
+      const lines = [];
+      const status = replay?.status || 'idle';
+      lines.push(`status=${status}`);
+      lines.push(`controller=${replay?.controller || 'n/a'}`);
+      lines.push(`traj_id=${replay?.traj_id ?? 'n/a'}`);
+      lines.push(`display=${replay?.display_mode || (replay?.headless ? 'headless' : 'gui')}`);
+      if (trace?.source) lines.push(`trace_source=${trace.source}`);
+      if (replay?.capacity_note) lines.push(`capacity=${replay.capacity_note}`);
+      if (replay?.error) lines.push(`error=${replay.error}`);
+      const result = replay?.result || {};
+      if (Number.isFinite(Number(result.fitness))) lines.push(`fitness=${fmt(result.fitness, 6)}`);
+      if (Number.isFinite(Number(result.track_rmse))) lines.push(`track_rmse=${fmt(result.track_rmse, 6)}`);
+      if (Number.isFinite(Number(result.energy_term))) lines.push(`energy=${fmt(result.energy_term, 6)}`);
+      if (trace?.ok !== false) {
+        const d = computeDerived(trace);
+        if (d.n > 0) {
+          lines.push(`trace_samples=${d.n}`);
+          lines.push(`err_area=${fmt(d.errArea, 3)}`);
+          lines.push(`energy_area=${fmt(d.energyArea, 3)}`);
+        }
+      } else if (trace?.message) {
+        lines.push(`trace=${trace.message}`);
+      }
+      return lines.join('\n');
+    }
+
+    function renderQueue(plan) {
+      if (!plan || !Array.isArray(plan.tasks) || !plan.tasks.length) {
+        queueCards.innerHTML = `<div class="queue_card"><div class="queue_title">Plan not loaded</div><div class="queue_body">Dashboard will stay empty until a YAML plan is started.</div></div>`;
+        planMeta.textContent = 'No active plan';
+        reportMeta.textContent = 'waiting for active queue...';
+        return;
+      }
+      const counts = plan.counts || {};
+      const currentTask = (plan.tasks || []).find((task) => String(task.task_id) === String(plan.current_task_id || '')) || null;
+      const nextTask = (plan.tasks || []).find((task) => String(task.status || '') === 'pending') || null;
+      planMeta.textContent = `Running now: ${shortTaskLabel(currentTask)} | done=${counts.ok || 0}/${plan.tasks.length} | pending=${counts.pending || 0} | failed=${counts.failed || 0}`;
+      reportMeta.textContent = `Next up: ${shortTaskLabel(nextTask)} | plan=${plan.name || 'n/a'}`;
+      queueCards.innerHTML = plan.tasks.map((task) => {
+        const status = String(task.status || 'pending');
+        const reportCase = caseByTaskId(task.task_id);
+        const bestText = Number.isFinite(Number(task.best_cost)) ? fmt(task.best_cost, 4) : 'n/a';
+        let deltaHtml = '';
+        if (reportCase && status === 'ok') {
+          const errPct = Number(reportCase.error_area_gain_pct);
+          const engPct = Number(reportCase.energy_area_gain_pct);
+          const cls = (Number.isFinite(errPct) && errPct >= 0 && Number.isFinite(engPct) && engPct >= 0)
+            ? 'good'
+            : ((Number.isFinite(errPct) && errPct < 0) || (Number.isFinite(engPct) && engPct < 0) ? 'bad' : '');
+          deltaHtml = `<div class="queue_delta ${cls}">err: ${fmt(reportCase.start_error_area, 3)} -> ${fmt(reportCase.best_error_area, 3)} (${fmtPct(reportCase.error_area_gain_pct)})
+eng: ${fmt(reportCase.start_energy_area, 3)} -> ${fmt(reportCase.best_energy_area, 3)} (${fmtPct(reportCase.energy_area_gain_pct)})</div>`;
+        }
+        return `
+          <div class="queue_card ${status}">
+            <div class="queue_title">${taskLabel(task)}</div>
+            <div class="queue_body">status: ${status}
+search: ${task.global_iters} global + ${task.local_iters} local
+budget: ${task.total_expected_evals ?? 'n/a'} evals | dim=${task.param_dim ?? 'n/a'}
+best: ${bestText}
+mission: traj=${fmt(task.trajectory_duration_s, 1)}s | timeout=${fmt(task.trajectory_timeout, 1)}s
+${task.status_detail || ''}</div>
+            ${deltaHtml}
+          </div>`;
+      }).join('');
+    }
+
+    function syncTaskSelect(plan, currentTaskId) {
+      const tasks = plan?.tasks || [];
+      const selectedTask = currentTaskId ? (tasks.find((task) => String(task.task_id) === String(currentTaskId)) || caseByTaskId(currentTaskId)) : null;
+      const preferredFromGroup = state.selectedTaskGroupId
+        ? (
+          taskForGroupAndOptimizer(state.selectedTaskGroupId, state.selectedOptimizer)
+          || caseForGroupAndOptimizer(state.selectedTaskGroupId, state.selectedOptimizer)
+        )
+        : null;
+      const defaultTask = preferredFromGroup || selectedTask || (plan?.current_task_id ? (tasks.find((task) => String(task.task_id) === String(plan.current_task_id)) || caseByTaskId(plan.current_task_id)) : null) || tasks[0] || state.reportCases?.[0] || null;
+      const groupMap = new Map();
+      for (const item of [...tasks, ...(state.reportCases || [])]) {
+        const gid = caseGroupId(item);
+        if (!gid || groupMap.has(gid)) continue;
+        groupMap.set(gid, item);
+      }
+      const groups = Array.from(groupMap.entries()).map(([groupId, item]) => ({ groupId, item }));
+      state.selectedTaskGroupId = caseGroupId(defaultTask) || (groups[0]?.groupId || null);
+      taskSelect.innerHTML = groups.map(({ groupId, item }) => `<option value="${groupId}">${groupLabel(item)}</option>`).join('');
+      if (state.selectedTaskGroupId) taskSelect.value = String(state.selectedTaskGroupId);
+      taskSelect.disabled = groups.length === 0;
+
+      const algos = availableAlgorithmsForGroup(state.selectedTaskGroupId);
+      const preferredOpt = caseOptimizer(defaultTask) || state.selectedOptimizer || (algos[0] ? caseOptimizer(algos[0]) : 'bayes');
+      state.selectedOptimizer = preferredOpt;
+      optimizerSelect.innerHTML = algos.map((item) => {
+        const key = caseOptimizer(item);
+        const label = item.optimizer_short_label || item.optimizer_display_name || key;
+        const status = item.status || caseByTaskId(item.task_id)?.status || 'n/a';
+        return `<option value="${key}">${label} [${status}]</option>`;
+      }).join('');
+      if (algos.length) {
+        const optValues = algos.map((item) => caseOptimizer(item));
+        if (!optValues.includes(state.selectedOptimizer)) state.selectedOptimizer = optValues[0];
+        optimizerSelect.value = String(state.selectedOptimizer);
+      }
+      optimizerSelect.disabled = algos.length === 0;
+
+      const chosenTask = taskForGroupAndOptimizer(state.selectedTaskGroupId, state.selectedOptimizer)
+        || caseForGroupAndOptimizer(state.selectedTaskGroupId, state.selectedOptimizer)
+        || defaultTask;
+      state.selectedTaskId = chosenTask ? String(chosenTask.task_id || '') : null;
+    }
+
+    function pctHeatStyle(value, scale) {
+      const v = Number(value);
+      if (!Number.isFinite(v)) return '';
+      const s = Math.max(1e-9, Number(scale) || 1);
+      const intensity = Math.min(1, Math.abs(v) / s);
+      if (v >= 0) {
+        return `background: rgba(21, 128, 61, ${0.16 + 0.40 * intensity}); color: #0b3b20;`;
+      }
+      return `background: rgba(220, 38, 38, ${0.16 + 0.40 * intensity}); color: #651313;`;
+    }
+
+    function renderReportTable(cases) {
+      const rows = cases || [];
+      reportSummaryMeta.textContent = `cases=${rows.length} | ok=${rows.filter((x) => x.status === 'ok').length} | running=${rows.filter((x) => x.status === 'running').length} | pending=${rows.filter((x) => x.status === 'pending').length} | failed=${rows.filter((x) => x.status === 'failed').length}`;
+      const byTraj = new Map();
+      for (const row of rows) {
+        const trajId = Number(row?.traj_id);
+        const bucket = byTraj.get(trajId) || [];
+        bucket.push(row);
+        byTraj.set(trajId, bucket);
+      }
+      const sections = Array.from(byTraj.entries())
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map(([trajId, trajRows]) => {
+          const byOpt = new Map();
+          for (const row of trajRows) {
+            const key = caseOptimizer(row);
+            const bucket = byOpt.get(key) || [];
+            bucket.push(row);
+            byOpt.set(key, bucket);
+          }
+          const optBlocks = Array.from(byOpt.entries())
+            .sort((a, b) => optimizerRank(a[0]) - optimizerRank(b[0]))
+            .map(([optimizer, optRows]) => {
+              const sorted = [...optRows].sort((a, b) => {
+                const ca = String(a?.controller || '');
+                const cb = String(b?.controller || '');
+                return ca.localeCompare(cb);
+              });
+              const pctValues = [];
+              for (const item of sorted) {
+                for (const key of ['error_area_gain_pct', 'energy_area_gain_pct']) {
+                  const v = Number(item?.[key]);
+                  if (Number.isFinite(v)) pctValues.push(Math.abs(v));
+                }
+              }
+              const scale = pctValues.length ? Math.max(...pctValues) : 1;
+              const rowsHtml = sorted.map((item) => {
+                const gid = caseGroupId(item);
+                const opt = caseOptimizer(item);
+                const selected = String(gid) === String(state.selectedTaskGroupId || '') && String(opt) === String(state.selectedOptimizer || '');
+                return `
+                <tr data-group-id="${gid}" data-optimizer="${opt}" data-task-id="${item.task_id || ''}" data-results-root="${item.results_root || ''}" class="${selected ? 'selected' : ''}">
+                  <td>${String(item.controller || '').toUpperCase()}</td>
+                  <td>${item.status || 'n/a'}</td>
+                  <td>${fmt(item.start_error_area, 3)}</td>
+                  <td>${fmt(item.best_error_area, 3)}</td>
+                  <td style="${pctHeatStyle(item.error_area_gain_pct, scale)}">${fmtPct(item.error_area_gain_pct)}</td>
+                  <td>${fmt(item.start_energy_area, 3)}</td>
+                  <td>${fmt(item.best_energy_area, 3)}</td>
+                  <td style="${pctHeatStyle(item.energy_area_gain_pct, scale)}">${fmtPct(item.energy_area_gain_pct)}</td>
+                </tr>`;
+              }).join('');
+              const label = sorted[0]?.optimizer_display_name || optimizer;
+              return `
+              <div class="report_optimizer_block">
+                <h4>${label}</h4>
+                <table class="report_table">
+                  <thead>
+                    <tr>
+                      <th>Controller</th>
+                      <th>Status</th>
+                      <th>Start ∫|e|dt</th>
+                      <th>Best ∫|e|dt</th>
+                      <th>Error Improve / Regress %</th>
+                      <th>Start ∫Pdt</th>
+                      <th>Best ∫Pdt</th>
+                      <th>Energy Improve / Regress %</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rowsHtml}</tbody>
+                </table>
+              </div>`;
+            }).join('');
+          return `
+          <section class="report_section">
+            <h3>Trajectory ${trajId}</h3>
+            ${optBlocks}
+          </section>`;
+        }).join('');
+      reportTables.innerHTML = sections;
+      for (const tr of reportTables.querySelectorAll('tr[data-group-id]')) {
+        tr.addEventListener('click', () => {
+          state.selectedTaskGroupId = tr.dataset.groupId || null;
+          state.selectedOptimizer = tr.dataset.optimizer || 'bayes';
+          state.selectedTaskId = tr.dataset.taskId || null;
+          state.selectedResultsRoot = tr.dataset.resultsRoot || state.selectedResultsRoot;
+          state.selectedEvalCursor = -1;
+          state.selectionMode = 'live';
+          refresh();
+        });
+      }
+    }
+
+    function ensureManualForm(paramNames, fixedParams) {
+      const joined = JSON.stringify(paramNames || []);
+      if (manualForm.dataset.paramNames === joined) {
+        manualFixedParams.textContent = formatParams(fixedParams || {});
+        return;
+      }
+      manualForm.dataset.paramNames = joined;
+      manualForm.innerHTML = (paramNames || []).map((name) => `
+        <label class="manual_input">
+          <span>${name}</span>
+          <input type="number" step="0.01" data-param-name="${name}" />
+        </label>`).join('');
+      manualFixedParams.textContent = formatParams(fixedParams || {});
+    }
+
+    function fillManualFromMap(params, sourceLabel) {
+      const map = paramsMapFromSource(params) || {};
+      for (const input of manualForm.querySelectorAll('input[data-param-name]')) {
+        const name = input.dataset.paramName;
+        const value = map[name];
+        input.value = Number.isFinite(Number(value)) ? Number(value).toFixed(2) : '';
+      }
+      state.manualValues = { ...map };
+      state.manualSourceLabel = sourceLabel;
+      manualMeta.textContent = `Manual source: ${sourceLabel}`;
+      updateReplaySourceUi();
+    }
+
+    function autoSeedManualFromSelection() {
+      if (state.manualSourceLabel === 'manual edit') return;
+      if (state.selectionMode !== 'selected' || !state.selectedRecord) {
+        manualForm.dataset.autoKey = '';
+        return;
+      }
+      const autoKey = `${state.selectedTaskId || 'n/a'}:${state.selectedRecord.eval_index}`;
+      if (manualForm.dataset.autoKey === autoKey && Object.keys(readManualValues()).length) return;
+      fillManualFromMap(state.selectedRecord, `selected eval ${state.selectedRecord.eval_index}`);
+      manualForm.dataset.autoKey = autoKey;
+    }
+
+    function readManualValues() {
+      const params = {};
+      for (const input of manualForm.querySelectorAll('input[data-param-name]')) {
+        const name = input.dataset.paramName;
+        const value = Number(input.value);
+        if (Number.isFinite(value)) params[name] = value;
+      }
+      return params;
+    }
+
+    function updateReplaySourceUi() {
+      const src = state.manualSourceLabel || 'n/a';
+      replaySourceLabel.textContent = `Replay source: ${src}`;
+      runReplayBtn.textContent = `Run Visual Replay`;
+      runReplayBtn.title = `Current replay source: ${src}`;
+    }
+
+    function updateReplayMeta() {
+      const replay = state.replayState || { status: 'idle' };
+      const taskLabelText = state.selectedTaskId ? `task=${state.selectedTaskId}` : 'task=n/a';
+      const idleCapacity = Number(state.dashboardState?.current_pool_status?.workers_idle ?? 0);
+      const replayStatus = String(replay.status || '');
+      const replayBusy = ['queued', 'starting', 'running'].includes(replayStatus);
+      runReplayBtn.disabled = replayBusy || !state.selectedTaskId;
+      stopReplayBtn.disabled = !['queued', 'starting', 'running', 'finished', 'failed'].includes(replayStatus);
+      if (replayStatus === 'running' || replayStatus === 'queued' || replayStatus === 'starting') {
+        manualMeta.textContent = `Replay ${replayStatus} | ${taskLabelText} | controller=${replay.controller || 'n/a'} traj=${replay.traj_id ?? 'n/a'} | press Stop Visual Replay to close the isolated runtime.`;
+      } else if (replayStatus === 'finished') {
+        manualMeta.textContent = `Replay finished | fit=${fmt(replay.result?.fitness, 6)} | ${taskLabelText} | press Stop Visual Replay to close PX4/jMAVSim.`;
+      } else if (replayStatus === 'failed') {
+        manualMeta.textContent = `Replay failed | ${replay.error || 'n/a'} | press Stop Visual Replay to close PX4/jMAVSim.`;
+      } else if (replayStatus === 'stopped') {
+        manualMeta.textContent = `Replay stopped | ${taskLabelText}`;
+      } else {
+        const idle = idleCapacity;
+        manualMeta.textContent = `Ready for isolated visual replay | ${taskLabelText} | pool_idle=${idle} | PX4 instance 40 / TCP 4600`;
+      }
+      updateReplaySourceUi();
+    }
+
+    function refreshFormulaText() {
+      const wTrack = state.runConfig?.w_track ?? 1.0;
+      const wEnergy = state.runConfig?.w_energy ?? 0.05;
+      const failPenalty = state.runConfig?.fail_penalty ?? 1000000;
+      const optimizer = state.runConfig?.optimizer ?? 'n/a';
+      const globalIters = state.runConfig?.global_iters ?? 'n/a';
+      const localIters = state.runConfig?.local_iters ?? 'n/a';
+      const globalMethod = state.runConfig?.global_method ?? 'n/a';
+      const localMethod = state.runConfig?.local_method ?? 'n/a';
+      const workers = state.runConfig?.workers ?? 'n/a';
+      const totalExpected = state.runConfig?.total_expected_evals ?? 'n/a';
+      const dim = deriveParamDim(state.runConfig, state.records);
+      const localEvalPerIter = Number.isFinite(dim) && dim > 0 ? 1 + 2 * dim : 'n/a';
+      const bounds = state.runConfig?.bounds || {};
+      const boundsCount = Object.keys(bounds).length;
+      formulaText.textContent = [
+        'J = w_track * track_rmse + w_energy * energy_term',
+        `weights: track=${fmt(wTrack, 3)}, energy=${fmt(wEnergy, 3)} | penalty=${failPenalty}`,
+        `optimizer=${optimizer} | workers=${workers} | dim=${dim || 'n/a'} | evals=${totalExpected}`,
+        `budget: global=${globalIters}, local=${localIters}, local_eval/iter=${localEvalPerIter}`,
+        `global=${globalMethod}`,
+        `local=${localMethod}`,
+        `metrics: error_area=∫|e|dt | energy_area=∫Pdt, P=||v||^2`,
+        `plot rule: penalty evals are hidden | bounds_loaded=${boundsCount}`,
+      ].join('\n');
+    }
+
+    function setActiveParamsText(selectedRec, latestRec) {
+      if (selectedRec) {
+        setParamsText(activeParams, selectedRec);
+        return;
+      }
+      if (latestRec) {
+        const txt = formatParams(paramsMapFromSource(latestRec));
+        activeParams.textContent = `Live trace mode\nlatest completed params shown below until live param streaming is added.\n\n${txt}`;
+        return;
+      }
+      activeParams.textContent = 'waiting...';
+    }
+
+    function drawActivePanel() {
+      const rec = state.selectedRecord;
+      const tr = state.selectedTraceObj || state.liveTrace || { ref: {x:[],y:[],z:[]}, act: {x:[],y:[],z:[]}, t: [], message: 'waiting...' };
+      const title = rec ? `Eval ${rec.eval_index}` : 'Live';
+      drawTraceQuad(activeCtx, activeCanvas, tr, state.views.active, title);
+      if (rec) {
+        const extra = tr && tr.ok === false ? ` | ${tr.message}` : '';
+        activeMeta.textContent = `task=${state.selectedTaskId || 'n/a'} eval=${rec.eval_index} iter=${rec.iteration} fit=${fmt(rec.fitness)}${extra}`;
+      } else {
+        const done = tr.done ? 'done' : 'running';
+        activeMeta.textContent = `task=${state.selectedTaskId || 'n/a'} live worker=${tr.worker_id ?? 'n/a'} status=${done} fit=${fmt(tr.fitness)} ${tr.message || ''}`;
+      }
+    }
+
+    function drawStartPanel(traceObj, rec) {
+      const tr = traceObj || { ref: {x:[],y:[],z:[]}, act: {x:[],y:[],z:[]}, t: [], message: 'waiting...' };
+      drawTraceQuad(startCtx, startCanvas, tr, state.views.start, 'Start');
+      if (rec) {
+        const extra = tr && tr.ok === false ? ` | ${tr.message}` : '';
+        startMeta.textContent = `start eval=${rec.eval_index} phase=${rec.phase || 'n/a'} fit=${fmt(rec.fitness)} failed=${!!rec.failed}${extra}`;
+      } else {
+        startMeta.textContent = 'start snapshot waiting...';
+      }
+    }
+
+    function drawBestPanel(traceObj, rec) {
+      const tr = traceObj || { ref: {x:[],y:[],z:[]}, act: {x:[],y:[],z:[]}, t: [], message: 'waiting...' };
+      const extraMetrics = [];
+      const startTrace = state.startTraceObj;
+      if (startTrace && tr && startTrace.ok !== false && tr.ok !== false) {
+        const startDerived = computeDerived(startTrace);
+        const bestDerived = computeDerived(tr);
+        const errGain = pctImprove(startDerived.errArea, bestDerived.errArea);
+        const energyGain = pctImprove(startDerived.energyArea, bestDerived.energyArea);
+        extraMetrics.push({
+          label: 'Err gain',
+          value: fmtPct(errGain),
+          color: Number(errGain) >= 0 ? '#166534' : '#b91c1c',
+        });
+        extraMetrics.push({
+          label: 'Eng gain',
+          value: fmtPct(energyGain),
+          color: Number(energyGain) >= 0 ? '#166534' : '#b91c1c',
+        });
+      }
+      drawTraceQuad(bestCtx, bestCanvas, tr, state.views.best, 'Best', extraMetrics);
+      if (rec) {
+        const extra = tr && tr.ok === false ? ` | ${tr.message}` : '';
+        bestMeta.textContent = `best eval=${rec.eval_index} fit=${fmt(rec.fitness)} failed=${!!rec.failed}${extra}`;
+      } else {
+        bestMeta.textContent = 'best snapshot waiting...';
+      }
+    }
+
+    function drawReplayPanel() {
+      const tr = state.replayTrace || { ref: {x:[],y:[],z:[]}, act: {x:[],y:[],z:[]}, t: [], message: 'replay trace waiting...' };
+      drawTraceQuad(replayCtx, replayCanvas, tr, state.views.replay, 'Replay');
+      replayInfo.textContent = formatReplayInfo(state.replayState, tr);
+      const replay = state.replayState || {};
+      const extra = tr && tr.ok === false ? ` | ${tr.message}` : '';
+      const source = tr?.source ? ` | source=${tr.source}` : '';
+      replayMeta.textContent = `replay=${replay.status || 'idle'} | controller=${replay.controller || 'n/a'} | traj=${replay.traj_id ?? 'n/a'}${source}${extra}`;
+    }
+
+    async function updateSnapshotPanels() {
+      const startRec = findStartRecord(state.records);
+      const bestRec = findBestRecord(state.records);
+      const latestRec = findLatestRecord(state.records);
+      const good = visibleRecords(state.records);
+
+      if (!good.length) {
+        state.selectedEvalCursor = -1;
+        state.selectionMode = 'live';
+        evalSlider.disabled = true;
+        evalSlider.min = 0;
+        evalSlider.max = 0;
+        evalSlider.value = 0;
+        evalLabel.textContent = 'No completed eval yet';
+        state.selectedRecord = null;
+        state.selectedTraceObj = null;
+      } else {
+        evalSlider.disabled = false;
+        evalSlider.min = 0;
+        evalSlider.max = Math.max(0, good.length - 1);
+        if (state.selectionMode === 'selected') {
+          if (state.selectedEvalCursor < 0 || state.selectedEvalCursor >= good.length) {
+            state.selectedEvalCursor = good.length - 1;
+          }
+          evalSlider.value = state.selectedEvalCursor;
+          state.selectedRecord = good[state.selectedEvalCursor];
+          evalLabel.textContent = `Selected idx=${state.selectedEvalCursor}/${good.length - 1} | eval=${state.selectedRecord.eval_index} | fit=${fmt(state.selectedRecord.fitness, 6)}`;
+        } else {
+          state.selectedEvalCursor = good.length - 1;
+          evalSlider.value = state.selectedEvalCursor;
+          state.selectedRecord = null;
+          const latest = good[good.length - 1];
+          evalLabel.textContent = `Live mode | latest completed eval=${latest.eval_index} | fit=${fmt(latest.fitness, 6)}`;
+        }
+      }
+
+      setActiveParamsText(state.selectedRecord, latestRec);
+      setParamsText(startParams, startRec);
+      setParamsText(bestParams, bestRec);
+      autoSeedManualFromSelection();
+
+      try {
+        state.liveTrace = await fetchLiveTrace(state.selectedTaskId);
+      } catch (e) {
+        state.liveTrace = { ref: {x:[],y:[],z:[]}, act: {x:[],y:[],z:[]}, t: [], message: `live trace waiting: ${e.message}` };
+      }
+
+      let selectedTrace = null;
+      if (state.selectedRecord) {
+        try {
+          selectedTrace = await fetchTraceForEval(state.selectedTaskId, Number(state.selectedRecord.eval_index));
+        } catch (_) {
+          selectedTrace = null;
+        }
+      }
+      state.selectedTraceObj = selectedTrace;
+      drawActivePanel();
+
+      let startTrace = null;
+      if (startRec) {
+        try {
+          startTrace = await fetchTraceForEval(state.selectedTaskId, Number(startRec.eval_index));
+        } catch (_) {
+          startTrace = null;
+        }
+      }
+      state.startTraceObj = startTrace;
+      drawStartPanel(startTrace, startRec);
+
+      let bestTrace = null;
+      if (bestRec) {
+        try {
+          bestTrace = await fetchTraceForEval(state.selectedTaskId, Number(bestRec.eval_index));
+        } catch (_) {
+          bestTrace = null;
+        }
+      }
+      state.bestTraceObj = bestTrace;
+      drawBestPanel(bestTrace, bestRec);
+
+      try {
+        state.replayTrace = await fetchReplayTrace();
+      } catch (e) {
+        state.replayTrace = {
+          ok: false,
+          message: `replay trace waiting: ${e.message}`,
+          t: [],
+          ref: { x: [], y: [], z: [] },
+          act: { x: [], y: [], z: [] },
+        };
+      }
+      drawReplayPanel();
+    }
+
+    async function refresh() {
+      let dash = null;
+      try {
+        const res = await fetch(apiUrl('api/dashboard_state'));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        dash = await res.json();
+      } catch (e) {
+        meta.textContent = `dashboard state error: ${e.message}`;
+        return;
+      }
+
+      state.dashboardState = dash;
+      state.availablePlans = dash.available_plans || [];
+      if (dash.selected_results_root) {
+        state.selectedResultsRoot = String(dash.selected_results_root);
+      }
+      syncPlanSourceSelect();
+      if (state.viewMode === 'review') {
+        state.reportScope = 'combined';
+      }
+      reportScopeSelect.value = state.viewMode === 'review' ? 'combined' : state.reportScope;
+      state.reportCasesActive = dash.report?.cases || [];
+      state.reportCasesCombined = dash.report_combined?.cases || [];
+      state.reportCases = visibleReportCases();
+      state.replayState = dash.replay_state || { status: 'idle' };
+      renderQueue(dash.active_plan);
+
+      const defaultTaskId = state.selectedTaskId || dash.current_task?.task_id || dash.active_plan?.current_task_id || dash.active_plan?.tasks?.[0]?.task_id || state.reportCases?.[0]?.task_id || null;
+      syncTaskSelect(dash.active_plan, defaultTaskId);
+      renderReportTable(state.reportCases);
+      state.selectedTask = taskById(state.selectedTaskId) || caseByTaskId(state.selectedTaskId) || null;
+
+      let taskPayload = { records: [], run_config: {}, pool_status: {}, pool_status_mtime: null, history_mtime: null };
+      if (state.selectedTaskId) {
+        try {
+          const caseInfo = caseByTaskId(state.selectedTaskId);
+          const res = await fetch(apiUrl('api/task_history', {
+            task_id: state.selectedTaskId,
+            results_dir: caseInfo?.results_dir || '',
+          }));
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          taskPayload = await res.json();
+        } catch (e) {
+          meta.textContent = `task history error: ${e.message}`;
+        }
+      }
+
+      state.records = taskPayload.records || [];
+      state.runConfig = Object.keys(taskPayload.run_config || {}).length ? taskPayload.run_config : (dash.current_run_config || null);
+      state.poolStatus = (state.selectedTaskId && String(dash.current_task?.task_id || '') === String(state.selectedTaskId))
+        ? (dash.current_pool_status || null)
+        : (taskPayload.pool_status || null);
+      const poolStatusMtime = (state.selectedTaskId && String(dash.current_task?.task_id || '') === String(state.selectedTaskId))
+        ? dash.current_pool_status_mtime
+        : taskPayload.pool_status_mtime;
+      state.currentParamNames = state.runConfig?.param_names || Object.keys(caseByTaskId(state.selectedTaskId)?.best_params || {});
+      state.currentFixedParams = caseByTaskId(state.selectedTaskId)?.fixed_params || state.runConfig?.fixed_params || {};
+
+      refreshFormulaText();
+      drawFitness(visibleRecords(state.records));
+      const etaModel = computeEtaModel(state.poolStatus, state.records, state.runConfig);
+      drawPoolStatus(state.poolStatus, etaModel);
+      const planEta = computePlanEta(dash.plan_progress, etaModel, state.poolStatus, dash.active_plan);
+      planEtaValue.textContent = fmtClockEta(planEta.etaS);
+      planEtaSub.textContent = `${planEta.label} | ${planEta.progressText}`;
+      const heartbeat = describeHeartbeat(poolStatusMtime);
+      heartbeatValue.textContent = heartbeat.value;
+      heartbeatSub.textContent = heartbeat.sub;
+      const phaseStep = describePhaseStep(state.poolStatus, state.records, state.runConfig);
+      phaseStepValue.textContent = phaseStep.value;
+      phaseStepSub.textContent = phaseStep.sub;
+      updateReplayMeta();
+      updateReplaySourceUi();
+
+      const counts = dash.active_plan?.counts || {};
+      const planName = dash.active_plan?.name || 'n/a';
+      const activeTask = dash.current_task || null;
+      const nextTask = (dash.active_plan?.tasks || []).find((task) => String(task.status || '') === 'pending') || null;
+      activeTaskValue.textContent = activeTask ? `${String(activeTask.controller || '').toUpperCase()} / T${activeTask.traj_id}` : '-';
+      activeTaskSub.textContent = activeTask
+        ? `${activeTask.optimizer_short_label || activeTask.optimizer || 'Bayes'} | evals=${activeTask.total_expected_evals ?? 'n/a'}`
+        : 'controller / trajectory / optimizer';
+      nextTaskValue.textContent = nextTask ? `${String(nextTask.controller || '').toUpperCase()} / T${nextTask.traj_id}` : '-';
+      nextTaskSub.textContent = nextTask
+        ? `${nextTask.optimizer_short_label || nextTask.optimizer || 'Bayes'} | queued`
+        : 'queue empty';
+      meta.textContent = `Live plan=${planName} | active=${shortTaskLabel(activeTask)} | selected=${state.selectedTaskId || 'n/a'} | done=${counts.ok || 0} running=${counts.running || 0} pending=${counts.pending || 0} failed=${counts.failed || 0}`;
+
+      ensureManualForm(state.currentParamNames, state.currentFixedParams);
+      if (!manualForm.dataset.seeded && Object.keys(caseByTaskId(state.selectedTaskId)?.start_params || {}).length) {
+        fillManualFromMap(caseByTaskId(state.selectedTaskId).start_params, 'start params');
+        manualForm.dataset.seeded = '1';
+      }
+      if (manualForm.dataset.taskId !== String(state.selectedTaskId || '')) {
+        manualForm.dataset.seeded = '';
+        manualForm.dataset.autoKey = '';
+        manualForm.dataset.taskId = String(state.selectedTaskId || '');
+        state.manualSourceLabel = 'n/a';
+        if (Object.keys(caseByTaskId(state.selectedTaskId)?.start_params || {}).length) {
+          fillManualFromMap(caseByTaskId(state.selectedTaskId).start_params, 'start params');
+          manualForm.dataset.seeded = '1';
+        }
+      }
+
+      await updateSnapshotPanels();
+      applyViewMode();
+    }
+
+    async function triggerReplay() {
+      if (!state.selectedTaskId) return;
+      const caseInfo = caseByTaskId(state.selectedTaskId);
+      let params = readManualValues();
+      if (!Object.keys(params).length) {
+        const fallbackSource = (state.selectionMode === 'selected' && state.selectedRecord)
+          ? state.selectedRecord
+          : (findStartRecord(state.records) || caseInfo?.start_params || {});
+        const fallbackLabel = (state.selectionMode === 'selected' && state.selectedRecord)
+          ? `selected eval ${state.selectedRecord.eval_index}`
+          : 'start params';
+        fillManualFromMap(fallbackSource, fallbackLabel);
+        params = readManualValues();
+      }
+      const body = {
+        controller: state.runConfig?.controller || caseInfo?.controller,
+        traj_id: state.runConfig?.traj_id ?? caseInfo?.traj_id,
+        rootfs: state.runConfig?.rootfs || state.dashboardState?.active_plan?.rootfs || 'build/px4_sitl_default/rootfs',
+        build_dir: state.runConfig?.build_dir || '',
+        params,
+        fixed_params: state.currentFixedParams || {},
+        takeoff_alt: state.runConfig?.takeoff_alt ?? 2.0,
+        takeoff_timeout: state.runConfig?.takeoff_timeout ?? 40.0,
+        trajectory_timeout: state.runConfig?.trajectory_timeout ?? caseInfo?.trajectory_timeout ?? 180.0,
+        w_track: state.runConfig?.w_track ?? 1.0,
+        w_energy: state.runConfig?.w_energy ?? 0.05,
+        landing_mode: state.runConfig?.landing_mode || 'land',
+        trace_window: state.runConfig?.trace_window || 'offboard',
+        engagement_dwell_s: state.runConfig?.engagement_dwell_s ?? 2.0,
+        mission_mode: state.runConfig?.mission_mode || 'trajectory',
+        ident_profile: state.runConfig?.ident_profile || 'hover_thrust',
+        base_param_file: state.runConfig?.base_param_file || '',
+        strict_eval: (replayModeSelect.value || 'strict') === 'strict',
+        headless: false,
+      };
+      const res = await fetch('api/start_replay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.ok) {
+        manualMeta.textContent = `Replay start failed: ${payload.message || res.status}`;
+        return;
+      }
+      state.replayTrace = {
+        ok: false,
+        source: 'warming',
+        t: [],
+        ref: { x: [], y: [], z: [] },
+        act: { x: [], y: [], z: [] },
+        message: 'replay trace warming up...',
+      };
+      manualMeta.textContent = `Replay started for ${body.controller} / traj ${body.traj_id}`;
+      await refresh();
+    }
+
+    async function stopReplay() {
+      const res = await fetch('api/stop_replay', {
+        method: 'POST',
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.ok) {
+        manualMeta.textContent = `Replay stop failed: ${payload.message || res.status}`;
+        return;
+      }
+      manualMeta.textContent = 'Replay stopped';
+      await refresh();
+    }
+
+    function redrawActive() { drawActivePanel(); }
+    function redrawStart() {
+      const rec = findStartRecord(state.records);
+      const key = rec ? `${state.selectedTaskId || 'legacy'}:${String(rec.eval_index)}` : null;
+      drawStartPanel(key ? state.traceCache.get(key) : null, rec);
+    }
+    function redrawBest() {
+      const rec = findBestRecord(state.records);
+      const key = rec ? `${state.selectedTaskId || 'legacy'}:${String(rec.eval_index)}` : null;
+      drawBestPanel(key ? state.traceCache.get(key) : null, rec);
+    }
+    function redrawReplay() { drawReplayPanel(); }
+    resizeCanvas(fitCanvas, fitCtx);
+    resizeCanvas(activeCanvas, activeCtx);
+    resizeCanvas(startCanvas, startCtx);
+    resizeCanvas(bestCanvas, bestCtx);
+    resizeCanvas(replayCanvas, replayCtx);
+
+    attachDrag(activeCanvas, state.views.active, redrawActive);
+    attachDrag(startCanvas, state.views.start, redrawStart);
+    attachDrag(bestCanvas, state.views.best, redrawBest);
+    attachDrag(replayCanvas, state.views.replay, redrawReplay);
+    attachFitInteractions();
+
+    taskSelect.addEventListener('change', () => {
+      state.selectedTaskGroupId = taskSelect.value || null;
+      const algos = availableAlgorithmsForGroup(state.selectedTaskGroupId);
+      const optValues = algos.map((item) => caseOptimizer(item));
+      if (!optValues.includes(String(state.selectedOptimizer || ''))) {
+        state.selectedOptimizer = optValues[0] || 'bayes';
+      }
+      const chosen = taskForGroupAndOptimizer(state.selectedTaskGroupId, state.selectedOptimizer)
+        || caseForGroupAndOptimizer(state.selectedTaskGroupId, state.selectedOptimizer)
+        || algos[0]
+        || null;
+      state.selectedTaskId = chosen ? String(chosen.task_id || '') : null;
+      state.selectedEvalCursor = -1;
+      state.selectionMode = 'live';
+      manualForm.dataset.seeded = '';
+      manualForm.dataset.autoKey = '';
+      refresh();
+    });
+    planSourceSelect.addEventListener('change', () => {
+      state.selectedResultsRoot = planSourceSelect.value || '';
+      state.selectedTaskId = null;
+      state.selectedTaskGroupId = null;
+      state.selectedOptimizer = null;
+      state.selectedEvalCursor = -1;
+      state.selectionMode = 'live';
+      state.traceCache.clear();
+      manualForm.dataset.seeded = '';
+      manualForm.dataset.autoKey = '';
+      refresh();
+    });
+    optimizerSelect.addEventListener('change', () => {
+      state.selectedOptimizer = optimizerSelect.value || 'bayes';
+      const chosen = taskForGroupAndOptimizer(state.selectedTaskGroupId, state.selectedOptimizer)
+        || caseForGroupAndOptimizer(state.selectedTaskGroupId, state.selectedOptimizer)
+        || null;
+      state.selectedTaskId = chosen ? String(chosen.task_id || '') : null;
+      state.selectedEvalCursor = -1;
+      state.selectionMode = 'live';
+      manualForm.dataset.seeded = '';
+      manualForm.dataset.autoKey = '';
+      refresh();
+    });
+    reportScopeSelect.addEventListener('change', () => {
+      state.reportScope = reportScopeSelect.value || 'combined';
+      localStorage.setItem('report_scope', state.reportScope);
+      state.reportCases = visibleReportCases();
+      state.selectedEvalCursor = -1;
+      state.selectionMode = 'live';
+      manualForm.dataset.seeded = '';
+      manualForm.dataset.autoKey = '';
+      refresh();
+    });
+    evalSlider.addEventListener('input', async () => {
+      state.selectionMode = 'selected';
+      state.selectedEvalCursor = Number(evalSlider.value);
+      await updateSnapshotPanels();
+    });
+    latestBtn.addEventListener('click', async () => {
+      state.selectionMode = 'live';
+      state.selectedEvalCursor = -1;
+      await updateSnapshotPanels();
+    });
+    loadStartBtn.addEventListener('click', () => {
+      const caseInfo = caseByTaskId(state.selectedTaskId);
+      manualForm.dataset.autoKey = '';
+      fillManualFromMap(findStartRecord(state.records) || caseInfo?.start_params || {}, 'start params');
+    });
+    loadBestBtn.addEventListener('click', () => {
+      const caseInfo = caseByTaskId(state.selectedTaskId);
+      manualForm.dataset.autoKey = '';
+      fillManualFromMap(findBestRecord(state.records) || caseInfo?.best_params || {}, 'best params');
+    });
+    loadSelectedBtn.addEventListener('click', () => {
+      const label = state.selectedRecord ? `selected eval ${state.selectedRecord.eval_index}` : 'selected eval';
+      manualForm.dataset.autoKey = state.selectedRecord ? `${state.selectedTaskId || 'n/a'}:${state.selectedRecord.eval_index}` : '';
+      fillManualFromMap(state.selectedRecord || {}, label);
+    });
+    runReplayBtn.addEventListener('click', () => {
+      triggerReplay();
+    });
+    stopReplayBtn.addEventListener('click', () => {
+      stopReplay();
+    });
+    manualForm.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || !target.dataset.paramName) return;
+      state.manualSourceLabel = 'manual edit';
+      updateReplaySourceUi();
+    });
+
+    window.addEventListener('resize', () => {
+      resizeCanvas(fitCanvas, fitCtx);
+      resizeCanvas(activeCanvas, activeCtx);
+      resizeCanvas(startCanvas, startCtx);
+      resizeCanvas(bestCanvas, bestCtx);
+      resizeCanvas(replayCanvas, replayCtx);
+      refresh();
+    });
+
+    applyViewMode();
+    refresh();
+    setInterval(refresh, 1300);
+  </script>
+</body>
+</html>

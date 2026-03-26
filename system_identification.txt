@@ -1,0 +1,423 @@
+PX4 / Gazebo System Identification and Digital Twin Workflow
+===========================================================
+
+1. Scope and objective
+----------------------
+This project implements a system-identification workflow for a PX4-controlled multirotor in Gazebo (Gazebo Sim / gz), with the goal of recovering the physical and actuator parameters that appear in the vehicle SDF model. The long-term objective is to reuse the same workflow on real flight logs and then build a digital twin whose simulated motion matches the real vehicle closely enough for controller validation and optimization.
+
+The current workflow has two phases:
+1. Simulation-only identification on the built-in x500 model, treating the x500 SDF parameters as if they were unknown.
+2. Future real-flight identification on a physical vehicle, using the same mission types, logging structure, and estimators.
+
+The present status is:
+- the end-to-end identification pipeline is operational;
+- mass, motor model, and most drag-related Gazebo parameters are identified well;
+- the remaining main weakness is the roll-axis inertia term Ixx.
+
+2. High-level architecture
+--------------------------
+The identification stack is split across three layers.
+
+2.1 PX4 runtime layer
+- `src/modules/trajectory_reader/*`
+  Generates trajectory or identification references.
+- `src/modules/custom_pos_control/*`
+  Hosts the custom position-control logic and the `sysid` controller path.
+- `src/modules/simulation/gz_plugins/system_identification_logger/SystemIdentificationLogger.cpp`
+  Logs Gazebo ground-truth quantities that are only available in simulation.
+
+2.2 Experiment execution layer
+- `Tools/optimization/run_simulation_plan.py`
+  Runs a multi-task plan.
+- `Tools/optimization/orchestrate_parallel.py`
+  Executes the evaluation loop per task.
+- `Tools/optimization/parallel_pool.py`
+  Manages worker lifecycle.
+- `Tools/optimization/px4_eval.py`
+  Handles one identification or optimization evaluation end-to-end.
+- `Tools/optimization/simulator_backend.py`
+  Starts Gazebo-backed PX4 runs and configures logging.
+
+2.3 Identification / estimation layer
+- `experimental_validation/identification.py`
+  Parses identification logs and estimates parameters.
+- `experimental_validation/estimators.py`
+  Contains reusable estimators for mass, thrust scale, inertia, drag, motor constants, and time constants.
+- `experimental_validation/compare_with_sdf.py`
+  Compares identified parameters against the reference SDF and writes comparison artifacts.
+- `experimental_validation/composite_candidate.py`
+  Builds a digital-twin candidate from multiple trusted identification result families.
+
+3. Identification mission concept
+---------------------------------
+All identification flights are run in OFFBOARD mode once the vehicle is already airborne and stabilized. The current Gazebo workflow is fully autonomous, but the real-flight intent is:
+1. take off manually in a safe manual/stabilized mode,
+2. climb to about 3 m AGL,
+3. keep OFFBOARD alive and arm the baseline PX4 PID control path,
+4. switch to OFFBOARD,
+5. execute one identification maneuver,
+6. return to hover,
+7. exit OFFBOARD and land safely.
+
+Important: all experimental validation flights are intended to run on the PX4 baseline PID, not on DFBC / INDI / MPC / CMPC. The baseline PID is the reference behavior for digital-twin construction.
+
+4. Maneuver library
+-------------------
+Identification is not done with one monolithic trajectory. It is broken into physically meaningful maneuver families.
+
+4.1 Hover thrust
+Profile: `hover_thrust`
+Duration: 26 s
+Purpose:
+- estimate total mass from vertical force balance,
+- estimate thrust-scale from normalized thrust command.
+Reference shape:
+- mainly vertical oscillation with multi-sine content.
+
+4.2 Roll sweep
+Profile: `roll_sweep`
+Duration: 28 s
+Purpose:
+- excite roll dynamics to estimate Ixx.
+Reference shape:
+- lateral oscillation in Y,
+- small vertical modulation to prevent over-specialized hover-only data.
+
+4.3 Pitch sweep
+Profile: `pitch_sweep`
+Duration: 28 s
+Purpose:
+- excite pitch dynamics to estimate Iyy.
+Reference shape:
+- longitudinal oscillation in X,
+- small vertical modulation.
+
+4.4 Yaw sweep
+Profile: `yaw_sweep`
+Duration: 24 s
+Purpose:
+- excite yaw dynamics to estimate Izz and yaw moment behavior.
+Reference shape:
+- small XY motion plus sinusoidal yaw/yaw-rate reference.
+
+4.5 Drag X / Y / Z
+Profiles: `drag_x`, `drag_y`, `drag_z`
+Duration: 30 s each
+Purpose:
+- estimate body-axis drag terms from velocity / acceleration relationships.
+Reference shape:
+- one-axis translational oscillation.
+
+4.6 Mass vertical
+Profile: `mass_vertical`
+Duration: 34 s
+Purpose:
+- improve mass observability with richer vertical excitation.
+Reference shape:
+- stronger multi-sine vertical motion with small XY content.
+
+4.7 Motor step
+Profile: `motor_step`
+Duration: 22 s
+Purpose:
+- estimate motor model parameters:
+  - time_constant_up,
+  - time_constant_down,
+  - motor_constant,
+  - moment_constant,
+  - rotor_drag_coefficient,
+  - rolling_moment_coefficient,
+  - rotor_velocity_slowdown_sim,
+  - maximum rotor speed.
+Reference shape:
+- piecewise step sequence in commanded collective input.
+
+5. Logged signals
+-----------------
+The system logs two complementary data sources.
+
+5.1 PX4-side identification CSV
+Produced by `trajectory_reader`.
+This log is intentionally designed to be as close as possible to what can also be logged in real flight.
+Key fields include:
+- reference states:
+  - `ref_x, ref_y, ref_z`
+  - `ref_vx, ref_vy, ref_vz`
+  - `ref_ax, ref_ay, ref_az`
+  - `ref_yaw, ref_yawspeed`
+- measured vehicle states:
+  - `pos_x, pos_y, pos_z`
+  - `vx, vy, vz`
+  - `ax, ay, az`
+  - `roll, pitch, yaw`
+  - `p, q, r`
+- control setpoints:
+  - attitude quaternion setpoint,
+  - body-rate setpoint,
+  - thrust setpoint
+- actuator and ESC telemetry:
+  - `motor_0..3`
+  - `esc_0..3_rpm`
+  - `esc_0..3_voltage`
+  - `esc_0..3_current`
+- metadata:
+  - `profile`
+  - `hover_thrust`
+  - `controller`
+
+These fields are the core of the future real-flight identification workflow.
+
+5.2 Gazebo truth CSV
+Produced by `SystemIdentificationLogger` in Gazebo.
+These quantities are only available in simulation, and are used to validate or strengthen the identification method during development.
+Key fields include:
+- total propulsive force,
+- body torques,
+- body-rate derivatives,
+- rotor actual angular speed,
+- rotor thrust,
+- rolling and drag basis terms,
+- slowdown factor and motor plugin quantities.
+
+This truth log is what allows us to validate whether the estimator can recover known SDF parameters from simulated motion.
+
+6. Mission execution semantics
+------------------------------
+In the current automated Gazebo workflow each evaluation follows the same logic:
+1. PX4 and Gazebo are started.
+2. Vehicle takes off to a safe altitude.
+3. OFFBOARD engagement is stabilized for a short dwell period.
+4. `trajectory_reader` is placed in identification mode.
+5. A single identification profile is executed.
+6. Tracking and identification logging start only during the intended mission window.
+7. After the profile ends the vehicle exits the mission window and lands or returns to a safe finish state.
+
+This same semantics should be preserved in real flight:
+- no measurements should be taken before the vehicle is stably airborne,
+- no measurements should be taken after the intended OFFBOARD window has ended,
+- the identification window must correspond to the actual maneuver only.
+
+7. Parameter estimation method
+------------------------------
+7.1 Mass and thrust scale
+Mass is estimated from vertical force balance using rows that contain total thrust information:
+- from Gazebo truth in simulation,
+- from future real-flight thrust reconstruction later.
+Conceptually:
+- total thrust = mass * (g + vertical acceleration)
+Therefore:
+- mass = total thrust / (g + az)
+After mass is estimated, thrust scale is fit from commanded thrust to observed physical thrust.
+
+7.2 Axis-wise inertia estimation
+The baseline inertia estimator fits one diagonal inertia per axis using the corresponding torque and angular acceleration:
+- Ixx from roll sweep,
+- Iyy from pitch sweep,
+- Izz from yaw sweep.
+Conceptually:
+- tau_x ≈ Ixx * p_dot
+- tau_y ≈ Iyy * q_dot
+- tau_z ≈ Izz * r_dot
+This works reasonably well for Iyy and Izz in the current x500 experiments.
+
+7.3 Joint coupled inertia solver
+A more advanced diagonal inertia solver was added and validated on synthetic data.
+It uses the rigid-body relation:
+- tau = I * alpha + omega × (I * omega)
+For diagonal inertia, the per-axis equations are linear in `[Ixx, Iyy, Izz]`.
+This solver is implemented because the roll-axis estimate appears biased by coupling effects.
+At the time of writing, it is validated on synthetic coupled data but is not yet the default path for real x500 logs because it needs more tuning on the real simulation data.
+
+7.4 Drag estimation
+Quadratic drag terms are estimated independently per axis using:
+- velocity along the axis,
+- acceleration attributable to drag.
+Conceptually:
+- F_drag ≈ -c * |v| * v
+
+7.5 Motor model estimation
+From the dedicated `motor_step` profiles the following are estimated:
+- time constant for spin-up,
+- time constant for spin-down,
+- proportional motor constant mapping rotor speed squared to thrust,
+- moment constant for yaw reaction torque,
+- rotor drag coefficient,
+- rolling moment coefficient,
+- rotor slowdown factor,
+- observed max rotor speed.
+
+A crucial implementation detail is that rotor time constants must respect sortie / run boundaries. Multi-sortie logs cannot be treated as one continuous time axis. This was fixed by preserving `run_index` and segmenting the rotor time-series accordingly.
+
+8. Comparison against the SDF model
+-----------------------------------
+After identification, the estimated parameters are compared against the known x500 SDF values. The main comparable terms are:
+- mass_kg
+- ixx_kgm2
+- iyy_kgm2
+- izz_kgm2
+- time_constant_up_s
+- time_constant_down_s
+- max_rot_velocity_radps
+- motor_constant
+- moment_constant
+- rotor_drag_coefficient
+- rolling_moment_coefficient
+- rotor_velocity_slowdown_sim
+
+The compare script also exports:
+- `identified_parameters.json`
+- `sdf_comparison.json`
+- `candidate_inertial.sdf.xml`
+- `candidate_x500_base.sdf`
+- `candidate_vehicle_params.yaml`
+
+9. Family-based composition strategy
+------------------------------------
+An important result of this project is that one single aggregated fit is not always the best way to build a digital twin.
+
+The current best practice is family-based composition:
+- use vertical-hover / mass sorties for mass and thrust-scale,
+- use angular sweeps for inertia,
+- use motor-step sorties for motor dynamics,
+- use drag sorties for drag.
+
+This is implemented in:
+- `experimental_validation/composite_candidate.py`
+
+The reason is simple:
+- each maneuver makes only a subset of the parameters strongly observable,
+- mixing all sorties into one blind regression can degrade otherwise good sub-estimates,
+- family-based composition is also much closer to the battery-constrained real-flight workflow.
+
+10. Current best x500 result
+----------------------------
+At the current checkpoint the best candidate is:
+- `experimental_validation/outputs/x500_family_composite_v1`
+
+This candidate uses:
+- mass/thrust/drag from `x500_identification_digital_twin`
+- inertia from `x500_identification_digital_twin`
+- motor model from `x500_motor_probe`
+
+Current main errors against x500 SDF:
+- mass: +3.318%
+- Ixx: +24.460%
+- Iyy: -0.521%
+- Izz: +2.617%
+- time_constant_up: -10.556%
+- time_constant_down: approximately 0%
+- motor constant and drag/moment plugin terms: essentially exact
+
+Interpretation:
+- the method is already strong for mass and motor terms,
+- it is also strong for Iyy and Izz,
+- the main remaining open problem is Ixx.
+Therefore the pipeline is already scientifically meaningful, but I would still describe it as a near-digital-twin method rather than a fully finished digital twin.
+
+11. Real-flight sortie plan
+---------------------------
+The intended real-flight protocol should not replay the full simulation suite blindly. Because usable airborne time is limited, the identification must be split into short sorties.
+
+Recommended sortie decomposition:
+
+Sortie 1: Hover + mass
+- manual takeoff
+- climb to about 3 m AGL
+- keep baseline PID active
+- engage OFFBOARD
+- execute `hover_thrust`
+- execute `mass_vertical`
+- return to stable hover
+- exit OFFBOARD and land
+Goal:
+- mass, thrust scale
+
+Sortie 2: Roll / pitch inertia
+- manual takeoff to about 3 m
+- engage OFFBOARD
+- execute `roll_sweep`
+- hover recovery
+- execute `pitch_sweep`
+- hover recovery
+- exit OFFBOARD and land
+Goal:
+- Ixx, Iyy
+
+Sortie 3: Yaw + motor dynamics
+- manual takeoff to about 3 m
+- engage OFFBOARD
+- execute `yaw_sweep`
+- hover recovery
+- execute `motor_step`
+- hover recovery
+- exit OFFBOARD and land
+Goal:
+- Izz, motor dynamics, yaw-related terms
+
+Sortie 4: Drag
+- manual takeoff to about 3 m
+- engage OFFBOARD
+- execute `drag_x`
+- hover recovery
+- execute `drag_y`
+- hover recovery
+- execute `drag_z`
+- hover recovery
+- exit OFFBOARD and land
+Goal:
+- body drag terms
+
+Operational rules for real flight:
+- perform flights only in calm conditions,
+- use a fully charged battery per sortie block,
+- discard flights with strong wind or pilot disturbance,
+- keep the OFFBOARD identification window separate from takeoff and landing,
+- log all PX4-side identification fields and ESC telemetry,
+- use the same baseline PID settings for all identification sorties.
+
+12. What is still incomplete
+----------------------------
+The remaining main technical gap is roll-axis inertia accuracy.
+Current evidence suggests:
+- the present roll-sweep maneuver is not yet producing an Ixx estimate as cleanly as the pitch and yaw profiles do for Iyy and Izz,
+- the next iteration should focus on either
+  1. redesigning the roll excitation itself,
+  2. improving the torque reconstruction model for the roll axis,
+  3. or using a validated coupled inertia fit once it proves stable on real x500 logs.
+
+13. Minimal publication-ready claim that is honest today
+--------------------------------------------------------
+A fair and accurate claim at the current stage is:
+- we have an end-to-end system-identification workflow for PX4 + Gazebo,
+- the workflow logs both flight-side telemetry and simulator truth,
+- the method can recover mass and motor-model terms very accurately,
+- it can recover two of the three principal inertias well,
+- and it already supports family-based composition of a near-digital-twin candidate,
+- while the roll-axis inertia term remains the main remaining limitation.
+
+14. Files that matter most
+--------------------------
+PX4 / runtime side:
+- `src/modules/trajectory_reader/trajectory_reader.cpp`
+- `src/modules/trajectory_reader/trajectory_reader.hpp`
+- `src/modules/custom_pos_control/custom_pos_control.cpp`
+- `src/modules/simulation/gz_plugins/system_identification_logger/SystemIdentificationLogger.cpp`
+
+Execution side:
+- `Tools/optimization/px4_eval.py`
+- `Tools/optimization/run_simulation_plan.py`
+- `Tools/optimization/simulator_backend.py`
+
+Estimation side:
+- `experimental_validation/identification.py`
+- `experimental_validation/estimators.py`
+- `experimental_validation/compare_with_sdf.py`
+- `experimental_validation/composite_candidate.py`
+
+Current best artifacts:
+- `experimental_validation/outputs/x500_family_composite_v1/`
+- `CURRENT_STATUS_NOTE.txt`
+
+15. Recommended next action
+---------------------------
+If the next goal is a publishable digital-twin paper, the immediate next step is not documentation polishing but closing the Ixx gap. After that, the README and the real-flight baseline PID/offboard procedure should be rewritten around the finalized sortie plan.
