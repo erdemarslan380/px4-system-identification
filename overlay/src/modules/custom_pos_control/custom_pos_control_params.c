@@ -1,23 +1,18 @@
-// custom_pos_control_params.c
-
 /**
- * Enable Custom Position Control
+ * Enable custom position forwarding
+ *
+ * 0 keeps the module passive.
+ * 1 publishes offboard setpoints from trajectory_reader.
+ *
  * @boolean
  */
-
 PARAM_DEFINE_INT32(CST_POS_CTRL_EN, 0);
 
 /**
- * Custom Position Controller Type
- * 
- * Switch between controllers
- * 
+ * Active forwarding mode
+ *
  * @value 0 NO_CTRL
- * @value 1 DFBC
- * @value 2 MPC
- * @value 3 CMPC
  * @value 4 PX4_DEFAULT
- * @value 5 INDI
  * @value 6 SYSID
  */
 PARAM_DEFINE_INT32(CST_POS_CTRL_TYP, 0);
@@ -25,8 +20,8 @@ PARAM_DEFINE_INT32(CST_POS_CTRL_TYP, 0);
 /**
  * Enable RC pot controller selection
  *
- * When enabled, the selected AUX channel is quantized into controller slots:
- * PX4_DEFAULT, DFBC, MPC, CMPC, INDI, SYSID.
+ * The selected AUX channel is split into two slots:
+ * PX4_DEFAULT and SYSID.
  *
  * @boolean
  */

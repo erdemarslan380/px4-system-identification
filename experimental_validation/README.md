@@ -1,117 +1,104 @@
-# Experimental Validation
+Experimental Validation
+=======================
 
-This folder estimates Gazebo SDF parameters from PX4 identification flights.
+This folder turns PX4 identification logs into a Gazebo-ready parameter candidate.
 
-The usual workflow is:
-1. run a `sysid` task from the optimization toolkit
-2. collect the exported identification CSV
-3. estimate the vehicle parameters
-4. copy the result into an SDF model
-
-## Current outputs
-
-The estimator can produce:
+Main outputs
 - total mass
-- thrust scale
+- thrust scale summary
 - diagonal inertia terms
-- simple quadratic drag coefficients
-- SDF reference comparison for the identifiable subset
+- drag coefficients
+- motor-model terms
+- SDF comparison reports
 - calibration-restore files from a QGroundControl dump
 
-## QGroundControl parameter dump
+Required log types
+- PX4 identification log
+  - written by `trajectory_reader`
+- Gazebo truth log
+  - written by `SystemIdentificationLoggerPlugin`
+  - used only in SITL studies
 
-If you export all vehicle parameters from QGroundControl, place the file here:
+Important distinction
+- `px4_only`
+  - uses only the PX4 identification CSV
+- `telemetry_augmented`
+  - uses PX4 CSV plus telemetry-like Gazebo fields
+- `truth_assisted`
+  - uses the full Gazebo truth log
 
-- `experimental_validation/qgc/current_vehicle.params`
+For real flights, only `px4_only` and telemetry-style fields are available.
+`truth_assisted` is for simulator-side method development and validation.
 
-The optimization toolkit can pass this file into identification runs with the task field:
-- `base_param_file`
-
-## PX4 identification log mode
-
-The new `sysid` controller and `identification` mission mode write CSV logs under:
-
-- `build/px4_sitl_default/rootfs/identification_logs/`
-
-Finished runs also archive them inside:
-
-- `Tools/optimization/plan_runs/<study>/<task>/identification_traces/`
-
-## Supported identification motions
-
-- `hover_thrust`
-- `mass_vertical`
-- `roll_sweep`
-- `pitch_sweep`
-- `yaw_sweep`
-- `drag_x`
-- `drag_y`
-- `drag_z`
-- `motor_step`
-
-Use several motions if you want a full SDF estimate. A hover-only run is now good enough to validate logging plus the motor-model subset, but inertia, drag, and actuator timing still need the dedicated sweep profiles.
-
-## Run the comprehensive x500 identification suite
-
+Run the estimator on one log pair
 ```bash
-cd ~/px4-custom
-python3 Tools/optimization/run_simulation_plan.py \
-  --plan Tools/optimization/generated_plans/x500_identification_comprehensive.yaml \
-  --clean \
-  --serve-dashboard
-```
-
-This plan repeats the most informative motions so the estimator can reject transient segments and compare the recovered parameters against the x500 SDF.
-
-## Run the estimator on a PX4 identification log
-
-```bash
-cd ~/px4-custom
+cd ~/px4-system-identification
 python3 experimental_validation/cli.py \
-  --csv Tools/optimization/plan_runs/<study>/<task>/identification_traces/eval_00000.csv \
+  --csv /path/to/identification_log.csv \
+  --truth-csv /path/to/gazebo_truth_log.csv \
   --ident-log \
   --out-dir experimental_validation/outputs/session_001
 ```
 
-Generated outputs:
+Generated files
 - `identified_parameters.json`
 - `candidate_inertial.sdf.xml`
 - `candidate_vehicle_params.yaml`
 
-## Compare the identified result against the x500 SDF
-
+Compare multiple sorties against the x500 SDF
 ```bash
-cd ~/px4-custom
+cd ~/px4-system-identification
 python3 experimental_validation/compare_with_sdf.py \
-  --results-root Tools/optimization/plan_runs/x500_identification_suite \
-  --out-dir experimental_validation/outputs/x500_identification_suite
+  --csv /path/to/mass_vertical.csv \
+  --csv /path/to/hover_thrust.csv \
+  --csv /path/to/roll_sweep.csv \
+  --csv /path/to/pitch_sweep.csv \
+  --csv /path/to/yaw_sweep.csv \
+  --csv /path/to/drag_x.csv \
+  --csv /path/to/drag_y.csv \
+  --csv /path/to/drag_z.csv \
+  --csv /path/to/motor_step.csv \
+  --out-dir experimental_validation/outputs/x500_candidate
 ```
 
-Generated outputs:
+Generated comparison files
+- `identified_parameters.json`
+- `identified_parameters_by_mode.json`
 - `sdf_reference.json`
 - `sdf_comparison.json`
+- `sdf_comparison_by_mode.json`
+- `used_identification_logs.json`
 - `candidate_x500_base.sdf`
 
-## Restore calibration values after a firmware update
+QGroundControl parameter dump
+- Put the latest exported parameter file here:
+  - `experimental_validation/qgc/current_vehicle.params`
 
+Restore calibration values after a firmware update
 ```bash
-cd ~/px4-custom
+cd ~/px4-system-identification
 python3 experimental_validation/calibration_restore.py \
   --input experimental_validation/qgc/current_vehicle.params \
   --out-dir experimental_validation/qgc/restore
 ```
 
-Generated outputs:
-- `selected_calibration_params.json`
-- `restore_calibration.params`
-- `restore_calibration.nsh`
+Recommended sortie families
+- hover and vertical excitation:
+  - `hover_thrust`, `mass_vertical`
+- inertia:
+  - `roll_sweep`, `pitch_sweep`, `yaw_sweep`
+- drag:
+  - `drag_x`, `drag_y`, `drag_z`
+- actuator dynamics:
+  - `motor_step`
 
-## Tests
-
+Tests
 ```bash
+cd ~/px4-system-identification
 python3 -m unittest \
   experimental_validation.tests.test_estimators \
   experimental_validation.tests.test_identification_pipeline \
   experimental_validation.tests.test_sdf_compare \
-  experimental_validation.tests.test_calibration_restore
+  experimental_validation.tests.test_calibration_restore \
+  experimental_validation.tests.test_composite_candidate
 ```

@@ -27,15 +27,15 @@ The identification stack is split across three layers.
   Logs Gazebo ground-truth quantities that are only available in simulation.
 
 2.2 Experiment execution layer
-- `Tools/optimization/run_simulation_plan.py`
+- `manual PX4 shell sortie execution plus exported identification logs`
   Runs a multi-task plan.
-- `Tools/optimization/orchestrate_parallel.py`
+- `manual or scripted sortie orchestration (not part of this standalone repository)`
   Executes the evaluation loop per task.
-- `Tools/optimization/parallel_pool.py`
+- `sequential sortie execution in Gazebo SITL`
   Manages worker lifecycle.
-- `Tools/optimization/px4_eval.py`
+- `the PX4-side offboard execution path driven by custom_pos_control and trajectory_reader`
   Handles one identification or optimization evaluation end-to-end.
-- `Tools/optimization/simulator_backend.py`
+- `Gazebo SITL with the x500 model and the SystemIdentificationLoggerPlugin`
   Starts Gazebo-backed PX4 runs and configures logging.
 
 2.3 Identification / estimation layer
@@ -404,9 +404,9 @@ PX4 / runtime side:
 - `src/modules/simulation/gz_plugins/system_identification_logger/SystemIdentificationLogger.cpp`
 
 Execution side:
-- `Tools/optimization/px4_eval.py`
-- `Tools/optimization/run_simulation_plan.py`
-- `Tools/optimization/simulator_backend.py`
+- `the PX4-side offboard execution path driven by custom_pos_control and trajectory_reader`
+- `manual PX4 shell sortie execution plus exported identification logs`
+- `Gazebo SITL with the x500 model and the SystemIdentificationLoggerPlugin`
 
 Estimation side:
 - `experimental_validation/identification.py`

@@ -714,14 +714,13 @@ class IdentificationPipelineTests(unittest.TestCase):
     def test_build_identification_plan_repeats_profiles(self) -> None:
         plan = build_identification_plan(
             plan_name="x500_identification_comprehensive",
-            results_root="Tools/optimization/plan_runs/x500_identification_comprehensive",
-            repeats={
+                        repeats={
                 "mass_vertical": 2,
                 "roll_sweep": 1,
                 "motor_step": 3,
             },
         )
-        task_ids = [task["id"] for task in plan["tasks"]]
+        task_ids = [task["id"] for task in plan["sorties"]]
         self.assertEqual(task_ids, [
             "x500_mass_vertical_r01",
             "x500_mass_vertical_r02",
@@ -730,7 +729,7 @@ class IdentificationPipelineTests(unittest.TestCase):
             "x500_motor_step_r02",
             "x500_motor_step_r03",
         ])
-        self.assertTrue(all(task["mission_mode"] == "identification" for task in plan["tasks"]))
+        self.assertTrue(all(task["mission_mode"] == "identification" for task in plan["sorties"]))
 
 
 if __name__ == "__main__":

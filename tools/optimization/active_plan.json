@@ -1,8 +1,0 @@
-{
-  "active": true,
-  "manifest_path": "/home/earsub/px4-custom/Tools/optimization/plan_runs/x500_inertia_refinement/plan_manifest.json",
-  "results_root": "/home/earsub/px4-custom/Tools/optimization/plan_runs/x500_inertia_refinement",
-  "report_html": "/home/earsub/px4-custom/Tools/optimization/controller_suite_report.html",
-  "current_task_id": null,
-  "updated_at": 1774515248.4685843
-}

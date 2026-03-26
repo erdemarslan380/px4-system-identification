@@ -1,214 +1,92 @@
 name: x500_identification_digital_twin
 rootfs: build/px4_sitl_default/rootfs
-results_root: Tools/optimization/plan_runs/x500_identification_digital_twin
-report_html: Tools/optimization/controller_suite_report.html
+output_dir: runs/x500_identification_digital_twin
 defaults:
-  workers: 1
-  iterations: 1
-  global_iters: 1
-  optimizer: bayes
   takeoff_alt: 2.0
   takeoff_timeout: 45.0
   trajectory_timeout: auto
-  w_track: 1.0
-  w_energy: 0.05
   sim_speed_factor: 1.0
   simulator: gz
   simulator_vehicle: x500
   simulator_world: default
-  max_evals_per_boot: 1
   landing_mode: land
   trace_window: offboard
   engagement_dwell_s: 2.0
   mission_mode: identification
-tasks:
+sorties:
 - id: x500_mass_vertical_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: mass_vertical
 - id: x500_mass_vertical_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: mass_vertical
 - id: x500_mass_vertical_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: mass_vertical
 - id: x500_mass_vertical_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: mass_vertical
 - id: x500_mass_vertical_r05
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: mass_vertical
 - id: x500_hover_thrust_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: hover_thrust
 - id: x500_hover_thrust_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: hover_thrust
 - id: x500_hover_thrust_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: hover_thrust
 - id: x500_hover_thrust_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: hover_thrust
 - id: x500_roll_sweep_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: roll_sweep
 - id: x500_roll_sweep_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: roll_sweep
 - id: x500_roll_sweep_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: roll_sweep
 - id: x500_roll_sweep_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: roll_sweep
 - id: x500_pitch_sweep_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: pitch_sweep
 - id: x500_pitch_sweep_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: pitch_sweep
 - id: x500_pitch_sweep_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: pitch_sweep
 - id: x500_pitch_sweep_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: pitch_sweep
 - id: x500_yaw_sweep_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: yaw_sweep
 - id: x500_yaw_sweep_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: yaw_sweep
 - id: x500_yaw_sweep_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: yaw_sweep
 - id: x500_yaw_sweep_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: yaw_sweep
 - id: x500_drag_x_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_x
 - id: x500_drag_x_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_x
 - id: x500_drag_x_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_x
 - id: x500_drag_x_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_x
 - id: x500_drag_y_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_y
 - id: x500_drag_y_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_y
 - id: x500_drag_y_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_y
 - id: x500_drag_y_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_y
 - id: x500_drag_z_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_z
 - id: x500_drag_z_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_z
 - id: x500_drag_z_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_z
 - id: x500_drag_z_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: drag_z
 - id: x500_motor_step_r01
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: motor_step
 - id: x500_motor_step_r02
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: motor_step
 - id: x500_motor_step_r03
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: motor_step
 - id: x500_motor_step_r04
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: motor_step
 - id: x500_motor_step_r05
-  controller: sysid
-  traj_id: 0
-  mission_mode: identification
   ident_profile: motor_step

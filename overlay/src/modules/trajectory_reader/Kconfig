@@ -1,0 +1,5 @@
+menuconfig MODULES_TRAJECTORY_READER
+    bool "System-identification trajectory reader"
+    default n
+    ---help---
+        Publishes baseline hover references, prerecorded trajectories, and built-in identification motions.

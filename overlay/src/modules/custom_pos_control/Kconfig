@@ -1,0 +1,5 @@
+menuconfig MODULES_CUSTOM_POS_CONTROL
+    bool "System-identification position forwarder"
+    default n
+    ---help---
+        Minimal forwarding module used by the PX4 system-identification workspace.

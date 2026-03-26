@@ -7,5 +7,4 @@ __pycache__/
 .vscode/
 experimental_validation/outputs/
 experimental_validation/tests/__pycache__/
-tools/optimization/__pycache__/
-tools/optimization/tests/__pycache__/
+runs/

@@ -116,20 +116,8 @@ void TrajectoryReader::updateControllerTypeCache()
 const char *TrajectoryReader::controllerTypeToString(int32_t controller_type) const
 {
 	switch (controller_type) {
-	case 1:
-		return "dfbc";
-
-	case 2:
-		return "mpc";
-
-	case 3:
-		return "cmpc";
-	
 	case 4:
 		return "px4_default";
-
-	case 5:
-		return "indi";
 
 	case 6:
 		return "sysid";
@@ -1536,11 +1524,12 @@ int TrajectoryReader::print_usage(const char *reason)
     PRINT_MODULE_DESCRIPTION(
         R"DESCR_STR(
 ### Description
-Streams preprocessed binary trajectory files (.traj) from persistent storage
-and publishes multi-step trajectory setpoints via uORB.
+Publishes setpoints for two workflows used by this repository:
+- baseline PX4 position-control references
+- built-in system-identification motions with synchronized logging
 
-Trajectory files are selected using the TRAJ_READ_ID parameter. The module can
-also generate built-in identification motion sets for dynamic logging.
+The module can read prerecorded `.traj` files or generate identification
+profiles such as hover, inertia sweeps, drag sweeps, and motor-step tests.
 )DESCR_STR");
 
     PRINT_MODULE_USAGE_NAME("trajectory_reader", "template");

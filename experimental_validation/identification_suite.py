@@ -37,8 +37,7 @@ DEFAULT_REPEAT_COUNTS: Mapping[str, int] = OrderedDict(
 def build_identification_plan(
     *,
     plan_name: str = "x500_identification_comprehensive",
-    results_root: str = "Tools/optimization/plan_runs/x500_identification_comprehensive",
-    report_html: str = "Tools/optimization/controller_suite_report.html",
+    results_root: str = "runs/x500_identification_comprehensive",
     rootfs: str = "build/px4_sitl_default/rootfs",
     repeats: Mapping[str, int] | None = None,
 ) -> dict:
@@ -64,29 +63,21 @@ def build_identification_plan(
     return {
         "name": str(plan_name),
         "rootfs": str(rootfs),
-        "results_root": str(results_root),
-        "report_html": str(report_html),
+        "output_dir": str(results_root),
         "defaults": {
-            "workers": 1,
-            "iterations": 1,
-            "global_iters": 1,
-            "optimizer": "bayes",
             "takeoff_alt": 2.0,
             "takeoff_timeout": 45.0,
             "trajectory_timeout": "auto",
-            "w_track": 1.0,
-            "w_energy": 0.05,
             "sim_speed_factor": 1.0,
             "simulator": "gz",
             "simulator_vehicle": "x500",
             "simulator_world": "default",
-            "max_evals_per_boot": 1,
             "landing_mode": "land",
             "trace_window": "offboard",
             "engagement_dwell_s": 2.0,
             "mission_mode": "identification",
         },
-        "tasks": tasks,
+        "sorties": tasks,
     }
 
 

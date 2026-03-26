@@ -319,7 +319,12 @@ def write_comparison_outputs(
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Compare identified Gazebo parameters against an SDF reference.")
-    ap.add_argument("--results-root", action="append", default=[], help="Optimization plan root that contains identification_traces. Use multiple times to combine sorties.")
+    ap.add_argument(
+        "--results-root",
+        action="append",
+        default=[],
+        help="Root directory that contains per-sortie subfolders with identification_traces. Use multiple times to combine sorties.",
+    )
     ap.add_argument("--csv", action="append", default=[], help="Identification CSV file(s). Use multiple times.")
     ap.add_argument("--out-dir", required=True, help="Output directory for reports.")
     ap.add_argument("--sdf-model", default="Tools/simulation/gz/models/x500/model.sdf")
