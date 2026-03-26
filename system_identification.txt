@@ -13,6 +13,7 @@ The present status is:
 - the end-to-end identification pipeline is operational;
 - mass, motor model, and most drag-related Gazebo parameters are identified well;
 - the remaining main weakness is the roll-axis inertia term Ixx.
+- the built-in x500 frame used in Gazebo is an X configuration, so the remaining mismatch is not mainly a plus-vs-X frame-definition problem.
 
 2. High-level architecture
 --------------------------
@@ -80,8 +81,8 @@ Duration: 28 s
 Purpose:
 - excite roll dynamics to estimate Ixx.
 Reference shape:
-- lateral oscillation in Y,
-- small vertical modulation to prevent over-specialized hover-only data.
+- pure lateral multi-sine oscillation in Y,
+- no deliberate vertical motion.
 
 4.3 Pitch sweep
 Profile: `pitch_sweep`
@@ -89,8 +90,8 @@ Duration: 28 s
 Purpose:
 - excite pitch dynamics to estimate Iyy.
 Reference shape:
-- longitudinal oscillation in X,
-- small vertical modulation.
+- pure longitudinal multi-sine oscillation in X,
+- no deliberate vertical motion.
 
 4.4 Yaw sweep
 Profile: `yaw_sweep`
@@ -98,7 +99,8 @@ Duration: 24 s
 Purpose:
 - excite yaw dynamics to estimate Izz and yaw moment behavior.
 Reference shape:
-- small XY motion plus sinusoidal yaw/yaw-rate reference.
+- zero translational motion,
+- multi-sine yaw / yaw-rate reference.
 
 4.5 Drag X / Y / Z
 Profiles: `drag_x`, `drag_y`, `drag_z`
@@ -110,15 +112,16 @@ Reference shape:
 
 4.6 Mass vertical
 Profile: `mass_vertical`
-Duration: 34 s
+Duration: 36 s
 Purpose:
 - improve mass observability with richer vertical excitation.
 Reference shape:
-- stronger multi-sine vertical motion with small XY content.
+- stronger multi-sine vertical motion,
+- no deliberate XY content.
 
 4.7 Motor step
 Profile: `motor_step`
-Duration: 22 s
+Duration: 24 s
 Purpose:
 - estimate motor model parameters:
   - time_constant_up,
@@ -130,7 +133,8 @@ Purpose:
   - rotor_velocity_slowdown_sim,
   - maximum rotor speed.
 Reference shape:
-- piecewise step sequence in commanded collective input.
+- piecewise symmetric staircase in the vertical reference,
+- designed to create repeated collective thrust transients without large position excursions.
 
 5. Logged signals
 -----------------
@@ -209,6 +213,8 @@ Therefore:
 - mass = total thrust / (g + az)
 After mass is estimated, thrust scale is fit from commanded thrust to observed physical thrust.
 
+The implementation now includes tilt-aware correction when roll and pitch are available. In other words, the effective vertical thrust component is used instead of blindly treating total thrust magnitude as purely vertical. This matters because even in “mostly vertical” sorties the vehicle is not perfectly level all the time, and ignoring tilt creates a systematic mass bias.
+
 7.2 Axis-wise inertia estimation
 The inertia estimator now uses two layers.
 
@@ -236,7 +242,7 @@ It uses the rigid-body relation:
 - tau = I * alpha + omega × (I * omega)
 For diagonal inertia, the per-axis equations are linear in `[Ixx, Iyy, Izz]`.
 This solver is implemented because the roll-axis estimate appears biased by coupling effects.
-At the time of writing, it is validated on synthetic coupled data but is not yet the default path for real x500 logs because it needs more tuning on the real simulation data.
+At the time of writing, the pipeline compares axis-wise and joint / coupling-aware fits and keeps the better one when it improves the torque-fit residuals enough. This reduces the risk of carrying a biased roll-axis estimate when coupling is clearly visible in the log.
 
 7.4 Drag estimation
 Quadratic drag terms are estimated independently per axis using:
@@ -257,6 +263,26 @@ From the dedicated `motor_step` profiles the following are estimated:
 - observed max rotor speed.
 
 A crucial implementation detail is that rotor time constants must respect sortie / run boundaries. Multi-sortie logs cannot be treated as one continuous time axis. This was fixed by preserving `run_index` and segmenting the rotor time-series accordingly.
+
+Another crucial detail is that the `motor_step` family is still a closed-loop maneuver, not a direct ESC bench test. Therefore, practical SITL time-constant recovery should be interpreted as a system-identification estimate under closed-loop excitation, not as a direct actuator lab measurement.
+
+7.6 Upper-bound synthetic benchmark
+To separate estimator quality from practical maneuver quality, a fully synthetic noiseless benchmark is now included in the repository.
+
+The benchmark:
+- generates internally consistent identification rows from the x500 reference parameters,
+- feeds them through the same identification pipeline,
+- compares the recovered parameters to the original SDF values.
+
+This benchmark currently recovers the main comparable SDF parameters essentially exactly:
+- mass,
+- Ixx, Iyy, Izz,
+- motor time constants,
+- motor constant,
+- moment constant,
+- rotor slowdown.
+
+This result is important because it proves that the estimator itself is capable of near-perfect recovery when the rows are sufficiently informative. Therefore, the remaining gap in practical Gazebo SITL identification is a maneuver-design / observability issue rather than a fundamental regression failure.
 
 8. Comparison against the SDF model
 -----------------------------------

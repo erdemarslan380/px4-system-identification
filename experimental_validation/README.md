@@ -30,6 +30,12 @@ Important distinction
 For real flights, only `px4_only` and telemetry-style fields are available.
 `truth_assisted` is for simulator-side method development and validation.
 
+Why a perfect SITL match is not automatic
+- In a synthetic, perfectly informative benchmark, the estimator can recover the x500 SDF almost exactly.
+- In practical Gazebo SITL sorties the vehicle is still controlled in closed loop by the PX4 baseline PID.
+- That means the identification maneuvers excite the dynamics indirectly through the controller rather than by commanding the SDF parameters directly.
+- Residual error therefore comes mainly from maneuver observability and family separation, not from measurement noise alone.
+
 Run the estimator on one log pair
 ```bash
 cd ~/px4-system-identification
@@ -100,7 +106,8 @@ python3 -m unittest \
   experimental_validation.tests.test_identification_pipeline \
   experimental_validation.tests.test_sdf_compare \
   experimental_validation.tests.test_calibration_restore \
-  experimental_validation.tests.test_composite_candidate
+  experimental_validation.tests.test_composite_candidate \
+  experimental_validation.tests.test_perfect_recovery_benchmark
 ```
 
 
@@ -115,6 +122,18 @@ What this produces
 - synthetic placeholder real-flight overlays for three unseen trajectories
 - stress-test surfaces for payload, center-of-mass shift, arm length, and motor-model variations
 - CSV files and `paper_validation_summary.json` so the figures can be regenerated later with real-flight logs
+
+Run the synthetic upper-bound benchmark
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/perfect_recovery_benchmark.py \
+  --out examples/paper_assets/perfect_recovery_benchmark.json
+```
+
+This benchmark answers a simple question:
+- if the identification rows are perfectly informative and noiseless, does the estimator recover the x500 SDF?
+
+The expected answer is yes, to numerical precision. Any remaining gap in the practical SITL pipeline is therefore a maneuver / observability issue, not a failure of the regression code itself.
 
 If you already have a fresh identification output, point the script to it:
 ```bash

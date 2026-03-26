@@ -100,13 +100,15 @@ class SdfComparisonTests(unittest.TestCase):
             ident_path = ident_root / "eval_00000.csv"
             truth_path = truth_root / "eval_00000.csv"
             ident_path.write_text(
-                "timestamp_us,profile,az,motor_0,motor_1,motor_2,motor_3\n"
-                "1000000,motor_step,0.0,0.5,0.5,0.5,0.5\n",
+                "timestamp_us,profile,az,thrust_cmd,motor_0,motor_1,motor_2,motor_3\n"
+                "500000,hover_thrust,0.0,0.5,0.5,0.5,0.5,0.5\n"
+                "1000000,motor_step,0.0,0.5,0.5,0.5,0.5,0.5\n",
                 encoding="utf-8",
             )
             truth_path.write_text(
-                "sim_time_us,thrust_n,observed_max_rot_velocity_radps,rotor_0_actual_radps,rotor_1_actual_radps,rotor_2_actual_radps,rotor_3_actual_radps\n"
-                "0,19.6133,800,400,400,400,400\n",
+                "sim_time_us,thrust_n,observed_max_rot_velocity_radps,rotor_0_actual_radps,rotor_1_actual_radps,rotor_2_actual_radps,rotor_3_actual_radps,az_world_mps2\n"
+                "500000,19.6133,800,400,400,400,400,0.0\n"
+                "1000000,19.6133,800,400,400,400,400,0.0\n",
                 encoding="utf-8",
             )
             sdf_reference = {

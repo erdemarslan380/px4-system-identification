@@ -121,6 +121,15 @@ Recommended identification families
 - `motor_step`
   - motor time constants and motor-model terms
 
+Important interpretation note
+- The built-in Gazebo `x500` model is an `X` quad configuration, not a `+` configuration.
+- In other words, the current remaining mismatch is not primarily explained by the frame geometry choice.
+- The larger source of bias is that the practical SITL workflow is still a closed-loop OFFBOARD identification problem:
+  - the maneuver excites the plant indirectly through the PX4 baseline PID,
+  - some families are easier to isolate than others,
+  - motor and inertia terms are therefore not equally observable from every sortie.
+- To separate estimator quality from maneuver-quality, this repository now includes a synthetic noiseless upper-bound benchmark.
+
 Estimate parameters from one flight log
 ```bash
 cd ~/px4-system-identification
@@ -165,7 +174,8 @@ python3 -m unittest \
   experimental_validation.tests.test_identification_pipeline \
   experimental_validation.tests.test_sdf_compare \
   experimental_validation.tests.test_calibration_restore \
-  experimental_validation.tests.test_composite_candidate
+  experimental_validation.tests.test_composite_candidate \
+  experimental_validation.tests.test_perfect_recovery_benchmark
 ```
 
 Repository layout
@@ -186,6 +196,16 @@ python3 experimental_validation/paper_artifacts.py \
   - three synthetic placeholder real-flight overlay figures
   - five statistical stress-test surface figures
   - CSV files and `paper_validation_summary.json`
+
+Upper-bound benchmark
+- To verify that the estimator itself can recover the SDF parameters when the data are perfectly informative, run:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/perfect_recovery_benchmark.py \
+  --out examples/paper_assets/perfect_recovery_benchmark.json
+```
+- The expected result is a near-perfect match to the x500 SDF reference.
+- This benchmark is useful when explaining why practical closed-loop SITL identification can still have small residual errors even without sensor noise.
 
 Example figures
 

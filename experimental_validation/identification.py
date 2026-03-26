@@ -732,39 +732,54 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
     grouped = split_rows_by_profile(normalized_rows)
     warnings: list[str] = []
 
-    hover_rows = _combined_profile_rows(grouped, "hover_thrust", "hover", "mass_vertical", "motor_step")
-    if not hover_rows:
-        raise ValueError("identification log does not contain hover_thrust samples")
-
-    hover_has_thrust = any("thrust_n" in row for row in hover_rows)
-    if hover_has_thrust:
-        mass = estimate_hover_mass(
-            hover_rows,
-            thrust_column="thrust_n",
-            accel_z_column="az_world_mps2",
-        )
-        thrust = estimate_thrust_scale(
-            hover_rows,
-            mass_kg=mass.mass_kg,
-            command_column="thrust_cmd",
-            accel_z_column="az_world_mps2",
-        )
+    hover_rows = _combined_profile_rows(grouped, "hover_thrust", "hover", "mass_vertical")
+    if hover_rows:
+        hover_has_thrust = any("thrust_n" in row for row in hover_rows)
+        if hover_has_thrust:
+            mass = estimate_hover_mass(
+                hover_rows,
+                thrust_column="thrust_n",
+                accel_z_column="az_world_mps2",
+            )
+            thrust = estimate_thrust_scale(
+                hover_rows,
+                mass_kg=mass.mass_kg,
+                command_column="thrust_cmd",
+                accel_z_column="az_world_mps2",
+            )
+        else:
+            warnings.append(
+                "hover_thrust samples do not contain thrust_n; using a nominal 1.0 kg mass fallback "
+                "and estimating thrust scale from normalized command."
+            )
+            mass = HoverMassEstimate(
+                mass_kg=1.0,
+                sample_count=len(hover_rows),
+                std_kg=0.0,
+                gravity_mps2=GRAVITY_MPS2,
+            )
+            thrust = estimate_thrust_scale(
+                hover_rows,
+                mass_kg=mass.mass_kg,
+                command_column="thrust_cmd",
+                accel_z_column="az_world_mps2",
+            )
     else:
         warnings.append(
-            "hover_thrust samples do not contain thrust_n; using a nominal 1.0 kg mass fallback "
-            "and estimating thrust scale from normalized command."
+            "identification log does not contain hover_thrust/mass_vertical samples; "
+            "using nominal fallbacks for mass and thrust-scale while estimating the remaining families."
         )
         mass = HoverMassEstimate(
             mass_kg=1.0,
-            sample_count=len(hover_rows),
+            sample_count=0,
             std_kg=0.0,
             gravity_mps2=GRAVITY_MPS2,
         )
-        thrust = estimate_thrust_scale(
-            hover_rows,
-            mass_kg=mass.mass_kg,
-            command_column="thrust_cmd",
-            accel_z_column="az_world_mps2",
+        thrust = ThrustScaleEstimate(
+            thrust_scale_n_per_cmd=0.0,
+            sample_count=0,
+            rmse_n=0.0,
+            gravity_mps2=GRAVITY_MPS2,
         )
 
     roll_rows = _combined_profile_rows(grouped, "roll_sweep", "roll_step")
@@ -798,19 +813,43 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
 
     joint_inertia = _safe_joint_inertia_estimate(roll_rows, pitch_rows, yaw_rows, warnings)
     if joint_inertia is not None:
-        if inertia_x.sample_count <= 0 and joint_inertia.x.sample_count > 0:
-            inertia_x = joint_inertia.x
-        if inertia_y.sample_count <= 0 and joint_inertia.y.sample_count > 0:
-            inertia_y = joint_inertia.y
-        if inertia_z.sample_count <= 0 and joint_inertia.z.sample_count > 0:
-            inertia_z = joint_inertia.z
+        axis_pairs = (
+            ("x", joint_inertia.x),
+            ("y", joint_inertia.y),
+            ("z", joint_inertia.z),
+        )
+        for axis_name, joint_axis in axis_pairs:
+            current = {"x": inertia_x, "y": inertia_y, "z": inertia_z}[axis_name]
+            choose_joint = False
+
+            if current.sample_count <= 0 and joint_axis.sample_count > 0:
+                choose_joint = True
+            elif current.inertia_kgm2 <= 0.0 < joint_axis.inertia_kgm2:
+                choose_joint = True
+            elif joint_axis.sample_count > 0 and joint_axis.rmse_nm < current.rmse_nm * 0.95:
+                choose_joint = True
+
+            if choose_joint:
+                warnings.append(
+                    f"{axis_name}-axis inertia estimate used joint diagonal fit because it outperformed the axis-wise fit "
+                    f"(rmse {current.rmse_nm:.4f} -> {joint_axis.rmse_nm:.4f})."
+                )
+                if axis_name == "x":
+                    inertia_x = joint_axis
+                elif axis_name == "y":
+                    inertia_y = joint_axis
+                else:
+                    inertia_z = joint_axis
 
     drag_x = _safe_drag_estimate(drag_x_rows, "x", mass.mass_kg, "vx_mps", "ax_drag_mps2", warnings)
     drag_y = _safe_drag_estimate(drag_y_rows, "y", mass.mass_kg, "vy_mps", "ay_drag_mps2", warnings)
     drag_z = _safe_drag_estimate(drag_z_rows, "z", mass.mass_kg, "vz_mps", "az_drag_mps2", warnings)
 
     numeric_rows = [dict(row) for profile_rows in grouped.values() for row in profile_rows]
+    motor_rows = _combined_profile_rows(grouped, "motor_step")
     rotor_rows = _extract_rotor_rows(numeric_rows)
+    motor_rotor_rows = _extract_rotor_rows(motor_rows)
+    rotor_rows_for_motor_dynamics = motor_rotor_rows if motor_rotor_rows else rotor_rows
     drag_coeff_rows = _axis_projection_rows(
         numeric_rows,
         target_prefix="drag_force_body",
@@ -830,7 +869,7 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
                 "omega_sq": row["actual_velocity_radps"] * row["actual_velocity_radps"],
                 "thrust_n": row["thrust_n"],
             }
-            for row in rotor_rows
+            for row in rotor_rows_for_motor_dynamics
             if math.isfinite(row.get("actual_velocity_radps", math.nan))
             and math.isfinite(row.get("thrust_n", math.nan))
         ],
@@ -842,7 +881,7 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
         min_feature_abs=1e-6,
     )
     moment_constant = _safe_scalar_estimate(
-        numeric_rows,
+        yaw_rows if yaw_rows else numeric_rows,
         "moment_constant",
         warnings,
         estimate_ratio,
@@ -874,7 +913,7 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
                 "numerator": row["actual_velocity_radps"],
                 "denominator": row["joint_velocity_radps"],
             }
-            for row in rotor_rows
+            for row in rotor_rows_for_motor_dynamics
             if math.isfinite(row.get("actual_velocity_radps", math.nan))
             and math.isfinite(row.get("joint_velocity_radps", math.nan))
             and abs(row.get("joint_velocity_radps", 0.0)) > 1e-6
@@ -887,14 +926,14 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
         min_denominator_abs=1e-6,
     )
     max_rot_velocity = _safe_scalar_estimate(
-        numeric_rows,
+        motor_rows if motor_rows else numeric_rows,
         "max_rot_velocity_radps",
         warnings,
         estimate_max_value,
         column="observed_max_rot_velocity_radps",
     )
-    time_constant_up = _safe_scalar_estimate(rotor_rows, "time_constant_up_s", warnings, _estimate_rotor_time_constant, "up")
-    time_constant_down = _safe_scalar_estimate(rotor_rows, "time_constant_down_s", warnings, _estimate_rotor_time_constant, "down")
+    time_constant_up = _safe_scalar_estimate(rotor_rows_for_motor_dynamics, "time_constant_up_s", warnings, _estimate_rotor_time_constant, "up")
+    time_constant_down = _safe_scalar_estimate(rotor_rows_for_motor_dynamics, "time_constant_down_s", warnings, _estimate_rotor_time_constant, "down")
 
     return {
         "mass": mass.as_dict(),

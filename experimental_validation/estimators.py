@@ -143,6 +143,8 @@ def estimate_hover_mass(
     *,
     thrust_column: str = "thrust_n",
     accel_z_column: str = "az_world_mps2",
+    roll_column: str = "roll",
+    pitch_column: str = "pitch",
     gravity_mps2: float = GRAVITY_MPS2,
     min_total_accel_mps2: float = 0.5,
     low_torque_quantile: float = 0.5,
@@ -156,12 +158,20 @@ def estimate_hover_mass(
         accel_z = row.get(accel_z_column)
         if thrust_n is None or accel_z is None:
             continue
+        thrust_vertical_n = float(thrust_n)
+        roll = row.get(roll_column)
+        pitch = row.get(pitch_column)
+        if roll is not None and pitch is not None:
+            roll = float(roll)
+            pitch = float(pitch)
+            if math.isfinite(roll) and math.isfinite(pitch):
+                thrust_vertical_n *= math.cos(roll) * math.cos(pitch)
         total_accel = gravity_mps2 + accel_z
         if not math.isfinite(total_accel) or total_accel <= min_total_accel_mps2:
             continue
-        mass_estimate = float(thrust_n) / total_accel
+        mass_estimate = thrust_vertical_n / total_accel
         masses.append(mass_estimate)
-        thrust_values.append(float(thrust_n))
+        thrust_values.append(abs(thrust_vertical_n))
         torque_sum = 0.0
         torque_found = False
         for key in (
@@ -181,7 +191,7 @@ def estimate_hover_mass(
             torque_sum += abs(value)
             torque_found = True
         if torque_found:
-            torque_weighted.append((float(thrust_n), torque_sum, mass_estimate))
+            torque_weighted.append((abs(thrust_vertical_n), torque_sum, mass_estimate))
     if not masses:
         raise ValueError(f"no usable rows for hover-mass estimate using {thrust_column} and {accel_z_column}")
 

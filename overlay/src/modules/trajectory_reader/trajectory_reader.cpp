@@ -169,9 +169,9 @@ float TrajectoryReader::identificationDurationS(IdentificationProfile profile) c
 	case IdentificationProfile::DRAG_Z:
 		return 30.0f;
 	case IdentificationProfile::MASS_VERTICAL:
-		return 34.0f;
+		return 36.0f;
 	case IdentificationProfile::MOTOR_STEP:
-		return 22.0f;
+		return 24.0f;
 	default:
 		return 26.0f;
 	}
@@ -398,18 +398,19 @@ matrix::Vector3f TrajectoryReader::identificationRelativePosition(Identification
 	case IdentificationProfile::ROLL_SWEEP:
 		return matrix::Vector3f(
 			0.0f,
-			0.80f * sinf(two_pi * 0.11f * t_s),
-			0.10f * sinf(two_pi * 0.07f * t_s));
+			0.60f * sinf(two_pi * 0.09f * t_s)
+				+ 0.28f * sinf(two_pi * 0.19f * t_s)
+				+ 0.12f * sinf(two_pi * 0.31f * t_s),
+			0.0f);
 	case IdentificationProfile::PITCH_SWEEP:
 		return matrix::Vector3f(
-			0.80f * sinf(two_pi * 0.11f * t_s),
+			0.60f * sinf(two_pi * 0.09f * t_s)
+				+ 0.28f * sinf(two_pi * 0.19f * t_s)
+				+ 0.12f * sinf(two_pi * 0.31f * t_s),
 			0.0f,
-			0.10f * sinf(two_pi * 0.07f * t_s));
-	case IdentificationProfile::YAW_SWEEP:
-		return matrix::Vector3f(
-			0.15f * sinf(two_pi * 0.08f * t_s),
-			0.15f * sinf(two_pi * 0.10f * t_s),
 			0.0f);
+	case IdentificationProfile::YAW_SWEEP:
+		return matrix::Vector3f(0.0f, 0.0f, 0.0f);
 	case IdentificationProfile::DRAG_X:
 		return matrix::Vector3f(
 			1.20f * sinf(two_pi * 0.08f * t_s),
@@ -427,15 +428,16 @@ matrix::Vector3f TrajectoryReader::identificationRelativePosition(Identification
 			0.50f * sinf(two_pi * 0.09f * t_s));
 	case IdentificationProfile::MASS_VERTICAL:
 		return matrix::Vector3f(
-			0.05f * sinf(two_pi * 0.05f * t_s),
-			0.05f * sinf(two_pi * 0.07f * t_s),
-			0.65f * sinf(two_pi * 0.10f * t_s)
-				+ 0.40f * sinf(two_pi * 0.21f * t_s)
-				+ 0.20f * sinf(two_pi * 0.37f * t_s));
+			0.0f,
+			0.0f,
+			0.55f * sinf(two_pi * 0.08f * t_s)
+				+ 0.35f * sinf(two_pi * 0.17f * t_s)
+				+ 0.18f * sinf(two_pi * 0.29f * t_s)
+				+ 0.10f * sinf(two_pi * 0.41f * t_s));
 	case IdentificationProfile::MOTOR_STEP: {
-		const float segment = floorf(t_s / 2.0f);
+		const float segment = floorf(t_s / 2.5f);
 		const float level = math::constrain(segment, 0.0f, 7.0f);
-		const float sequence[] = {0.00f, 0.18f, 0.55f, 0.10f, 0.70f, 0.20f, 0.85f, 0.00f};
+		const float sequence[] = {0.00f, 0.06f, -0.02f, 0.11f, -0.04f, 0.16f, -0.06f, 0.00f};
 		const int idx = math::constrain(static_cast<int>(level), 0, 7);
 		return matrix::Vector3f(0.0f, 0.0f, sequence[idx]);
 	}
@@ -447,7 +449,8 @@ matrix::Vector3f TrajectoryReader::identificationRelativePosition(Identification
 float TrajectoryReader::identificationRelativeYaw(IdentificationProfile profile, float t_s) const
 {
 	if (profile == IdentificationProfile::YAW_SWEEP) {
-		return 0.80f * sinf(2.0f * M_PI_F * 0.10f * t_s);
+		return 0.55f * sinf(2.0f * M_PI_F * 0.07f * t_s)
+			+ 0.22f * sinf(2.0f * M_PI_F * 0.15f * t_s);
 	}
 	return 0.0f;
 }
@@ -455,7 +458,8 @@ float TrajectoryReader::identificationRelativeYaw(IdentificationProfile profile,
 float TrajectoryReader::identificationRelativeYawRate(IdentificationProfile profile, float t_s) const
 {
 	if (profile == IdentificationProfile::YAW_SWEEP) {
-		return 0.80f * 2.0f * M_PI_F * 0.10f * cosf(2.0f * M_PI_F * 0.10f * t_s);
+		return 0.55f * 2.0f * M_PI_F * 0.07f * cosf(2.0f * M_PI_F * 0.07f * t_s)
+			+ 0.22f * 2.0f * M_PI_F * 0.15f * cosf(2.0f * M_PI_F * 0.15f * t_s);
 	}
 	return 0.0f;
 }

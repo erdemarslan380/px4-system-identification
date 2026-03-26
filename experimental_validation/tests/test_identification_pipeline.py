@@ -166,6 +166,83 @@ class IdentificationPipelineTests(unittest.TestCase):
         self.assertAlmostEqual(report["inertia"]["x"]["inertia_kgm2"], ixx, places=4)
         self.assertTrue(any("coupling-aware fit" in warning for warning in report["warnings"]))
 
+    def test_pipeline_uses_joint_inertia_fit_when_it_beats_axis_wise_fit(self) -> None:
+        rows = []
+        mass_kg = 2.0
+        gravity = 9.80665
+        ixx = 0.02166666666666667
+        iyy = 0.02166666666666667
+        izz = 0.04000000000000001
+
+        for i in range(1, 31):
+            thrust_cmd = 0.42 + 0.003 * i
+            thrust_n = thrust_cmd * 33.0
+            az = thrust_n / mass_kg - gravity
+            rows.append({
+                "timestamp_us": float(i),
+                "profile": "hover_thrust",
+                "thrust_cmd": thrust_cmd,
+                "thrust_n": thrust_n,
+                "az_world_mps2": az,
+            })
+
+        for i in range(1, 61):
+            p_dot = 0.5 + 0.02 * i
+            q = 0.8
+            r = 1.2
+            tau_x = ixx * p_dot + (izz - iyy) * q * r
+            rows.append({
+                "timestamp_us": float(100 + i),
+                "profile": "roll_sweep",
+                "p": 0.6,
+                "q": q,
+                "r": r,
+                "p_dot_radps2": p_dot,
+                "q_dot_radps2": 0.0,
+                "r_dot_radps2": 0.0,
+                "tau_x_nm": tau_x,
+            })
+
+        for i in range(1, 61):
+            q_dot = 0.45 + 0.015 * i
+            p = 0.9
+            r = 0.7
+            tau_y = iyy * q_dot + (ixx - izz) * p * r
+            rows.append({
+                "timestamp_us": float(200 + i),
+                "profile": "pitch_sweep",
+                "p": p,
+                "q": 0.4,
+                "r": r,
+                "p_dot_radps2": 0.0,
+                "q_dot_radps2": q_dot,
+                "r_dot_radps2": 0.0,
+                "tau_y_nm": tau_y,
+            })
+
+        for i in range(1, 61):
+            r_dot = 0.35 + 0.02 * i
+            p = 0.75
+            q = 0.65
+            tau_z = izz * r_dot + (iyy - ixx) * p * q
+            rows.append({
+                "timestamp_us": float(300 + i),
+                "profile": "yaw_sweep",
+                "p": p,
+                "q": q,
+                "r": 0.5,
+                "p_dot_radps2": 0.0,
+                "q_dot_radps2": 0.0,
+                "r_dot_radps2": r_dot,
+                "tau_z_nm": tau_z,
+            })
+
+        report = estimate_parameters_from_identification_log(rows)
+        self.assertAlmostEqual(report["inertia"]["x"]["inertia_kgm2"], ixx, places=5)
+        self.assertAlmostEqual(report["inertia"]["y"]["inertia_kgm2"], iyy, places=5)
+        self.assertAlmostEqual(report["inertia"]["z"]["inertia_kgm2"], izz, places=5)
+        self.assertTrue(any("joint diagonal fit" in warning for warning in report["warnings"]))
+
     def test_joint_inertia_solver_recovers_coupled_diagonal_inertia(self) -> None:
         rows = []
         ixx = 0.02166666666666667
@@ -328,6 +405,25 @@ class IdentificationPipelineTests(unittest.TestCase):
             self.assertAlmostEqual(report["motor_model"]["rotor_velocity_slowdown_sim"]["value"], 10.0, places=6)
             self.assertAlmostEqual(report["motor_model"]["max_rot_velocity_radps"]["value"], 600.0, places=6)
             self.assertIn("motor_model", report)
+
+    def test_truth_assisted_mass_estimate_accounts_for_tilt(self) -> None:
+        rows = []
+        mass_kg = 2.0
+        gravity = 9.80665
+        for i, angle in enumerate((0.0, 0.1, -0.12, 0.18), start=1):
+            thrust_vertical = mass_kg * gravity
+            thrust_total = thrust_vertical / (math.cos(angle) * math.cos(angle))
+            rows.append({
+                "timestamp_us": float(i),
+                "profile": "hover_thrust",
+                "thrust_cmd": 0.5,
+                "thrust_n": thrust_total,
+                "az_world_mps2": 0.0,
+                "roll": angle,
+                "pitch": angle,
+            })
+        report = estimate_parameters_from_identification_log(rows)
+        self.assertAlmostEqual(report["mass"]["mass_kg"], mass_kg, places=6)
 
     def test_load_identification_csv_derives_rotor_command_from_normalized_motor_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -82,6 +82,22 @@ class ExperimentalValidationTests(unittest.TestCase):
         result = estimate_hover_mass(rows)
         self.assertAlmostEqual(result.mass_kg, 2.0, places=3)
 
+    def test_estimate_hover_mass_uses_tilt_corrected_vertical_thrust(self) -> None:
+        rows = []
+        mass_kg = 2.0
+        for angle in (0.0, 0.1, 0.2, -0.15):
+            thrust_total = mass_kg * self.gravity / (math.cos(angle) * math.cos(angle))
+            rows.append(
+                {
+                    "thrust_n": thrust_total,
+                    "az_world_mps2": 0.0,
+                    "roll": angle,
+                    "pitch": angle,
+                }
+            )
+        result = estimate_hover_mass(rows)
+        self.assertAlmostEqual(result.mass_kg, mass_kg, places=6)
+
     def test_estimate_thrust_scale(self) -> None:
         result = estimate_thrust_scale(self.rows, mass_kg=self.mass_kg)
         self.assertAlmostEqual(result.thrust_scale_n_per_cmd, self.thrust_scale, places=6)
