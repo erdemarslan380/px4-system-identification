@@ -102,3 +102,24 @@ python3 -m unittest \
   experimental_validation.tests.test_calibration_restore \
   experimental_validation.tests.test_composite_candidate
 ```
+
+
+Generate paper-ready validation figures
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/paper_artifacts.py \
+  --out-dir examples/paper_assets
+```
+
+What this produces
+- synthetic placeholder real-flight overlays for three unseen trajectories
+- stress-test surfaces for payload, center-of-mass shift, arm length, and motor-model variations
+- CSV files and `paper_validation_summary.json` so the figures can be regenerated later with real-flight logs
+
+If you already have a fresh identification output, point the script to it:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/paper_artifacts.py \
+  --candidate-json /path/to/identified_parameters.json \
+  --out-dir examples/paper_assets
+```

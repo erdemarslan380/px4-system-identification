@@ -22,6 +22,7 @@ from experimental_validation.sdf_export import (
     build_inertial_snippet,
     build_parameter_summary,
 )
+from experimental_validation.twin_metrics import build_blended_twin_score
 
 TRUTH_POLICY_NONE = "none"
 TRUTH_POLICY_TELEMETRY = "telemetry"
@@ -231,8 +232,10 @@ def compare_identified_to_sdf(identified: dict, sdf_reference: dict) -> dict:
             float(sdf_reference["motor_model"]["rotor_velocity_slowdown_sim"]),
         ),
     }
+    blended_twin_score = build_blended_twin_score(comparable)
     return {
         "comparable_metrics": comparable,
+        "blended_twin_score": blended_twin_score,
         "non_comparable_metrics": {
             "identified_only": [
                 "thrust_scale_n_per_cmd",

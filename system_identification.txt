@@ -421,3 +421,151 @@ Current best artifacts:
 15. Recommended next action
 ---------------------------
 If the next goal is a publishable digital-twin paper, the immediate next step is not documentation polishing but closing the Ixx gap. After that, the README and the real-flight baseline PID/offboard procedure should be rewritten around the finalized sortie plan.
+
+9. Two-stage validation flow for the paper
+------------------------------------------
+The paper should present the digital-twin validation in two consecutive stages.
+
+9.1 Stage 1: Real-flight validation against the simulator
+This stage answers the question:
+- if the physical parameters are identified from the dedicated system-identification maneuvers,
+- and those parameters are written into the Gazebo model,
+- does the resulting digital twin reproduce the motion of the real vehicle on unseen validation trajectories?
+
+The intended workflow is:
+1. Perform the identification sorties outdoors on a calm day.
+2. Export the PX4 identification CSV logs.
+3. Estimate the physical parameters.
+4. Write the identified mass, inertia, and motor-model terms back into the candidate Gazebo SDF.
+5. Fly three validation trajectories with the real vehicle using the baseline PX4 PID.
+6. Replay the same three trajectories in Gazebo with the identified digital twin.
+7. Overlay real and simulated trajectories and compare tracking, delay, altitude excursion, and energy-like behavior.
+
+The validation trajectories should be deliberately different from the identification maneuvers.
+Recommended set:
+- trajectory 1: smooth lemniscate or figure-eight,
+- trajectory 2: climbing spiral,
+- trajectory 3: aggressive box or cornered path with stronger acceleration and deceleration.
+
+The comparison products should include:
+- 3D path overlay,
+- altitude-versus-time overlay,
+- position error norm versus time,
+- summary RMSE per trajectory,
+- an aggregate twin-similarity score.
+
+9.2 Stage 2: SITL statistical validation and stress tests
+This stage answers the question:
+- if the base x500 model is changed systematically,
+- how sensitively does the digital-twin similarity degrade,
+- and which physical parameters are most critical for preserving a high-quality twin?
+
+The current repository now supports a paper-oriented stress-test representation built around a single blended score.
+The stress-test families are:
+- payload mass versus payload z-offset,
+- payload mass versus payload x-offset,
+- payload mass versus payload y-offset,
+- payload mass versus arm-length scale,
+- motor constant scale versus motor time-constant scale.
+
+For each family two surfaces are generated:
+- a reference surface representing the real system,
+- a candidate surface representing the digital twin.
+
+If the two surfaces nearly overlap, the digital twin is robust with respect to that parameter family.
+If the gap grows, that parameter family is a limiting factor.
+
+10. Practical real-flight sortie plan
+------------------------------------
+Because battery life is limited, the real-flight campaign should be split into 4 to 5 sorties.
+
+Recommended minimum structure:
+- Sortie 1:
+  - `hover_thrust`
+  - `mass_vertical`
+- Sortie 2:
+  - `roll_sweep`
+  - `pitch_sweep`
+- Sortie 3:
+  - `yaw_sweep`
+  - `motor_step`
+- Sortie 4:
+  - `drag_x`
+  - `drag_y`
+  - `drag_z`
+- Sortie 5:
+  - validation trajectory 1
+  - validation trajectory 2
+  - validation trajectory 3
+
+If the three validation trajectories do not fit into one battery window, split Sortie 5 into two shorter validation sorties.
+
+All real-flight sorties should follow the same control sequence:
+1. Manual takeoff.
+2. Climb to about 3 m AGL.
+3. Keep OFFBOARD alive.
+4. Keep the baseline PX4 PID path active.
+5. Switch to OFFBOARD only when the vehicle is already stable.
+6. Run one predefined identification or validation mission.
+7. Return to hover.
+8. Exit OFFBOARD.
+9. Land manually or with a controlled landing procedure.
+
+11. Synthetic placeholder data before real flights
+--------------------------------------------------
+At the time of writing, real-flight validation logs are not yet available.
+Therefore the repository now generates a synthetic placeholder version of Stage 1 so that the paper figures and the validation scripts can already be exercised.
+
+Important interpretation:
+- the placeholder “real flight” traces are not claimed to be actual flight data,
+- they are simulator-derived references with controlled low-frequency noise, small bias, and lag injection,
+- they are only a drafting scaffold for the paper figures,
+- once real-flight logs exist, the same scripts can be rerun with those logs and the figures can be replaced.
+
+12. Blended twin score
+----------------------
+The validation workflow uses a single blended digital-twin score so that multi-parameter stress tests can be visualized on one surface.
+
+The score is built from the directly comparable SDF quantities:
+- mass,
+- diagonal inertia terms,
+- motor time constants,
+- maximum rotor velocity,
+- motor constant,
+- moment constant,
+- rotor drag coefficient,
+- rolling moment coefficient,
+- rotor slowdown factor.
+
+Each metric is normalized by a tolerance band and weighted by importance. The global penalty is converted into a score in the interval (0, 100].
+Interpretation:
+- 100 means near-perfect parameter agreement,
+- lower values mean the candidate twin deviates more strongly from the reference model,
+- family scores are also reported for:
+  - mass,
+  - inertia,
+  - motor dynamics,
+  - motor coefficients.
+
+13. New paper-figure generation script
+--------------------------------------
+The repository includes:
+- `experimental_validation/paper_artifacts.py`
+
+This script generates:
+- three trajectory-overlay figures,
+- four stress-test surface figures,
+- CSV files for all plotted data,
+- a `paper_validation_summary.json` report.
+
+Current figure families:
+- `trajectory_1_lemniscate_overlay.png`
+- `trajectory_2_climb_spiral_overlay.png`
+- `trajectory_3_aggressive_box_overlay.png`
+- `payload_z_surface.png`
+- `payload_x_offset_surface.png`
+- `payload_y_offset_surface.png`
+- `arm_length_surface.png`
+- `motor_model_surface.png`
+
+These figures are intended to serve as a reproducible appendix for the paper and can later be refreshed with real-flight logs.

@@ -186,6 +186,8 @@ class SdfComparisonTests(unittest.TestCase):
         self.assertAlmostEqual(comparison["comparable_metrics"]["mass_kg"]["abs_error"], 0.1)
         self.assertIn("motor_constant", comparison["comparable_metrics"])
         self.assertAlmostEqual(comparison["comparable_metrics"]["motor_constant"]["identified"], 1.25e-5)
+        self.assertIn("blended_twin_score", comparison)
+        self.assertGreater(comparison["blended_twin_score"]["score"], 0.0)
         self.assertIn("non_comparable_metrics", comparison)
 
 
