@@ -43,10 +43,34 @@ class TrajectoryCase:
 
 
 DEFAULT_TRAJECTORIES = (
-    TrajectoryCase("trajectory_1_lemniscate", 30.0, {"payload_mass": 0.10, "com_z": 0.01, "tau_scale": 1.02}),
-    TrajectoryCase("trajectory_2_climb_spiral", 34.0, {"payload_mass": 0.22, "com_x": 0.02, "com_y": -0.01, "com_z": 0.03}),
-    TrajectoryCase("trajectory_3_aggressive_box", 26.0, {"payload_mass": 0.32, "com_x": 0.03, "com_y": 0.02, "tau_scale": 1.05, "arm_scale": 1.02}),
+    TrajectoryCase("hairpin", 28.0, {"payload_mass": 0.12, "com_z": 0.01, "tau_scale": 1.02}),
+    TrajectoryCase("lemniscate", 30.0, {"payload_mass": 0.10, "com_z": 0.01, "tau_scale": 1.02}),
+    TrajectoryCase("circle", 30.0, {"payload_mass": 0.14, "com_x": 0.01, "com_y": -0.01}),
+    TrajectoryCase("time_optimal_30s", 30.0, {"payload_mass": 0.24, "com_x": 0.02, "com_y": -0.01, "com_z": 0.03, "tau_scale": 1.04}),
+    TrajectoryCase("minimum_snap_50s", 50.0, {"payload_mass": 0.18, "com_x": 0.01, "com_y": 0.01, "com_z": 0.02, "arm_scale": 1.01}),
 )
+
+
+def _interp_waypoints(
+    t: np.ndarray,
+    duration_s: float,
+    waypoints: list[tuple[float, float, float]],
+    *,
+    knot_times: list[float] | None = None,
+    smooth_window: int = 1,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if knot_times is None:
+        knot_times = np.linspace(0.0, 1.0, len(waypoints)).tolist()
+    s = np.clip(t / max(duration_s, 1e-6), 0.0, 1.0)
+    xs = np.interp(s, knot_times, [p[0] for p in waypoints])
+    ys = np.interp(s, knot_times, [p[1] for p in waypoints])
+    zs = np.interp(s, knot_times, [p[2] for p in waypoints])
+    if smooth_window > 1:
+        kernel = np.ones(smooth_window, dtype=float) / float(smooth_window)
+        xs = np.convolve(xs, kernel, mode="same")
+        ys = np.convolve(ys, kernel, mode="same")
+        zs = np.convolve(zs, kernel, mode="same")
+    return xs, ys, zs
 
 
 def _load_candidate(path: str | Path | None) -> dict[str, Any]:
@@ -135,22 +159,65 @@ def _mission_scores(reference_metrics: dict[str, float], candidate_metrics: dict
 def _trajectory_reference(case: TrajectoryCase, samples: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     t = np.linspace(0.0, case.duration_s, samples)
     w = 2.0 * np.pi / case.duration_s
-    if "lemniscate" in case.name:
+    if case.name == "hairpin":
+        x, y, z = _interp_waypoints(
+            t,
+            case.duration_s,
+            [
+                (-4.2, -1.6, -3.00),
+                (4.0, -1.6, -3.00),
+                (4.6, -0.2, -3.10),
+                (4.0, 1.6, -3.18),
+                (-4.2, 1.6, -3.18),
+            ],
+            smooth_window=19,
+        )
+    elif case.name == "lemniscate":
         x = 2.8 * np.sin(w * t)
         y = 1.6 * np.sin(w * t) * np.cos(w * t)
         z = -3.0 - 0.35 * np.sin(0.5 * w * t)
-    elif "spiral" in case.name:
-        r = 1.2 + 0.03 * t
-        x = r * np.cos(1.3 * w * t)
-        y = r * np.sin(1.3 * w * t)
-        z = -2.7 - 0.5 * np.sin(0.8 * w * t) - 0.4 * (t / case.duration_s)
+    elif case.name == "circle":
+        radius = 2.6
+        x = radius * np.cos(w * t)
+        y = radius * np.sin(w * t)
+        z = -3.05 - 0.18 * np.sin(0.5 * w * t)
+    elif case.name == "time_optimal_30s":
+        x, y, z = _interp_waypoints(
+            t,
+            case.duration_s,
+            [
+                (-3.5, -1.8, -2.9),
+                (-1.0, 1.6, -3.0),
+                (2.6, 1.9, -3.25),
+                (4.2, -0.4, -3.35),
+                (1.8, -2.0, -3.10),
+                (-1.8, -0.8, -2.85),
+                (-4.0, 1.4, -3.05),
+                (-3.5, -1.8, -2.9),
+            ],
+            knot_times=[0.0, 0.08, 0.18, 0.30, 0.45, 0.62, 0.82, 1.0],
+            smooth_window=11,
+        )
+    elif case.name == "minimum_snap_50s":
+        x, y, z = _interp_waypoints(
+            t,
+            case.duration_s,
+            [
+                (-3.8, -1.2, -2.9),
+                (-2.2, 0.8, -3.0),
+                (0.0, 2.2, -3.2),
+                (2.4, 1.6, -3.35),
+                (3.5, -0.2, -3.25),
+                (2.1, -1.8, -3.1),
+                (-0.5, -2.3, -3.0),
+                (-3.0, -0.8, -2.95),
+                (-3.8, -1.2, -2.9),
+            ],
+            knot_times=[0.0, 0.10, 0.22, 0.36, 0.50, 0.66, 0.80, 0.92, 1.0],
+            smooth_window=29,
+        )
     else:
-        x = 2.0 * np.sign(np.sin(1.2 * w * t))
-        y = 1.4 * np.sign(np.sin(0.9 * w * t + 0.4))
-        z = -3.1 - 0.25 * np.sin(1.4 * w * t)
-        kernel = np.ones(9) / 9.0
-        x = np.convolve(x, kernel, mode="same")
-        y = np.convolve(y, kernel, mode="same")
+        raise ValueError(f"unsupported trajectory case: {case.name}")
     return t, x, y, z
 
 

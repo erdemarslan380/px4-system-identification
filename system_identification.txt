@@ -15,6 +15,16 @@ The present status is:
 - the remaining main weakness is the roll-axis inertia term Ixx.
 - the built-in x500 frame used in Gazebo is an X configuration, so the remaining mismatch is not mainly a plus-vs-X frame-definition problem.
 
+At the time of writing, the best practical x500 family-composite candidate differs from the x500 SDF approximately by:
+- mass: +3.318%
+- Ixx: +24.458%
+- Iyy: -0.521%
+- Izz: +2.617%
+- time_constant_up: -10.556%
+- time_constant_down: 0.000%
+
+By contrast, the synthetic noiseless upper-bound benchmark now recovers the same comparable parameters essentially exactly, to numerical precision. This is a strong indication that the remaining gap is in the practical closed-loop identification maneuvers and their observability, not in the regression code itself.
+
 2. High-level architecture
 --------------------------
 The identification stack is split across three layers.
@@ -473,15 +483,17 @@ The intended workflow is:
 2. Export the PX4 identification CSV logs.
 3. Estimate the physical parameters.
 4. Write the identified mass, inertia, and motor-model terms back into the candidate Gazebo SDF.
-5. Fly three validation trajectories with the real vehicle using the baseline PX4 PID.
-6. Replay the same three trajectories in Gazebo with the identified digital twin.
+5. Fly five validation trajectories with the real vehicle using the baseline PX4 PID.
+6. Replay the same five trajectories in Gazebo with the identified digital twin.
 7. Overlay real and simulated trajectories and compare tracking, delay, altitude excursion, and energy-like behavior.
 
 The validation trajectories should be deliberately different from the identification maneuvers.
 Recommended set:
-- trajectory 1: smooth lemniscate or figure-eight,
-- trajectory 2: climbing spiral,
-- trajectory 3: aggressive box or cornered path with stronger acceleration and deceleration.
+- trajectory 1: hairpin,
+- trajectory 2: lemniscate / figure-eight,
+- trajectory 3: circle,
+- trajectory 4: a 30 s time-optimal path-parameterized mission,
+- trajectory 5: a 50 s minimum-snap mission.
 
 The comparison products should include:
 - 3D path overlay,
@@ -503,6 +515,8 @@ The stress-test families are:
 - payload mass versus payload y-offset,
 - payload mass versus arm-length scale,
 - motor constant scale versus motor time-constant scale.
+
+In the current paper-artifact generator each family is produced by default on a 10 x 10 grid. Therefore each surface summarizes 100 systematically perturbed model variants.
 
 For each family two surfaces are generated:
 - a reference surface representing the real system,
@@ -530,11 +544,11 @@ Recommended minimum structure:
   - `drag_y`
   - `drag_z`
 - Sortie 5:
-  - validation trajectory 1
-  - validation trajectory 2
-  - validation trajectory 3
+  - validation trajectories 1-2
+- Sortie 6:
+  - validation trajectories 3-5
 
-If the three validation trajectories do not fit into one battery window, split Sortie 5 into two shorter validation sorties.
+If battery margin is tight, split the validation block even further, but keep the trajectory family labels unchanged so that the comparison plots remain reproducible.
 
 All real-flight sorties should follow the same control sequence:
 1. Manual takeoff.
@@ -589,15 +603,17 @@ The repository includes:
 - `experimental_validation/paper_artifacts.py`
 
 This script generates:
-- three trajectory-overlay figures,
-- four stress-test surface figures,
+- five trajectory-overlay figures,
+- five stress-test surface figures,
 - CSV files for all plotted data,
 - a `paper_validation_summary.json` report.
 
 Current figure families:
-- `trajectory_1_lemniscate_overlay.png`
-- `trajectory_2_climb_spiral_overlay.png`
-- `trajectory_3_aggressive_box_overlay.png`
+- `hairpin_overlay.png`
+- `lemniscate_overlay.png`
+- `circle_overlay.png`
+- `time_optimal_30s_overlay.png`
+- `minimum_snap_50s_overlay.png`
 - `payload_z_surface.png`
 - `payload_x_offset_surface.png`
 - `payload_y_offset_surface.png`

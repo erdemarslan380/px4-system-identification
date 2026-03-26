@@ -119,7 +119,7 @@ python3 experimental_validation/paper_artifacts.py \
 ```
 
 What this produces
-- synthetic placeholder real-flight overlays for three unseen trajectories
+- synthetic placeholder real-flight overlays for five unseen validation trajectories
 - stress-test surfaces for payload, center-of-mass shift, arm length, and motor-model variations
 - CSV files and `paper_validation_summary.json` so the figures can be regenerated later with real-flight logs
 

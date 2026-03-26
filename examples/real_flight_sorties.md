@@ -37,20 +37,28 @@ Sortie 4: Drag
 - return to hover
 - land
 
-Sortie 5: Validation trajectories
+Sortie 5: Validation trajectories A
 - manual takeoff to about 3 m
 - switch to offboard
-- run validation trajectory 1: smooth lemniscate / figure-eight
-- run validation trajectory 2: climbing spiral
-- run validation trajectory 3: aggressive box / cornered path
+- run validation trajectory 1: hairpin
+- run validation trajectory 2: lemniscate / figure-eight
 - return to hover
 - land
 
-If the battery budget is tight, split Sortie 5 into two shorter validation sorties.
+Sortie 6: Validation trajectories B
+- manual takeoff to about 3 m
+- switch to offboard
+- run validation trajectory 3: circle
+- run validation trajectory 4: 30 s time-optimal path-parameterized mission
+- run validation trajectory 5: 50 s minimum-snap mission
+- return to hover
+- land
+
+If the battery budget is tighter than expected, keep the same five trajectory labels but distribute them across more batteries.
 
 What to compare after the flights
 - identify parameters from Sorties 1-4
 - write them into the Gazebo candidate SDF
-- replay the three validation trajectories in Gazebo
+- replay the five validation trajectories in Gazebo
 - overlay real versus simulated position traces
 - report RMSE, delay, and the blended twin score

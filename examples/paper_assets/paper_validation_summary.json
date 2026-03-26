@@ -11,60 +11,97 @@
     "note": "Synthetic noisy flight data generated from the reference x500 model. Replace the CSV files with real-flight logs later and regenerate the figures.",
     "trajectory_overlays": [
       {
-        "name": "trajectory_1_lemniscate",
+        "name": "hairpin",
+        "scenario": {
+          "payload_mass": 0.12,
+          "com_z": 0.01,
+          "tau_scale": 1.02
+        },
+        "real_rmse_m": 0.092976160489576,
+        "twin_rmse_m": 0.3501169568391574,
+        "real_score": 95.01836474166086,
+        "twin_score": 59.877443591041796,
+        "match_score": 63.01670603765768,
+        "csv": {
+          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_reference.csv",
+          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_synthetic_real.csv",
+          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_digital_twin.csv"
+        }
+      },
+      {
+        "name": "lemniscate",
         "scenario": {
           "payload_mass": 0.1,
           "com_z": 0.01,
           "tau_scale": 1.02
         },
-        "real_rmse_m": 0.03412204290357118,
-        "twin_rmse_m": 0.1639343460768073,
+        "real_rmse_m": 0.034140971646760825,
+        "twin_rmse_m": 0.1608353245521511,
         "real_score": 95.36104731326263,
         "twin_score": 60.06139825048453,
         "match_score": 62.98315710940321,
         "csv": {
-          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_1_lemniscate_reference.csv",
-          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_1_lemniscate_synthetic_real.csv",
-          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_1_lemniscate_digital_twin.csv"
+          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_reference.csv",
+          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_synthetic_real.csv",
+          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_digital_twin.csv"
         }
       },
       {
-        "name": "trajectory_2_climb_spiral",
+        "name": "circle",
         "scenario": {
-          "payload_mass": 0.22,
+          "payload_mass": 0.14,
+          "com_x": 0.01,
+          "com_y": -0.01
+        },
+        "real_rmse_m": 0.03838836313099079,
+        "twin_rmse_m": 0.17875944060265836,
+        "real_score": 95.96371833171122,
+        "twin_score": 60.50575315388295,
+        "match_score": 63.05065519109717,
+        "csv": {
+          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_reference.csv",
+          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_synthetic_real.csv",
+          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_digital_twin.csv"
+        }
+      },
+      {
+        "name": "time_optimal_30s",
+        "scenario": {
+          "payload_mass": 0.24,
           "com_x": 0.02,
           "com_y": -0.01,
-          "com_z": 0.03
+          "com_z": 0.03,
+          "tau_scale": 1.04
         },
-        "real_rmse_m": 0.11980285336759672,
-        "twin_rmse_m": 0.2629823760980677,
-        "real_score": 90.384264410209,
-        "twin_score": 57.258307385439615,
-        "match_score": 63.349862676950906,
+        "real_rmse_m": 0.07452162418467932,
+        "twin_rmse_m": 0.3156596513968701,
+        "real_score": 87.04891360309666,
+        "twin_score": 55.185434560787066,
+        "match_score": 63.39589120251112,
         "csv": {
-          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_2_climb_spiral_reference.csv",
-          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_2_climb_spiral_synthetic_real.csv",
-          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_2_climb_spiral_digital_twin.csv"
+          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_reference.csv",
+          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_synthetic_real.csv",
+          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_digital_twin.csv"
         }
       },
       {
-        "name": "trajectory_3_aggressive_box",
+        "name": "minimum_snap_50s",
         "scenario": {
-          "payload_mass": 0.32,
-          "com_x": 0.03,
-          "com_y": 0.02,
-          "tau_scale": 1.05,
-          "arm_scale": 1.02
+          "payload_mass": 0.18,
+          "com_x": 0.01,
+          "com_y": 0.01,
+          "com_z": 0.02,
+          "arm_scale": 1.01
         },
-        "real_rmse_m": 0.11473673876924988,
-        "twin_rmse_m": 0.5282048025858656,
-        "real_score": 81.86488840961913,
-        "twin_score": 51.91639591647214,
-        "match_score": 63.417170566095784,
+        "real_rmse_m": 0.052059426886414156,
+        "twin_rmse_m": 0.17747802783354347,
+        "real_score": 90.176619485266,
+        "twin_score": 56.96940361081202,
+        "match_score": 63.17535957324313,
         "csv": {
-          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_3_aggressive_box_reference.csv",
-          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_3_aggressive_box_synthetic_real.csv",
-          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/trajectory_3_aggressive_box_digital_twin.csv"
+          "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_reference.csv",
+          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_synthetic_real.csv",
+          "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_digital_twin.csv"
         }
       }
     ]

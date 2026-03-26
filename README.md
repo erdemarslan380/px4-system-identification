@@ -193,9 +193,15 @@ python3 experimental_validation/paper_artifacts.py \
   --out-dir examples/paper_assets
 ```
 - This writes:
-  - three synthetic placeholder real-flight overlay figures
+  - five synthetic placeholder real-flight overlay figures
   - five statistical stress-test surface figures
   - CSV files and `paper_validation_summary.json`
+- By default the stress-test surfaces are produced on a `10 x 10` grid, for example:
+  - `10` payload masses x `10` payload z-offsets,
+  - `10` payload masses x `10` x-offsets,
+  - `10` payload masses x `10` y-offsets,
+  - `10` payload masses x `10` arm-length scales,
+  - `10` motor-constant scales x `10` motor-time scales.
 
 Upper-bound benchmark
 - To verify that the estimator itself can recover the SDF parameters when the data are perfectly informative, run:
@@ -209,6 +215,6 @@ python3 experimental_validation/perfect_recovery_benchmark.py \
 
 Example figures
 
-![Trajectory overlay](examples/paper_assets/figures/trajectory_1_lemniscate_overlay.png)
+![Trajectory overlay](examples/paper_assets/figures/lemniscate_overlay.png)
 
 ![Payload vs z surface](examples/paper_assets/figures/payload_z_surface.png)
