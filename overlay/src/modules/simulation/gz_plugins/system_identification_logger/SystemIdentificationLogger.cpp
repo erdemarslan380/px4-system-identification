@@ -14,6 +14,7 @@
 #include <gz/sim/components/Link.hh>
 #include <gz/sim/components/Name.hh>
 #include <gz/sim/components/Actuators.hh>
+#include <gz/sim/components/Inertial.hh>
 #include <gz/sim/components/Pose.hh>
 #include <gz/sim/components/Wind.hh>
 #include <gz/sim/components/LinearVelocity.hh>
@@ -161,7 +162,11 @@ public:
 		}
 
 		this->stream
-			<< "sim_time_us,model_name,pos_x,pos_y,pos_z,vel_x,vel_y,vel_z,ax_world_mps2,ay_world_mps2,az_world_mps2,"
+			<< "sim_time_us,model_name,truth_mass_kg,truth_ixx_kgm2,truth_iyy_kgm2,truth_izz_kgm2,"
+			<< "truth_time_constant_up_s,truth_time_constant_down_s,truth_max_rot_velocity_radps,"
+			<< "truth_motor_constant,truth_moment_constant,truth_rotor_drag_coefficient,"
+			<< "truth_rolling_moment_coefficient,truth_rotor_velocity_slowdown_sim,"
+			<< "pos_x,pos_y,pos_z,vel_x,vel_y,vel_z,ax_world_mps2,ay_world_mps2,az_world_mps2,"
 			<< "roll,pitch,yaw,p_body,q_body,r_body,p_dot_body,q_dot_body,r_dot_body,"
 			<< "total_prop_thrust_n,total_force_body_x_n,total_force_body_y_n,total_force_body_z_n,"
 			<< "total_torque_body_x_nm,total_torque_body_y_nm,total_torque_body_z_nm,"
@@ -407,6 +412,7 @@ void SystemIdentificationLogger::PreUpdate(const UpdateInfo &_info,
 	const auto base_pose = base_link.WorldPose(_ecm);
 	const auto base_linear_velocity = base_link.WorldLinearVelocity(_ecm);
 	const auto base_angular_velocity = base_link.WorldAngularVelocity(_ecm);
+	const auto base_inertial = _ecm.Component<components::Inertial>(this->dataPtr->base_link_entity);
 	if (!base_pose) {
 		return;
 	}
@@ -474,8 +480,59 @@ void SystemIdentificationLogger::PreUpdate(const UpdateInfo &_info,
 	double sum_omega_sq = 0.0;
 	double sum_command_sq = 0.0;
 	double sum_actual_velocity = 0.0;
+	double truth_time_constant_up_s = NAN;
+	double truth_time_constant_down_s = NAN;
+	double truth_max_rot_velocity_radps = NAN;
+	double truth_motor_constant = NAN;
+	double truth_moment_constant = NAN;
+	double truth_rotor_drag_coefficient = NAN;
+	double truth_rolling_moment_coefficient = NAN;
+	double truth_rotor_velocity_slowdown_sim = NAN;
+	double truth_mass_kg = NAN;
+	double truth_ixx_kgm2 = NAN;
+	double truth_iyy_kgm2 = NAN;
+	double truth_izz_kgm2 = NAN;
 	RotorSample rotor_samples[4]{};
 	const auto actuators_msg = this->dataPtr->CurrentActuatorsMessage(_ecm);
+
+	if (!this->dataPtr->rotors.empty()) {
+		double sum_time_constant_up_s = 0.0;
+		double sum_time_constant_down_s = 0.0;
+		double sum_max_rot_velocity_radps = 0.0;
+		double sum_motor_constant = 0.0;
+		double sum_moment_constant = 0.0;
+		double sum_rotor_drag_coefficient = 0.0;
+		double sum_rolling_moment_coefficient = 0.0;
+		double sum_rotor_velocity_slowdown_sim = 0.0;
+		for (const auto &rotor : this->dataPtr->rotors) {
+			sum_time_constant_up_s += rotor.time_constant_up_s;
+			sum_time_constant_down_s += rotor.time_constant_down_s;
+			sum_max_rot_velocity_radps += rotor.max_rot_velocity_radps;
+			sum_motor_constant += rotor.motor_constant;
+			sum_moment_constant += rotor.moment_constant;
+			sum_rotor_drag_coefficient += rotor.rotor_drag_coefficient;
+			sum_rolling_moment_coefficient += rotor.rolling_moment_coefficient;
+			sum_rotor_velocity_slowdown_sim += rotor.rotor_velocity_slowdown_sim;
+		}
+		const double rotor_count = static_cast<double>(this->dataPtr->rotors.size());
+		truth_time_constant_up_s = sum_time_constant_up_s / rotor_count;
+		truth_time_constant_down_s = sum_time_constant_down_s / rotor_count;
+		truth_max_rot_velocity_radps = sum_max_rot_velocity_radps / rotor_count;
+		truth_motor_constant = sum_motor_constant / rotor_count;
+		truth_moment_constant = sum_moment_constant / rotor_count;
+		truth_rotor_drag_coefficient = sum_rotor_drag_coefficient / rotor_count;
+		truth_rolling_moment_coefficient = sum_rolling_moment_coefficient / rotor_count;
+		truth_rotor_velocity_slowdown_sim = sum_rotor_velocity_slowdown_sim / rotor_count;
+	}
+
+	if (base_inertial) {
+		const auto &inertial = base_inertial->Data();
+		truth_mass_kg = inertial.MassMatrix().Mass();
+		const auto moi = inertial.Moi();
+		truth_ixx_kgm2 = moi(0, 0);
+		truth_iyy_kgm2 = moi(1, 1);
+		truth_izz_kgm2 = moi(2, 2);
+	}
 
 	for (const auto &rotor : this->dataPtr->rotors) {
 		std::optional<double> commanded;
@@ -521,6 +578,10 @@ void SystemIdentificationLogger::PreUpdate(const UpdateInfo &_info,
 
 	this->dataPtr->stream << sim_time_us << ','
 		<< this->dataPtr->model_name << ','
+		<< truth_mass_kg << ',' << truth_ixx_kgm2 << ',' << truth_iyy_kgm2 << ',' << truth_izz_kgm2 << ','
+		<< truth_time_constant_up_s << ',' << truth_time_constant_down_s << ',' << truth_max_rot_velocity_radps << ','
+		<< truth_motor_constant << ',' << truth_moment_constant << ',' << truth_rotor_drag_coefficient << ','
+		<< truth_rolling_moment_coefficient << ',' << truth_rotor_velocity_slowdown_sim << ','
 		<< std::fixed << std::setprecision(6)
 		<< base_pose->Pos().X() << ',' << base_pose->Pos().Y() << ',' << base_pose->Pos().Z() << ','
 		<< linear_velocity_world.X() << ',' << linear_velocity_world.Y() << ',' << linear_velocity_world.Z() << ','

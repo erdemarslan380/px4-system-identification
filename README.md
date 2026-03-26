@@ -130,6 +130,18 @@ Important interpretation note
   - motor and inertia terms are therefore not equally observable from every sortie.
 - To separate estimator quality from maneuver-quality, this repository now includes a synthetic noiseless upper-bound benchmark.
 
+Current practical x500 checkpoint
+- The current built-in practical candidate is `x500_family_composite_v2` in `experimental_validation/reference_models.py`.
+- Its current main x500 SDF errors are approximately:
+  - mass: `+3.229%`
+  - `Ixx`: `+24.458%`
+  - `Iyy`: `-0.521%`
+  - `Izz`: `+2.617%`
+  - `time_constant_up`: `-10.556%`
+  - `time_constant_down`: `0.000%`
+- Current blended twin score: about `62.99 / 100`.
+- The main remaining open problem is still roll-axis inertia observability (`Ixx`).
+
 Estimate parameters from one flight log
 ```bash
 cd ~/px4-system-identification

@@ -36,6 +36,19 @@ Why a perfect SITL match is not automatic
 - That means the identification maneuvers excite the dynamics indirectly through the controller rather than by commanding the SDF parameters directly.
 - Residual error therefore comes mainly from maneuver observability and family separation, not from measurement noise alone.
 
+Current practical checkpoint
+- The built-in practical candidate is `x500_family_composite_v2`.
+- A frozen copy of the current candidate and its comparison report is stored at:
+  - `examples/paper_assets/candidates/x500_family_composite_v2/`
+- Current main x500 SDF errors are approximately:
+  - mass: `+3.229%`
+  - `Ixx`: `+24.458%`
+  - `Iyy`: `-0.521%`
+  - `Izz`: `+2.617%`
+  - `time_constant_up`: `-10.556%`
+  - `time_constant_down`: `0.000%`
+- Current blended twin score: about `62.99 / 100`.
+
 Run the estimator on one log pair
 ```bash
 cd ~/px4-system-identification

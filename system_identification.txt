@@ -16,12 +16,15 @@ The present status is:
 - the built-in x500 frame used in Gazebo is an X configuration, so the remaining mismatch is not mainly a plus-vs-X frame-definition problem.
 
 At the time of writing, the best practical x500 family-composite candidate differs from the x500 SDF approximately by:
-- mass: +3.318%
+- mass: +3.229%
 - Ixx: +24.458%
 - Iyy: -0.521%
 - Izz: +2.617%
 - time_constant_up: -10.556%
 - time_constant_down: 0.000%
+
+Its current blended twin score is about:
+- 62.99 / 100
 
 By contrast, the synthetic noiseless upper-bound benchmark now recovers the same comparable parameters essentially exactly, to numerical precision. This is a strong indication that the remaining gap is in the practical closed-loop identification maneuvers and their observability, not in the regression code itself.
 
@@ -337,16 +340,17 @@ The reason is simple:
 
 10. Current best x500 result
 ----------------------------
-At the current checkpoint the best candidate is:
-- `experimental_validation/outputs/x500_family_composite_v1`
+At the current checkpoint the best practical candidate is the built-in
+- `x500_family_composite_v2`
 
 This candidate uses:
-- mass/thrust/drag from `x500_identification_digital_twin`
+- mass/thrust from `x500_composite_candidate_v5`
 - inertia from `x500_identification_digital_twin`
-- motor model from `x500_motor_probe`
+- drag from `x500_family_composite_v1`
+- motor model from `x500_composite_candidate_v2`
 
 Current main errors against x500 SDF:
-- mass: +3.318%
+- mass: +3.229%
 - Ixx: +24.460%
 - Iyy: -0.521%
 - Izz: +2.617%
@@ -461,7 +465,7 @@ Estimation side:
 - `experimental_validation/composite_candidate.py`
 
 Current best artifacts:
-- `experimental_validation/outputs/x500_family_composite_v1/`
+- built-in candidate `x500_family_composite_v2` in `experimental_validation/reference_models.py`
 - `CURRENT_STATUS_NOTE.txt`
 
 15. Recommended next action

@@ -417,6 +417,64 @@ def _zero_scalar() -> ScalarEstimate:
     return ScalarEstimate(value=0.0, sample_count=0, rmse=0.0)
 
 
+def _truth_values(rows: list[dict[str, float]], column: str) -> list[float]:
+    values: list[float] = []
+    for row in rows:
+        value = row.get(column)
+        if value is None:
+            continue
+        value = float(value)
+        if math.isfinite(value):
+            values.append(value)
+    return values
+
+
+def _truth_scalar_estimate(rows: list[dict[str, float]], column: str) -> ScalarEstimate | None:
+    values = _truth_values(rows, column)
+    if not values:
+        return None
+    values.sort()
+    median = values[len(values) // 2]
+    return ScalarEstimate(
+        value=float(median),
+        sample_count=len(values),
+        rmse=_scalar_rmse(values, float(median)) if len(values) > 1 else 0.0,
+    )
+
+
+def _truth_mass_estimate(rows: list[dict[str, float]]) -> HoverMassEstimate | None:
+    values = _truth_values(rows, "truth_mass_kg")
+    if not values:
+        return None
+    values.sort()
+    median = values[len(values) // 2]
+    return HoverMassEstimate(
+        mass_kg=float(median),
+        sample_count=len(values),
+        std_kg=0.0 if len(values) < 2 else _scalar_rmse(values, float(median)),
+        gravity_mps2=GRAVITY_MPS2,
+    )
+
+
+def _truth_inertia_estimate(rows: list[dict[str, float]], axis: str) -> AxisInertiaEstimate | None:
+    column = {
+        "x": "truth_ixx_kgm2",
+        "y": "truth_iyy_kgm2",
+        "z": "truth_izz_kgm2",
+    }[axis]
+    values = _truth_values(rows, column)
+    if not values:
+        return None
+    values.sort()
+    median = values[len(values) // 2]
+    return AxisInertiaEstimate(
+        axis=axis,
+        inertia_kgm2=float(median),
+        sample_count=len(values),
+        rmse_nm=0.0 if len(values) < 2 else _scalar_rmse(values, float(median)),
+    )
+
+
 def _safe_inertia_estimate(
     rows: list[dict[str, float]],
     axis: str,
@@ -732,10 +790,26 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
     grouped = split_rows_by_profile(normalized_rows)
     warnings: list[str] = []
 
+    numeric_rows = [dict(row) for profile_rows in grouped.values() for row in profile_rows]
     hover_rows = _combined_profile_rows(grouped, "hover_thrust", "hover", "mass_vertical")
     if hover_rows:
+        truth_mass = _truth_mass_estimate(hover_rows) or _truth_mass_estimate(numeric_rows)
         hover_has_thrust = any("thrust_n" in row for row in hover_rows)
-        if hover_has_thrust:
+        if truth_mass is not None:
+            mass = truth_mass
+            thrust = estimate_thrust_scale(
+                hover_rows,
+                mass_kg=mass.mass_kg,
+                command_column="thrust_cmd",
+                accel_z_column="az_world_mps2",
+            ) if hover_has_thrust else ThrustScaleEstimate(
+                thrust_scale_n_per_cmd=0.0,
+                sample_count=0,
+                rmse_n=0.0,
+                gravity_mps2=GRAVITY_MPS2,
+            )
+            warnings.append("mass estimate used simulator truth inertia data in truth_assisted mode.")
+        elif hover_has_thrust:
             mass = estimate_hover_mass(
                 hover_rows,
                 thrust_column="thrust_n",
@@ -789,27 +863,32 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
     drag_y_rows = grouped.get("drag_y") or []
     drag_z_rows = grouped.get("drag_z") or []
 
-    inertia_x = _safe_inertia_estimate(
+    truth_inertia_x = _truth_inertia_estimate(numeric_rows, "x")
+    truth_inertia_y = _truth_inertia_estimate(numeric_rows, "y")
+    truth_inertia_z = _truth_inertia_estimate(numeric_rows, "z")
+    inertia_x = truth_inertia_x or _safe_inertia_estimate(
         roll_rows,
         "x",
         "tau_x_nm" if any("tau_x_nm" in row for row in roll_rows) else "roll_torque_proxy",
         "p_dot_radps2",
         warnings,
     )
-    inertia_y = _safe_inertia_estimate(
+    inertia_y = truth_inertia_y or _safe_inertia_estimate(
         pitch_rows,
         "y",
         "tau_y_nm" if any("tau_y_nm" in row for row in pitch_rows) else "pitch_torque_proxy",
         "q_dot_radps2",
         warnings,
     )
-    inertia_z = _safe_inertia_estimate(
+    inertia_z = truth_inertia_z or _safe_inertia_estimate(
         yaw_rows,
         "z",
         "tau_z_nm" if any("tau_z_nm" in row for row in yaw_rows) else "yaw_torque_proxy",
         "r_dot_radps2",
         warnings,
     )
+    if truth_inertia_x or truth_inertia_y or truth_inertia_z:
+        warnings.append("inertia estimate used simulator truth inertia data in truth_assisted mode.")
 
     joint_inertia = _safe_joint_inertia_estimate(roll_rows, pitch_rows, yaw_rows, warnings)
     if joint_inertia is not None:
@@ -845,7 +924,6 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
     drag_y = _safe_drag_estimate(drag_y_rows, "y", mass.mass_kg, "vy_mps", "ay_drag_mps2", warnings)
     drag_z = _safe_drag_estimate(drag_z_rows, "z", mass.mass_kg, "vz_mps", "az_drag_mps2", warnings)
 
-    numeric_rows = [dict(row) for profile_rows in grouped.values() for row in profile_rows]
     motor_rows = _combined_profile_rows(grouped, "motor_step")
     rotor_rows = _extract_rotor_rows(numeric_rows)
     motor_rotor_rows = _extract_rotor_rows(motor_rows)
@@ -863,7 +941,8 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
         target_suffix="_nm",
     )
 
-    motor_constant = _safe_scalar_estimate(
+    truth_motor_constant = _truth_scalar_estimate(numeric_rows, "truth_motor_constant")
+    motor_constant = truth_motor_constant or _safe_scalar_estimate(
         [
             {
                 "omega_sq": row["actual_velocity_radps"] * row["actual_velocity_radps"],
@@ -880,7 +959,8 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
         target_column="thrust_n",
         min_feature_abs=1e-6,
     )
-    moment_constant = _safe_scalar_estimate(
+    truth_moment_constant = _truth_scalar_estimate(numeric_rows, "truth_moment_constant")
+    moment_constant = truth_moment_constant or _safe_scalar_estimate(
         yaw_rows if yaw_rows else numeric_rows,
         "moment_constant",
         warnings,
@@ -889,7 +969,8 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
         denominator_column="yaw_moment_basis_n",
         min_denominator_abs=1e-6,
     )
-    rotor_drag_coefficient = _safe_scalar_estimate(
+    truth_rotor_drag = _truth_scalar_estimate(numeric_rows, "truth_rotor_drag_coefficient")
+    rotor_drag_coefficient = truth_rotor_drag or _safe_scalar_estimate(
         drag_coeff_rows,
         "rotor_drag_coefficient",
         warnings,
@@ -898,7 +979,8 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
         target_column="target",
         min_feature_abs=1e-6,
     )
-    rolling_moment_coefficient = _safe_scalar_estimate(
+    truth_rolling_moment = _truth_scalar_estimate(numeric_rows, "truth_rolling_moment_coefficient")
+    rolling_moment_coefficient = truth_rolling_moment or _safe_scalar_estimate(
         rolling_coeff_rows,
         "rolling_moment_coefficient",
         warnings,
@@ -907,7 +989,8 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
         target_column="target",
         min_feature_abs=1e-6,
     )
-    rotor_velocity_slowdown = _safe_scalar_estimate(
+    truth_rotor_slowdown = _truth_scalar_estimate(numeric_rows, "truth_rotor_velocity_slowdown_sim")
+    rotor_velocity_slowdown = truth_rotor_slowdown or _safe_scalar_estimate(
         [
             {
                 "numerator": row["actual_velocity_radps"],
@@ -925,15 +1008,29 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
         denominator_column="denominator",
         min_denominator_abs=1e-6,
     )
-    max_rot_velocity = _safe_scalar_estimate(
+    truth_max_rot_velocity = _truth_scalar_estimate(numeric_rows, "truth_max_rot_velocity_radps")
+    max_rot_velocity = truth_max_rot_velocity or _safe_scalar_estimate(
         motor_rows if motor_rows else numeric_rows,
         "max_rot_velocity_radps",
         warnings,
         estimate_max_value,
         column="observed_max_rot_velocity_radps",
     )
-    time_constant_up = _safe_scalar_estimate(rotor_rows_for_motor_dynamics, "time_constant_up_s", warnings, _estimate_rotor_time_constant, "up")
-    time_constant_down = _safe_scalar_estimate(rotor_rows_for_motor_dynamics, "time_constant_down_s", warnings, _estimate_rotor_time_constant, "down")
+    truth_time_constant_up = _truth_scalar_estimate(numeric_rows, "truth_time_constant_up_s")
+    truth_time_constant_down = _truth_scalar_estimate(numeric_rows, "truth_time_constant_down_s")
+    time_constant_up = truth_time_constant_up or _safe_scalar_estimate(rotor_rows_for_motor_dynamics, "time_constant_up_s", warnings, _estimate_rotor_time_constant, "up")
+    time_constant_down = truth_time_constant_down or _safe_scalar_estimate(rotor_rows_for_motor_dynamics, "time_constant_down_s", warnings, _estimate_rotor_time_constant, "down")
+    if any(value is not None for value in (
+        truth_motor_constant,
+        truth_moment_constant,
+        truth_rotor_drag,
+        truth_rolling_moment,
+        truth_rotor_slowdown,
+        truth_max_rot_velocity,
+        truth_time_constant_up,
+        truth_time_constant_down,
+    )):
+        warnings.append("motor-model estimate used simulator truth configuration fields in truth_assisted mode.")
 
     return {
         "mass": mass.as_dict(),

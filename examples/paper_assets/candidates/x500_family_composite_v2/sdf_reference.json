@@ -1,0 +1,29 @@
+{
+  "model_name": "x500",
+  "model_sdf": "builtin:x500",
+  "base_model_sdf": "builtin:x500_base",
+  "mass": {
+    "mass_kg": 2.0
+  },
+  "inertia": {
+    "x": {
+      "inertia_kgm2": 0.02166666666666667
+    },
+    "y": {
+      "inertia_kgm2": 0.02166666666666667
+    },
+    "z": {
+      "inertia_kgm2": 0.04000000000000001
+    }
+  },
+  "motor_model": {
+    "time_constant_up_s": 0.0125,
+    "time_constant_down_s": 0.025,
+    "max_rot_velocity_radps": 1000.0,
+    "motor_constant": 8.54858e-06,
+    "moment_constant": 0.016,
+    "rotor_drag_coefficient": 8.06428e-05,
+    "rolling_moment_coefficient": 1e-06,
+    "rotor_velocity_slowdown_sim": 10.0
+  }
+}

@@ -1,11 +1,11 @@
 {
-  "candidate_json": "builtin:x500_family_composite_v1",
-  "base_blended_twin_score": 62.80615438480349,
+  "candidate_json": "builtin:x500_family_composite_v2",
+  "base_blended_twin_score": 62.990900999614176,
   "base_family_scores": {
-    "inertia": 35.303607114060156,
-    "mass": 51.49940148687553,
-    "motor_coefficients": 96.13373624788004,
-    "motor_dynamics": 74.44467317123275
+    "inertia": 35.30066225067225,
+    "mass": 52.425810558081096,
+    "motor_coefficients": 96.53712651119524,
+    "motor_dynamics": 74.44377204567263
   },
   "stage_1_real_flight_validation": {
     "note": "Synthetic noisy flight data generated from the reference x500 model. Replace the CSV files with real-flight logs later and regenerate the figures.",
@@ -18,10 +18,10 @@
           "tau_scale": 1.02
         },
         "real_rmse_m": 0.092976160489576,
-        "twin_rmse_m": 0.3501169568391574,
+        "twin_rmse_m": 0.34998406821715256,
         "real_score": 95.01836474166086,
-        "twin_score": 59.877443591041796,
-        "match_score": 63.01670603765768,
+        "twin_score": 60.04844047991815,
+        "match_score": 63.19666797379631,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_reference.csv",
           "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_synthetic_real.csv",
@@ -36,10 +36,10 @@
           "tau_scale": 1.02
         },
         "real_rmse_m": 0.034140971646760825,
-        "twin_rmse_m": 0.1608353245521511,
+        "twin_rmse_m": 0.1606211144892508,
         "real_score": 95.36104731326263,
-        "twin_score": 60.06139825048453,
-        "match_score": 62.98315710940321,
+        "twin_score": 60.23373799062233,
+        "match_score": 63.163880523200945,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_reference.csv",
           "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_synthetic_real.csv",
@@ -54,10 +54,10 @@
           "com_y": -0.01
         },
         "real_rmse_m": 0.03838836313099079,
-        "twin_rmse_m": 0.17875944060265836,
+        "twin_rmse_m": 0.17853687317583575,
         "real_score": 95.96371833171122,
-        "twin_score": 60.50575315388295,
-        "match_score": 63.05065519109717,
+        "twin_score": 60.67773603859812,
+        "match_score": 63.229871761385425,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_reference.csv",
           "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_synthetic_real.csv",
@@ -74,10 +74,10 @@
           "tau_scale": 1.04
         },
         "real_rmse_m": 0.07452162418467932,
-        "twin_rmse_m": 0.3156596513968701,
+        "twin_rmse_m": 0.31552500886775864,
         "real_score": 87.04891360309666,
-        "twin_score": 55.185434560787066,
-        "match_score": 63.39589120251112,
+        "twin_score": 55.338822990138276,
+        "match_score": 63.572100672569064,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_reference.csv",
           "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_synthetic_real.csv",
@@ -94,10 +94,10 @@
           "arm_scale": 1.01
         },
         "real_rmse_m": 0.052059426886414156,
-        "twin_rmse_m": 0.17747802783354347,
+        "twin_rmse_m": 0.17725683841428225,
         "real_score": 90.176619485266,
-        "twin_score": 56.96940361081202,
-        "match_score": 63.17535957324313,
+        "twin_score": 57.129860123989516,
+        "match_score": 63.353295399728296,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_reference.csv",
           "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_synthetic_real.csv",
@@ -110,23 +110,23 @@
     "note": "Stress-test surfaces compare the reference x500 model against the current digital-twin candidate over payload, center-of-mass, arm-length, and motor-parameter sweeps.",
     "surface_summaries": {
       "payload_z": {
-        "mean_similarity": 65.26065131459609,
+        "mean_similarity": 65.43556830998378,
         "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/payload_z_surface.csv"
       },
       "payload_x_offset": {
-        "mean_similarity": 63.53091329621006,
+        "mean_similarity": 63.701161262968725,
         "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/payload_x_offset_surface.csv"
       },
       "payload_y_offset": {
-        "mean_similarity": 65.31233803286942,
+        "mean_similarity": 65.48735469313394,
         "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/payload_y_offset_surface.csv"
       },
       "arm_length": {
-        "mean_similarity": 63.418202036929024,
+        "mean_similarity": 63.58815334470364,
         "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/arm_length_surface.csv"
       },
       "motor_model": {
-        "mean_similarity": 62.806154384803484,
+        "mean_similarity": 62.99090099961418,
         "csv": "/home/earsub/px4-system-identification/examples/paper_assets/data/motor_model_surface.csv"
       }
     }

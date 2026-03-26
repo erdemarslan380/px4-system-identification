@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from experimental_validation.reference_models import default_candidate_identified, default_x500_reference
+from experimental_validation.reference_models import X500_FAMILY_COMPOSITE_V1, X500_FAMILY_COMPOSITE_V2
 from experimental_validation.twin_metrics import (
     build_blended_twin_score,
     build_blended_twin_score_from_values,
@@ -25,6 +26,12 @@ class TwinMetricsTests(unittest.TestCase):
         self.assertLess(payload["score"], 99.0)
         self.assertIn("inertia", payload["family_scores"])
         self.assertLess(payload["family_scores"]["inertia"], payload["family_scores"]["motor_coefficients"])
+
+    def test_current_builtin_candidate_is_not_worse_than_legacy_v1(self) -> None:
+        ref = flatten_reference_metrics(default_x500_reference())
+        legacy = build_blended_twin_score_from_values(flatten_identified_metrics(X500_FAMILY_COMPOSITE_V1), ref)
+        current = build_blended_twin_score_from_values(flatten_identified_metrics(X500_FAMILY_COMPOSITE_V2), ref)
+        self.assertGreaterEqual(current["score"], legacy["score"])
 
     def test_blended_score_accepts_comparable_metric_payload(self) -> None:
         comparable = {

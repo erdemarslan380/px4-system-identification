@@ -106,9 +106,12 @@ class SdfComparisonTests(unittest.TestCase):
                 encoding="utf-8",
             )
             truth_path.write_text(
-                "sim_time_us,thrust_n,observed_max_rot_velocity_radps,rotor_0_actual_radps,rotor_1_actual_radps,rotor_2_actual_radps,rotor_3_actual_radps,az_world_mps2\n"
-                "500000,19.6133,800,400,400,400,400,0.0\n"
-                "1000000,19.6133,800,400,400,400,400,0.0\n",
+                "sim_time_us,thrust_n,observed_max_rot_velocity_radps,rotor_0_actual_radps,rotor_1_actual_radps,rotor_2_actual_radps,rotor_3_actual_radps,az_world_mps2,"
+                "truth_mass_kg,truth_ixx_kgm2,truth_iyy_kgm2,truth_izz_kgm2,"
+                "truth_time_constant_up_s,truth_time_constant_down_s,truth_max_rot_velocity_radps,"
+                "truth_motor_constant,truth_moment_constant,truth_rotor_drag_coefficient,truth_rolling_moment_coefficient,truth_rotor_velocity_slowdown_sim\n"
+                "500000,19.6133,800,400,400,400,400,0.0,2.0,0.02,0.02,0.04,0.01,0.02,800,1e-5,0.01,8e-5,1e-6,10.0\n"
+                "1000000,19.6133,800,400,400,400,400,0.0,2.0,0.02,0.02,0.04,0.01,0.02,800,1e-5,0.01,8e-5,1e-6,10.0\n",
                 encoding="utf-8",
             )
             sdf_reference = {
@@ -145,6 +148,12 @@ class SdfComparisonTests(unittest.TestCase):
                 reports["truth_assisted"]["identified"]["mass"]["sample_count"],
                 0,
             )
+            self.assertAlmostEqual(reports["truth_assisted"]["identified"]["mass"]["mass_kg"], 2.0)
+            self.assertAlmostEqual(reports["truth_assisted"]["identified"]["inertia"]["x"]["inertia_kgm2"], 0.02)
+            self.assertAlmostEqual(reports["truth_assisted"]["identified"]["inertia"]["y"]["inertia_kgm2"], 0.02)
+            self.assertAlmostEqual(reports["truth_assisted"]["identified"]["inertia"]["z"]["inertia_kgm2"], 0.04)
+            self.assertAlmostEqual(reports["truth_assisted"]["identified"]["motor_model"]["time_constant_up_s"]["value"], 0.01)
+            self.assertAlmostEqual(reports["truth_assisted"]["identified"]["motor_model"]["time_constant_down_s"]["value"], 0.02)
 
     def test_compare_identified_to_sdf_reports_metric_errors(self) -> None:
         identified = {

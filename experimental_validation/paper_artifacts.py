@@ -465,7 +465,7 @@ def generate_paper_artifacts(
     surface_summaries["motor_model"] = {"mean_similarity": float(np.mean(similarity_surface)), "csv": str(data_dir / "motor_model_surface.csv")}
 
     summary = {
-        "candidate_json": str(Path(candidate_json).resolve()) if candidate_json else "builtin:x500_family_composite_v1",
+        "candidate_json": str(Path(candidate_json).resolve()) if candidate_json else "builtin:x500_family_composite_v2",
         "base_blended_twin_score": base_match["score"],
         "base_family_scores": base_match["family_scores"],
         "stage_1_real_flight_validation": {
