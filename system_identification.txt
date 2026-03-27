@@ -65,6 +65,11 @@ Exact SITL execution flow
    - `cd ~/PX4-Autopilot-Identification`
    - `unset HEADLESS`
    - `make px4_sitl gz_x500`
+   - if an older PX4 or Gazebo instance is still open, first:
+     - `shutdown` in `pxh>` if that shell is alive,
+     - `pkill -f '/PX4-Autopilot-Identification/build/px4_sitl_default/bin/px4' || true`
+     - `pkill -f '/PX4-Autopilot-Identification/.*/gz/worlds/' || true`
+     - `rm -f /tmp/px4_lock-0 /tmp/px4-sock-0`
 3. In the PX4 shell:
    - `custom_pos_control start`
    - `trajectory_reader start`

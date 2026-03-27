@@ -70,6 +70,22 @@ unset HEADLESS
 make px4_sitl gz_x500
 ```
 
+If `make px4_sitl gz_x500` does not start from a clean state, an older PX4 or Gazebo instance is still alive. Use this exact restart sequence:
+```bash
+# If a PX4 shell is open, stop it first.
+shutdown
+
+# Then close stale identification-tree processes from a normal terminal.
+pkill -f '/PX4-Autopilot-Identification/build/px4_sitl_default/bin/px4' || true
+pkill -f '/PX4-Autopilot-Identification/.*/gz/worlds/' || true
+rm -f /tmp/px4_lock-0 /tmp/px4-sock-0
+
+# Start again.
+cd ~/PX4-Autopilot-Identification
+unset HEADLESS
+make px4_sitl gz_x500
+```
+
 If Gazebo server starts but the GUI window does not appear, open it in another terminal:
 ```bash
 gz sim -g

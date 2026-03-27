@@ -14,6 +14,21 @@ unset HEADLESS
 make px4_sitl gz_x500
 ```
 
+If this command seems to reuse an older simulation instead of starting cleanly, stop the old instance first:
+```bash
+# In pxh> if it is still open
+shutdown
+
+# In a normal terminal
+pkill -f '/PX4-Autopilot-Identification/build/px4_sitl_default/bin/px4' || true
+pkill -f '/PX4-Autopilot-Identification/.*/gz/worlds/' || true
+rm -f /tmp/px4_lock-0 /tmp/px4-sock-0
+
+cd ~/PX4-Autopilot-Identification
+unset HEADLESS
+make px4_sitl gz_x500
+```
+
 Healthy signs in the terminal:
 - `Linking CXX executable bin/px4`
 - `INFO [init] Gazebo simulator ...`
