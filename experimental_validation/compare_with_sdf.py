@@ -59,7 +59,7 @@ def resolve_px4_reference_path(raw_path: str | Path) -> Path:
         env_value = os.environ.get(env_name, "").strip()
         if env_value:
             candidates.append((Path(env_value).expanduser().resolve() / path).resolve())
-    for sibling_name in ("px4-custom", "PX4-Autopilot"):
+    for sibling_name in ("px4-custom", "PX4-Autopilot-Identification", "PX4-Autopilot"):
         candidates.append((REPO_ROOT.parent / sibling_name / path).resolve())
 
     for candidate in candidates:

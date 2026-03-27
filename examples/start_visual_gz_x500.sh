@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ $# -ne 1 ]; then
-  echo "Usage: $0 /path/to/PX4-Autopilot"
+  echo "Usage: $0 /path/to/PX4-Autopilot-Identification"
   exit 1
 fi
 

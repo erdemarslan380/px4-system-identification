@@ -7,6 +7,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OVERLAY_ROOT = REPO_ROOT / "overlay" / "src" / "modules"
 SYNC_SCRIPT = REPO_ROOT / "sync_into_px4_workspace.sh"
+PREPARE_SCRIPT = REPO_ROOT / "prepare_identification_workspace.sh"
 
 
 class RepoCleanlinessTests(unittest.TestCase):
@@ -58,6 +59,15 @@ class RepoCleanlinessTests(unittest.TestCase):
         content = SYNC_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("patch_msg_cmake", content)
         self.assertIn("MultiTrajectorySetpoint.msg", content)
+
+    def test_workspace_scripts_protect_the_shared_px4_tree(self) -> None:
+        sync_content = SYNC_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("PX4_SYSID_ALLOW_SHARED_TREE", sync_content)
+        self.assertIn("PX4-Autopilot-Identification", sync_content)
+        self.assertTrue(PREPARE_SCRIPT.exists())
+        prepare_content = PREPARE_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("PX4-Autopilot-Identification", prepare_content)
+        self.assertIn("git clone https://github.com/PX4/PX4-Autopilot.git --recursive", prepare_content)
 
     def test_modules_use_module_yaml_instead_of_legacy_param_sources(self) -> None:
         modules = ("custom_pos_control", "trajectory_reader")

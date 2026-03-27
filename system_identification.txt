@@ -57,10 +57,13 @@ Each maneuver is triggered directly from the PX4 shell through `trajectory_reade
 
 Exact SITL execution flow
 -------------------------
-1. Sync the overlay into an upstream PX4 tree:
-   - `~/px4-system-identification/sync_into_px4_workspace.sh ~/PX4-Autopilot`
+0. Prepare a dedicated PX4 tree:
+   - `~/px4-system-identification/prepare_identification_workspace.sh ~/PX4-Autopilot-Identification`
+   - do not use a shared `~/PX4-Autopilot` tree for this workflow.
+1. Sync the overlay into the dedicated PX4 tree:
+   - `~/px4-system-identification/sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification`
 2. Build and start Gazebo SITL:
-   - `cd ~/PX4-Autopilot`
+   - `cd ~/PX4-Autopilot-Identification`
    - `unset HEADLESS`
    - `make px4_sitl gz_x500`
 3. In the PX4 shell:
@@ -90,6 +93,19 @@ The current implementation prints the operational state explicitly:
 - `Tracking log completed: ...`
 
 This means the operator does not need to guess when a maneuver ends. The end-of-maneuver condition is now visible from the PX4 console itself.
+
+Workspace safety
+----------------
+The repository now assumes a dedicated PX4 clone at:
+- `~/PX4-Autopilot-Identification`
+
+Reason:
+- many researchers already use `~/PX4-Autopilot` for other overlays or branches,
+- overwriting that shared tree is an avoidable operational hazard.
+
+Protective behavior:
+- `sync_into_px4_workspace.sh` refuses to modify a tree whose basename is exactly `PX4-Autopilot`,
+- unless the user deliberately sets `PX4_SYSID_ALLOW_SHARED_TREE=1`.
 
 Maneuver definitions
 --------------------
@@ -168,11 +184,11 @@ The Gazebo truth CSV includes simulator-side quantities such as:
 Exact SITL log directories
 --------------------------
 - PX4 identification logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/`
 - PX4 tracking logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/tracking_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/tracking_logs/`
 - Gazebo truth logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
 On hardware, the corresponding PX4 storage directories are typically:
 - `/fs/microsd/identification_logs/`
@@ -329,14 +345,14 @@ Every sortie uses the same operational rule:
 SDF update workflow
 -------------------
 After estimation, the inertial snippet written by the tool is stored in `candidate_inertial.sdf.xml`. The recommended practical workflow is:
-1. duplicate the stock x500 Gazebo model into a new model folder such as `~/PX4-Autopilot/Tools/simulation/gz/models/x500_identified/`,
+1. duplicate the stock x500 Gazebo model into a new model folder such as `~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_identified/`,
 2. replace the relevant inertial and motor parameters with the identified values,
 3. leave the stock x500 model untouched for comparison,
 4. rerun the five validation trajectories with the identified model,
 5. generate the overlay figures again.
 
 This repository also provides the direct helper:
-- `python3 experimental_validation/prepare_identified_model.py --px4-root ~/PX4-Autopilot --candidate-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate --model-name x500_identified`
+- `python3 experimental_validation/prepare_identified_model.py --px4-root ~/PX4-Autopilot-Identification --candidate-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate --model-name x500_identified`
 
 Real-flight calibration restore after firmware update
 -----------------------------------------------------

@@ -128,7 +128,7 @@ if __name__ == "__main__":
     import argparse
 
     ap = argparse.ArgumentParser(description="Export the five validation trajectories into PX4 .traj files.")
-    ap.add_argument("--trajectories-dir", default="~/PX4-Autopilot/build/px4_sitl_default/rootfs/trajectories")
+    ap.add_argument("--trajectories-dir", default="~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories")
     ap.add_argument("--pre-hold-s", type=float, default=_PRE_HOLD_S)
     ap.add_argument("--post-hold-s", type=float, default=_POST_HOLD_S)
     args = ap.parse_args()

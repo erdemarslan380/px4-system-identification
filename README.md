@@ -16,6 +16,7 @@ What is in this repository
 - `experimental_validation/`: the offline parameter-estimation and validation scripts
 - `examples/`: operator walkthroughs, sortie definitions, and generated figures
 - `system_identification.txt`: long-form method description for papers and reports
+- `prepare_identification_workspace.sh`: creates or reuses a dedicated PX4 clone at `~/PX4-Autopilot-Identification`
 - `sync_into_px4_workspace.sh`: copies the overlay into an upstream PX4 workspace
 
 What is not in this repository
@@ -27,24 +28,29 @@ What is not in this repository
 1. Installation
 ---------------
 
-1. Install PX4 prerequisites by following the official PX4 Ubuntu setup guide.
-2. Clone PX4 and this repository.
-3. Apply the overlay.
-4. Build `px4_sitl` with the x500 Gazebo model.
+This repository should not patch a shared `~/PX4-Autopilot` tree. Use a dedicated clone:
+- `~/PX4-Autopilot-Identification`
 
-Commands:
+The sync script now refuses to modify a shared `~/PX4-Autopilot` tree unless you explicitly override that protection.
+
+Recommended commands:
 ```bash
-cd ~
-git clone https://github.com/PX4/PX4-Autopilot.git --recursive
-cd ~/PX4-Autopilot
-bash ./Tools/setup/ubuntu.sh
-
 cd ~
 git clone git@github.com:erdemarslan380/px4-system-identification.git
 cd ~/px4-system-identification
-./sync_into_px4_workspace.sh ~/PX4-Autopilot
+./prepare_identification_workspace.sh ~/PX4-Autopilot-Identification
 
-cd ~/PX4-Autopilot
+cd ~/PX4-Autopilot-Identification
+bash ./Tools/setup/ubuntu.sh
+make px4_sitl gz_x500
+```
+
+If you already have the dedicated clone and only want to resync the overlay:
+```bash
+cd ~/px4-system-identification
+./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification
+
+cd ~/PX4-Autopilot-Identification
 make px4_sitl gz_x500
 ```
 
@@ -60,12 +66,18 @@ Benign warnings during the first run:
 - stock x500 `gz_frame_id` warnings
 - temporary `No connection to the GCS` preflight warnings before QGroundControl connects
 
+Safety note for shared workstations:
+- `sync_into_px4_workspace.sh` now blocks the shared `~/PX4-Autopilot` path by default.
+- If you truly want to patch that shared tree anyway, you must set:
+  - `PX4_SYSID_ALLOW_SHARED_TREE=1`
+- This is intentionally inconvenient.
+
 2. SITL Identification Test
 ---------------------------
 
 Open Gazebo visually:
 ```bash
-cd ~/PX4-Autopilot
+cd ~/PX4-Autopilot-Identification
 unset HEADLESS
 make px4_sitl gz_x500
 ```
@@ -135,19 +147,19 @@ Exact SITL log directories
 
 All SITL logs are written into the PX4 rootfs under the build tree:
 - PX4 identification logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/`
 - PX4 tracking logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/tracking_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/tracking_logs/`
 - Gazebo truth logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
 3. Estimate the SDF Parameters
 ------------------------------
 
 Estimate from the latest SITL log pair:
 ```bash
-LATEST_IDENT=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
-LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
+LATEST_IDENT=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
+LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
 
 cd ~/px4-system-identification
 python3 experimental_validation/cli.py \
@@ -164,15 +176,15 @@ Main outputs:
 
 Build a combined candidate from the full maneuver family:
 ```bash
-HOVER=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/hover_thrust*.csv | head -n 1)
-MASS=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/mass_vertical*.csv | head -n 1)
-ROLL=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/roll_sweep*.csv | head -n 1)
-PITCH=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/pitch_sweep*.csv | head -n 1)
-YAW=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/yaw_sweep*.csv | head -n 1)
-DRAG_X=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_x*.csv | head -n 1)
-DRAG_Y=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_y*.csv | head -n 1)
-DRAG_Z=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_z*.csv | head -n 1)
-MOTOR=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/motor_step*.csv | head -n 1)
+HOVER=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/hover_thrust*.csv | head -n 1)
+MASS=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/mass_vertical*.csv | head -n 1)
+ROLL=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/roll_sweep*.csv | head -n 1)
+PITCH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/pitch_sweep*.csv | head -n 1)
+YAW=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/yaw_sweep*.csv | head -n 1)
+DRAG_X=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_x*.csv | head -n 1)
+DRAG_Y=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_y*.csv | head -n 1)
+DRAG_Z=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_z*.csv | head -n 1)
+MOTOR=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/motor_step*.csv | head -n 1)
 
 cd ~/px4-system-identification
 python3 experimental_validation/compare_with_sdf.py \
@@ -258,7 +270,7 @@ If you want to preserve the placeholder blue-side logs, copy them to another roo
 Sync the same overlay into the PX4 tree before a hardware build:
 ```bash
 cd ~/px4-system-identification
-./sync_into_px4_workspace.sh ~/PX4-Autopilot boards/px4/fmu-v3/default.px4board
+./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification boards/px4/fmu-v3/default.px4board
 ```
 
 Then build your firmware target from the PX4 tree in the normal PX4 way. The exact board target depends on your flight controller. The important point is that the overlay must already be synced before you build.
@@ -320,14 +332,14 @@ The repository also provides a direct helper that prepares a complete Gazebo mod
 ```bash
 cd ~/px4-system-identification
 python3 experimental_validation/prepare_identified_model.py \
-  --px4-root ~/PX4-Autopilot \
+  --px4-root ~/PX4-Autopilot-Identification \
   --candidate-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate \
   --model-name x500_identified
 ```
 
 This creates:
-- `~/PX4-Autopilot/Tools/simulation/gz/models/x500_identified/`
-- `~/PX4-Autopilot/Tools/simulation/gz/models/x500_identified_base/`
+- `~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_identified/`
+- `~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_identified_base/`
 
 The stock x500 model remains untouched for side-by-side comparison.
 

@@ -2,17 +2,25 @@
 set -euo pipefail
 
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
-  echo "usage: $0 /path/to/PX4-Autopilot [relative/path/to/board.px4board]" >&2
+  echo "usage: $0 /path/to/PX4-Autopilot-Identification [relative/path/to/board.px4board]" >&2
   exit 1
 fi
 
 px4_root="$1"
 board_rel="${2:-boards/px4/sitl/default.px4board}"
 repo_root="$(cd "$(dirname "$0")" && pwd)"
+px4_root_basename="$(basename "$px4_root")"
 
 if [ ! -d "$px4_root" ]; then
   echo "PX4 root not found: $px4_root" >&2
   exit 1
+fi
+
+if [ "$px4_root_basename" = "PX4-Autopilot" ] && [ "${PX4_SYSID_ALLOW_SHARED_TREE:-0}" != "1" ]; then
+  echo "Refusing to modify a shared PX4 tree: $px4_root" >&2
+  echo "Use a dedicated clone such as ~/PX4-Autopilot-Identification." >&2
+  echo "If you really intend to patch the shared tree, rerun with PX4_SYSID_ALLOW_SHARED_TREE=1." >&2
+  exit 2
 fi
 
 rsync -a "$repo_root/overlay/" "$px4_root/"

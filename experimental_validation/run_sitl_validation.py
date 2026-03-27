@@ -51,7 +51,7 @@ DEFAULT_MODEL_SPECS: tuple[ValidationModelSpec, ...] = (
     ValidationModelSpec("digital_twin", "x500_identified", "Identified digital twin SITL"),
 )
 
-PX4_BIN_PATTERN = re.compile(r".*/PX4-Autopilot/build/px4_sitl_default/bin/px4(?:\s|$)")
+PX4_BIN_PATTERN = re.compile(r".*/PX4-Autopilot(?:-Identification)?/build/px4_sitl_default/bin/px4(?:\s|$)")
 GZ_SIM_PATTERN = re.compile(r".*\bgz sim\b.*")
 
 
@@ -631,7 +631,7 @@ def run_validation_suite(
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Run the five validation trajectories in stock and identified PX4 SITL.")
-    ap.add_argument("--px4-root", default="~/PX4-Autopilot")
+    ap.add_argument("--px4-root", default="~/PX4-Autopilot-Identification")
     ap.add_argument("--out-root", default="~/px4-system-identification/examples/paper_assets/stage1_sitl")
     ap.add_argument("--candidate-dir", default="~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1")
     ap.add_argument("--visual", action="store_true", help="Launch Gazebo with GUI instead of headless mode.")

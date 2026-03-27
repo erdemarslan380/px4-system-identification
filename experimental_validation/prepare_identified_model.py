@@ -119,7 +119,7 @@ def prepare_identified_model(px4_root: str | Path, candidate_dir: str | Path, *,
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Create x500_identified Gazebo models from an identified candidate.")
-    ap.add_argument("--px4-root", default="~/PX4-Autopilot")
+    ap.add_argument("--px4-root", default="~/PX4-Autopilot-Identification")
     ap.add_argument("--candidate-dir", default="~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1")
     ap.add_argument("--model-name", default="x500_identified")
     args = ap.parse_args()

@@ -27,7 +27,7 @@ from experimental_validation.sitl_validation_artifacts import generate_sitl_vali
 def main() -> int:
     ap = argparse.ArgumentParser(description="Generate the five-trajectory validation bundle and regenerate paper assets.")
     ap.add_argument("--mode", choices=("placeholder", "live"), default="placeholder")
-    ap.add_argument("--px4-root", default="~/PX4-Autopilot")
+    ap.add_argument("--px4-root", default="~/PX4-Autopilot-Identification")
     ap.add_argument("--candidate-dir", default="~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1")
     ap.add_argument("--run-out-root", default="~/px4-system-identification/examples/paper_assets/stage1_inputs")
     ap.add_argument("--paper-assets-root", default="~/px4-system-identification/examples/paper_assets")

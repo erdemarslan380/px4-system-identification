@@ -3,6 +3,11 @@ Experimental Validation
 
 This folder turns PX4 and Gazebo logs into an identified multicopter model, compares that model against the reference x500 SDF, and generates the figures used in the repository documentation.
 
+All commands below assume the dedicated PX4 clone lives here:
+- `~/PX4-Autopilot-Identification`
+
+That isolation is intentional. It avoids touching a shared `~/PX4-Autopilot` tree that may belong to another project.
+
 Validation modes
 ----------------
 - `px4_only`: use only PX4-side identification logs
@@ -14,17 +19,17 @@ The strongest current SITL claim is based on `truth_assisted`. That is the corre
 Exact SITL log directories
 --------------------------
 - PX4 identification logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/`
 - PX4 tracking logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/tracking_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/tracking_logs/`
 - Gazebo truth logs:
-  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/`
+  - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
 Estimate one maneuver from the latest log pair
 ----------------------------------------------
 ```bash
-LATEST_IDENT=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
-LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
+LATEST_IDENT=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
+LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
 
 cd ~/px4-system-identification
 python3 experimental_validation/cli.py \
@@ -43,15 +48,15 @@ Generated files
 Estimate a full x500 candidate from the whole maneuver family
 -------------------------------------------------------------
 ```bash
-HOVER=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/hover_thrust*.csv | head -n 1)
-MASS=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/mass_vertical*.csv | head -n 1)
-ROLL=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/roll_sweep*.csv | head -n 1)
-PITCH=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/pitch_sweep*.csv | head -n 1)
-YAW=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/yaw_sweep*.csv | head -n 1)
-DRAG_X=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_x*.csv | head -n 1)
-DRAG_Y=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_y*.csv | head -n 1)
-DRAG_Z=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_z*.csv | head -n 1)
-MOTOR=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/motor_step*.csv | head -n 1)
+HOVER=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/hover_thrust*.csv | head -n 1)
+MASS=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/mass_vertical*.csv | head -n 1)
+ROLL=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/roll_sweep*.csv | head -n 1)
+PITCH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/pitch_sweep*.csv | head -n 1)
+YAW=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/yaw_sweep*.csv | head -n 1)
+DRAG_X=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_x*.csv | head -n 1)
+DRAG_Y=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_y*.csv | head -n 1)
+DRAG_Z=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_z*.csv | head -n 1)
+MOTOR=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/motor_step*.csv | head -n 1)
 
 cd ~/px4-system-identification
 python3 experimental_validation/compare_with_sdf.py \
