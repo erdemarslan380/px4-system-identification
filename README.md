@@ -1,140 +1,81 @@
 PX4 System Identification Workspace
 ==================================
 
-This repository is a focused workspace for one job: identify a multicopter model from PX4 logs and build a Gazebo digital twin.
+This repository is a standalone workspace for one focused job: recover multicopter model parameters from PX4 logs and turn them into a Gazebo digital twin.
 
-The workflow is intentionally split into two parts:
-- `overlay/`
-  PX4-side modules that generate the identification maneuvers and logs.
-- `experimental_validation/`
-  Offline estimation, SDF comparison, calibration restore, and paper-figure generation.
+It is written for control researchers. The intended workflow is:
+1. apply the overlay into an upstream PX4 tree,
+2. build and run Gazebo SITL,
+3. execute the built-in identification maneuvers,
+4. estimate SDF parameters from the recorded logs,
+5. validate the identified model with five reference trajectories,
+6. repeat the same process later with real-flight logs.
 
-What this repository contains
-- `overlay/`
-  minimal PX4 source overlay for system identification
-- `experimental_validation/`
-  Python estimators and comparison tools
-- `examples/`
-  operator notes, example sorties, and paper assets
-- `system_identification.txt`
-  long-form method description for papers and reports
-- `sync_into_px4_workspace.sh`
-  copies the overlay into an upstream PX4 tree
+What is in this repository
+- `overlay/`: the PX4 and Gazebo source overlay used during build
+- `experimental_validation/`: the offline parameter-estimation and validation scripts
+- `examples/`: operator walkthroughs, sortie definitions, and generated figures
+- `system_identification.txt`: long-form method description for papers and reports
+- `sync_into_px4_workspace.sh`: copies the overlay into an upstream PX4 workspace
 
-What this repository does not contain
+What is not in this repository
 - the full PX4 source tree
 - QGroundControl
 - Gazebo itself
-- the old optimization / planner / dashboard stack
+- the separate optimization / planner / dashboard stack
 
-That is intentional. The recommended workflow is:
-1. clone upstream PX4
-2. apply this overlay
-3. build PX4 firmware
-4. run identification sorties in Gazebo or on the real vehicle
-5. estimate SDF parameters from the logs
-6. regenerate figures and tables for the paper
+1. Installation
+---------------
 
-Current status
-- The truth-assisted SITL upper-bound is now effectively exact for the comparable x500 SDF terms.
-- Current frozen upper-bound candidate:
-  - `examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/`
-- Current comparable parameter errors are numerically zero or machine-precision close to zero for:
-  - mass
-  - `Ixx`, `Iyy`, `Izz`
-  - `time_constant_up`, `time_constant_down`
-  - `motor_constant`, `moment_constant`
-  - `rotor_drag_coefficient`, `rolling_moment_coefficient`
-  - `rotor_velocity_slowdown_sim`
-- Current upper-bound blended twin score:
-  - `99.99999999996612 / 100`
+1. Install PX4 prerequisites by following the official PX4 Ubuntu setup guide.
+2. Clone PX4 and this repository.
+3. Apply the overlay.
+4. Build `px4_sitl` with the x500 Gazebo model.
 
-Important interpretation
-- This near-perfect result is the simulator-side upper bound and uses Gazebo truth logs.
-- That is the correct target for method development: if the method cannot recover the simulator's own hidden parameters under truth-assisted SITL, it is not ready for real-flight use.
-- The synthetic trajectory overlays and stress-test surfaces in `examples/paper_assets/` are not claiming real-flight equivalence yet.
-- They are placeholders for the paper layout and robustness visualization until real-flight logs are available.
-
-Quick start on Ubuntu
-1. Install PX4 prerequisites from the official PX4 Linux setup instructions:
-   - https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html
-2. Clone PX4 upstream:
+Commands:
 ```bash
 cd ~
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
-```
-3. Run the PX4 Ubuntu setup script inside the PX4 tree:
-```bash
 cd ~/PX4-Autopilot
 bash ./Tools/setup/ubuntu.sh
-```
-4. Clone this repository:
-```bash
+
 cd ~
 git clone git@github.com:erdemarslan380/px4-system-identification.git
-```
-5. Apply the overlay:
-```bash
 cd ~/px4-system-identification
 ./sync_into_px4_workspace.sh ~/PX4-Autopilot
-```
-If you previously synced an older version of this repository into the same PX4 tree, run the sync command again before rebuilding. The script now also patches the custom uORB message list and removes obsolete `*_params.c` overlays.
 
-6. Build Gazebo SITL with the x500 model:
-```bash
 cd ~/PX4-Autopilot
 make px4_sitl gz_x500
 ```
 
-Expected first-run behavior
-- `make px4_sitl gz_x500` should finish linking `bin/px4`, start PX4, and then launch Gazebo with the x500 model.
-- A warning about CMake policy `CMP0148` is benign.
-- Gazebo warnings about `gz_frame_id` inside the stock x500 SDF are also benign.
-- If you see `INFO [init] Gazebo simulator ...` followed by `INFO [init] Starting gazebo with world: ...`, the clean build path is working.
+Healthy first-build signs:
+- `Generating uORB topic headers`
+- `Linking CXX executable bin/px4`
+- `INFO [init] Gazebo simulator ...`
+- `INFO [init] Starting gazebo with world: ...`
+- `pxh>`
 
-Real-board note
-- The sync script patches SITL by default.
-- For hardware builds, pass your board file as the second argument. Example:
-```bash
-./sync_into_px4_workspace.sh ~/PX4-Autopilot boards/px4/fmu-v3/default.px4board
-```
-- The script ensures these module flags are enabled:
-  - `CONFIG_MODULES_CUSTOM_POS_CONTROL=y`
-  - `CONFIG_MODULES_TRAJECTORY_READER=y`
+Benign warnings during the first run:
+- the CMake `CMP0148` warning
+- stock x500 `gz_frame_id` warnings
+- temporary `No connection to the GCS` preflight warnings before QGroundControl connects
 
-What the PX4 overlay adds
-- `custom_pos_control`
-  - minimal offboard forwarder
-  - supports only `px4_default` and `sysid`
-- `trajectory_reader`
-  - position hold
-  - prerecorded trajectory mode
-  - built-in identification motions
-- `SystemIdentificationLoggerPlugin`
-  - logs Gazebo truth data during SITL
+2. SITL Identification Test
+---------------------------
 
-Watch the identification motion in Gazebo
-1. Start SITL with GUI enabled:
+Open Gazebo visually:
 ```bash
 cd ~/PX4-Autopilot
 unset HEADLESS
 make px4_sitl gz_x500
 ```
-2. If PX4 started the Gazebo server but no window appeared, open the GUI in a second terminal:
+
+If Gazebo server starts but the GUI window does not appear, open it in another terminal:
 ```bash
 gz sim -g
 ```
-3. Keep Gazebo open while you run the PX4 shell commands below.
 
-Small helper files
-- visual launch helper:
-  - `examples/start_visual_gz_x500.sh`
-- copy-paste PX4 shell checklist:
-  - `examples/visual_sitl_walkthrough.md`
-
-Manual SITL identification workflow
-1. Start PX4 SITL in Gazebo with the GUI visible.
-2. In the PX4 shell, start the helper modules:
+Start the identification helper modules in the PX4 shell:
 ```bash
 custom_pos_control start
 trajectory_reader start
@@ -143,16 +84,40 @@ custom_pos_control set sysid
 trajectory_reader set_mode identification
 trajectory_reader set_ident_profile hover_thrust
 ```
-Current behavior:
-- On the current build, identification mode is preserved when you switch into OFFBOARD.
-- If you are testing an older synced build and the motion does not start after OFFBOARD entry, run these two commands again after OFFBOARD becomes active:
-```bash
-trajectory_reader set_mode identification
-trajectory_reader set_ident_profile hover_thrust
-```
-3. Arm and take off using your normal safe bootstrap workflow.
-4. Keep the vehicle near a stable hover reference.
-5. Run one identification profile at a time:
+
+Then use your normal safe bootstrap:
+1. connect QGroundControl,
+2. arm,
+3. take off manually to about `3 m`,
+4. stabilize the hover,
+5. switch to `OFFBOARD`.
+
+On the current build, `trajectory_reader` keeps the selected identification mode after OFFBOARD entry. When the maneuver starts, PX4 now prints all key states directly in the console:
+- `Identification maneuver started: ...`
+- `Purpose: ...`
+- `Estimated duration: ...`
+- `Identification maneuver completed: ...`
+- `Identification log completed: ...`
+- `Tracking log completed: ...`
+
+That is the signal to wait for before sending the next profile command.
+
+Identification maneuvers
+------------------------
+
+| Profile | What it excites | Approx. duration | What happens after completion |
+| --- | --- | ---: | --- |
+| `hover_thrust` | hover-thrust tracking around a constant hover point | `26 s` | the vehicle holds the final reference |
+| `mass_vertical` | multi-frequency vertical motion for mass and thrust scale | `36 s` | the vehicle holds the final reference |
+| `roll_sweep` | lateral motion for roll-axis inertia and coupling | `28 s` | the vehicle holds the final reference |
+| `pitch_sweep` | longitudinal motion for pitch-axis inertia and coupling | `28 s` | the vehicle holds the final reference |
+| `yaw_sweep` | yaw excitation for yaw inertia and yaw moment balance | `24 s` | the vehicle holds the final reference |
+| `drag_x` | forward-back motion for X-axis drag | `30 s` | the vehicle holds the final reference |
+| `drag_y` | side-to-side motion for Y-axis drag | `30 s` | the vehicle holds the final reference |
+| `drag_z` | vertical motion for Z-axis drag | `30 s` | the vehicle holds the final reference |
+| `motor_step` | step-like thrust sequence for motor time constants | `24 s` | the vehicle holds the final reference |
+
+Run one profile at a time, and wait for the completion messages before moving on:
 ```bash
 trajectory_reader set_ident_profile hover_thrust
 trajectory_reader set_ident_profile mass_vertical
@@ -164,124 +129,231 @@ trajectory_reader set_ident_profile drag_y
 trajectory_reader set_ident_profile drag_z
 trajectory_reader set_ident_profile motor_step
 ```
-6. Logs are written under the PX4 rootfs:
-- PX4 identification log:
-  - `build/px4_sitl_default/rootfs/identification_logs/`
-- PX4 tracking log:
-  - `build/px4_sitl_default/rootfs/tracking_logs/`
-- Gazebo truth log:
-  - `build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
-Recommended sortie families
-- `hover_thrust` + `mass_vertical`
-  - mass and thrust scaling
-- `roll_sweep` + `pitch_sweep` + `yaw_sweep`
-  - principal inertia terms
-- `drag_x` + `drag_y` + `drag_z`
-  - aerodynamic drag terms
-- `motor_step`
-  - actuator dynamics and Gazebo motor-model terms
+Exact SITL log directories
+--------------------------
 
-Estimate parameters from one flight log
+All SITL logs are written into the PX4 rootfs under the build tree:
+- PX4 identification logs:
+  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/`
+- PX4 tracking logs:
+  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/tracking_logs/`
+- Gazebo truth logs:
+  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/`
+
+3. Estimate the SDF Parameters
+------------------------------
+
+Estimate from the latest SITL log pair:
 ```bash
+LATEST_IDENT=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
+LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
+
 cd ~/px4-system-identification
 python3 experimental_validation/cli.py \
-  --csv /path/to/identification_log.csv \
-  --truth-csv /path/to/gazebo_truth_log.csv \
+  --csv "$LATEST_IDENT" \
+  --truth-csv "$LATEST_TRUTH" \
   --ident-log \
-  --out-dir experimental_validation/outputs/session_001
+  --out-dir ~/px4-system-identification/experimental_validation/outputs/session_001
 ```
 
-Build a combined comparison against the x500 SDF
+Main outputs:
+- `~/px4-system-identification/experimental_validation/outputs/session_001/identified_parameters.json`
+- `~/px4-system-identification/experimental_validation/outputs/session_001/candidate_inertial.sdf.xml`
+- `~/px4-system-identification/experimental_validation/outputs/session_001/candidate_vehicle_params.yaml`
+
+Build a combined candidate from the full maneuver family:
 ```bash
+HOVER=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/hover_thrust*.csv | head -n 1)
+MASS=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/mass_vertical*.csv | head -n 1)
+ROLL=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/roll_sweep*.csv | head -n 1)
+PITCH=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/pitch_sweep*.csv | head -n 1)
+YAW=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/yaw_sweep*.csv | head -n 1)
+DRAG_X=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_x*.csv | head -n 1)
+DRAG_Y=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_y*.csv | head -n 1)
+DRAG_Z=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_z*.csv | head -n 1)
+MOTOR=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/motor_step*.csv | head -n 1)
+
 cd ~/px4-system-identification
 python3 experimental_validation/compare_with_sdf.py \
-  --csv /path/to/hover.csv \
-  --csv /path/to/mass_vertical.csv \
-  --csv /path/to/roll.csv \
-  --csv /path/to/pitch.csv \
-  --csv /path/to/yaw.csv \
-  --csv /path/to/drag_x.csv \
-  --csv /path/to/drag_y.csv \
-  --csv /path/to/drag_z.csv \
-  --csv /path/to/motor_step.csv \
-  --out-dir experimental_validation/outputs/x500_candidate
+  --csv "$MASS" \
+  --csv "$HOVER" \
+  --csv "$ROLL" \
+  --csv "$PITCH" \
+  --csv "$YAW" \
+  --csv "$DRAG_X" \
+  --csv "$DRAG_Y" \
+  --csv "$DRAG_Z" \
+  --csv "$MOTOR" \
+  --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
 
-Refresh paper assets from a completed SITL suite
-```bash
-cd ~/px4-system-identification
-python3 experimental_validation/refresh_sitl_truth_artifacts.py \
-  --results-root /path/to/completed_results_root \
-  --candidate-name x500_truth_assisted_sitl_v1 \
-  --out-dir examples/paper_assets
-```
+Comparison outputs:
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/identified_parameters.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/sdf_comparison.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/sdf_comparison_by_mode.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/candidate_x500_base.sdf`
 
-Restore calibration values after a firmware update
-- Export all vehicle parameters from QGroundControl and place the file at:
-  - `experimental_validation/qgc/current_vehicle.params`
-- Then run:
-```bash
-cd ~/px4-system-identification
-python3 experimental_validation/calibration_restore.py \
-  --input experimental_validation/qgc/current_vehicle.params \
-  --out-dir experimental_validation/qgc/restore
-```
+4. Compare the Identified Model and Generate Figures
+----------------------------------------------------
 
-Generate the paper figures
+Generate the figure set used in the documentation and paper appendix:
 ```bash
 cd ~/px4-system-identification
 python3 experimental_validation/paper_artifacts.py \
-  --candidate-json examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json \
-  --out-dir examples/paper_assets
+  --candidate-json ~/px4-system-identification/experimental_validation/outputs/x500_candidate/identified_parameters.json \
+  --out-dir ~/px4-system-identification/examples/paper_assets
 ```
 
-This writes:
-- five validation trajectory overlays
+Main outputs:
+- `~/px4-system-identification/examples/paper_assets/paper_validation_summary.json`
+- `~/px4-system-identification/examples/paper_assets/figures/parameter_error_bars.png`
+- `~/px4-system-identification/examples/paper_assets/figures/family_score_bars.png`
+- `~/px4-system-identification/examples/paper_assets/figures/trajectory_match_scores.png`
+- five trajectory overlay figures
 - five stress-test surfaces
-- five stress-test slice plots
-- parameter-error bar chart
-- family-score bar chart
-- trajectory-summary score chart
-- CSV files and `paper_validation_summary.json`
+- five stress-test line plots
 
-What the current figures mean
-- Stage 1 overlay figures:
-  - currently use synthetic noisy stand-ins for real-flight logs
-  - they show how the paper figures will look once real flights are available
-- Stage 2 stress-test figures:
-  - keep the identified twin fixed
-  - perturb the reference plant across payload, center of mass, arm length, and motor mismatch
-  - vertical axis is `Twin similarity score [%]`
-  - these are robustness plots, not claims of real-flight equivalence
-- Base-model fit figures:
-  - show direct parameter agreement between the identified x500 candidate and the x500 SDF
+5. Hardware Build and Flash
+---------------------------
 
-Tests
+Sync the same overlay into the PX4 tree before a hardware build:
 ```bash
 cd ~/px4-system-identification
-python3 -m unittest \
-  experimental_validation.tests.test_estimators \
-  experimental_validation.tests.test_identification_pipeline \
-  experimental_validation.tests.test_sdf_compare \
-  experimental_validation.tests.test_calibration_restore \
-  experimental_validation.tests.test_composite_candidate \
-  experimental_validation.tests.test_perfect_recovery_benchmark \
-  experimental_validation.tests.test_paper_artifacts
+./sync_into_px4_workspace.sh ~/PX4-Autopilot boards/px4/fmu-v3/default.px4board
 ```
 
-Repository layout
-- `overlay/`: PX4 source overlay
-- `experimental_validation/`: identification and SDF estimation pipeline
-- `examples/`: operator-facing examples and paper assets
-- `system_identification.txt`: method description for reports and papers
-- `architecture.md`: project layout summary for future contributors
-- `skills.md`: project-role summary for future AI/code collaborators
+Then build your firmware target from the PX4 tree in the normal PX4 way. The exact board target depends on your flight controller. The important point is that the overlay must already be synced before you build.
 
-Example figures
+Calibration restore after a firmware update
+-------------------------------------------
 
-![Comparable parameter errors](examples/paper_assets/figures/parameter_error_bars.png)
+Export all parameters from QGroundControl and place the file here:
+- `~/px4-system-identification/experimental_validation/qgc/current_vehicle.params`
 
-![Trajectory overlay](examples/paper_assets/figures/lemniscate_overlay.png)
+Then generate the restore files:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/calibration_restore.py \
+  --input ~/px4-system-identification/experimental_validation/qgc/current_vehicle.params \
+  --out-dir ~/px4-system-identification/experimental_validation/qgc/restore
+```
 
-![Payload vs z surface](examples/paper_assets/figures/payload_z_surface.png)
+6. Real-Flight Identification Sorties
+-------------------------------------
+
+The real-flight baseline is the PX4 default controller path. The identification maneuvers are still triggered through the overlay, but the aircraft should be flown conservatively:
+1. start the helper modules before switching to OFFBOARD,
+2. take off manually,
+3. stabilize around `3 m`,
+4. switch to OFFBOARD only after the hover is healthy,
+5. run one profile,
+6. wait for the completion messages,
+7. recover to hover,
+8. start the next profile.
+
+Recommended sortie structure:
+- Sortie 1: `hover_thrust`, `mass_vertical`
+- Sortie 2: `roll_sweep`, `pitch_sweep`
+- Sortie 3: `yaw_sweep`, `motor_step`
+- Sortie 4: `drag_x`, `drag_y`, `drag_z`
+- Sortie 5: the five validation trajectories if battery budget allows, otherwise split across more batteries
+
+A detailed operator sequence is in:
+- `~/px4-system-identification/examples/real_flight_sorties.md`
+
+Typical hardware-side log folders
+---------------------------------
+
+On NuttX targets, `PX4_STORAGEDIR` is typically backed by the SD card. In practice you should expect these folders on the vehicle storage:
+- `/fs/microsd/identification_logs/`
+- `/fs/microsd/tracking_logs/`
+
+After each field session, copy those CSV files into a concrete session folder such as:
+- `~/px4-system-identification/experimental_validation/outputs/real_flights/2026-03-27_session_01/raw_logs/`
+
+7. Write the Identified Model into an SDF
+-----------------------------------------
+
+The estimator writes an SDF-ready inertial snippet at:
+- `candidate_inertial.sdf.xml`
+
+The recommended workflow is:
+1. create a new Gazebo model folder such as `~/PX4-Autopilot/Tools/simulation/gz/models/x500_identified/`,
+2. copy the stock x500 model into it,
+3. replace the relevant inertial and motor-model parameters with the identified values,
+4. keep the stock x500 model untouched so you can compare them side by side.
+
+8. Five Validation Trajectories
+-------------------------------
+
+This repository uses five validation trajectories:
+- `hairpin`
+- `lemniscate`
+- `circle`
+- `time_optimal_30s`
+- `minimum_snap_50s`
+
+They are intentionally defined so that the logged mission segment:
+- starts from the same XY point,
+- starts at the same safe altitude (`3 m` in NED, i.e. `z = -3`),
+- returns to the same logged start pose,
+- can be overlaid directly across real flight and digital-twin simulation.
+
+Operationally, both in SITL and in real flight, the vehicle should:
+1. take off and stabilize at about `3 m`,
+2. move to the common trajectory start pose,
+3. begin logging only after that start pose is reached,
+4. execute the trajectory,
+5. return to hover.
+
+9. Simulate the Five Trajectories with the New SDF
+--------------------------------------------------
+
+Once the identified SDF candidate is in Gazebo, run the same five trajectories in SITL and save the resulting tracking logs. Then regenerate the figures with the new candidate. The output figure directory remains:
+- `~/px4-system-identification/examples/paper_assets/figures/`
+
+10. Fly the Same Five Trajectories in Real Flight
+-------------------------------------------------
+
+Use the exact same common start pose and altitude policy as in SITL:
+- manual takeoff to `3 m`
+- hover stabilization
+- OFFBOARD entry
+- move to the common start point
+- start logging
+- execute one trajectory
+- return to hover
+- continue only if battery and safety margins are still healthy
+
+11. Plot Real Flight Versus Digital Twin
+----------------------------------------
+
+After the real-flight logs are copied into the repository, regenerate the overlay figures so each trajectory shows:
+- the reference mission,
+- the real-flight trace,
+- the digital-twin trace,
+- error-norm curves over time.
+
+Those overlays live in:
+- `~/px4-system-identification/examples/paper_assets/figures/`
+
+Current honest claim
+--------------------
+
+At the moment, the strongest claim this repository supports is:
+- the truth-assisted SITL upper bound has been solved to numerical precision,
+- the full figure-generation pipeline is working,
+- the maneuver families, logging structure, and post-processing flow are fixed,
+- real-flight equivalence still requires replacing the synthetic placeholder Stage-1 trajectory logs with actual outdoor logs.
+
+Additional detailed references
+------------------------------
+- long-form method description:
+  - `~/px4-system-identification/system_identification.txt`
+- manual visual Gazebo walkthrough:
+  - `~/px4-system-identification/examples/visual_sitl_walkthrough.md`
+- real-flight sortie checklist:
+  - `~/px4-system-identification/examples/real_flight_sorties.md`
+- offline estimation guide:
+  - `~/px4-system-identification/experimental_validation/README.md`

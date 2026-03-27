@@ -118,6 +118,7 @@ private:
 	void updateControllerTypeCache();
 	const char *controllerTypeToString(int32_t controller_type) const;
 	const char *identProfileToString(IdentificationProfile profile) const;
+	const char *identProfilePurpose(IdentificationProfile profile) const;
 	float identificationDurationS(IdentificationProfile profile) const;
 	void updateRcSelections();
 	void resetIdentificationState();
@@ -214,6 +215,8 @@ private:
 	hrt_abstime _ident_start_time{0};
 	bool _ident_started{false};
 	bool _ident_finalize_log{false};
+	bool _ident_start_announced{false};
+	bool _ident_completion_announced{false};
 	int32_t _rc_select_enabled{0};
 	int32_t _rc_selector_channel{0};
 	int32_t _rc_selector_max_traj_id{3};

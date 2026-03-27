@@ -1,138 +1,122 @@
 Experimental Validation
 =======================
 
-This folder turns PX4 identification logs into a Gazebo-ready parameter candidate.
+This folder turns PX4 and Gazebo logs into an identified multicopter model, compares that model against the reference x500 SDF, and generates the figures used in the repository documentation.
 
-Main outputs
-- total mass
-- diagonal inertia terms
-- drag summaries
-- motor-model terms
-- SDF comparison reports
-- calibration-restore files from a QGroundControl dump
-- paper-ready figures and CSVs
+Validation modes
+----------------
+- `px4_only`: use only PX4-side identification logs
+- `telemetry_augmented`: use PX4 logs plus telemetry-like fields that are feasible in real flight
+- `truth_assisted`: use the Gazebo truth logger and represent the simulator-side upper bound
 
-Required log types
-- PX4 identification log
-  - written by `trajectory_reader`
-- Gazebo truth log
-  - written by `SystemIdentificationLoggerPlugin`
-  - used only in SITL studies
+The strongest current SITL claim is based on `truth_assisted`. That is the correct upper-bound check for method development.
 
-Important distinction
-- `px4_only`
-  - uses only the PX4 identification CSV
-- `telemetry_augmented`
-  - uses PX4 CSV plus telemetry-like Gazebo fields
-- `truth_assisted`
-  - uses the full Gazebo truth log
+Exact SITL log directories
+--------------------------
+- PX4 identification logs:
+  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/`
+- PX4 tracking logs:
+  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/tracking_logs/`
+- Gazebo truth logs:
+  - `~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
-For real flights, only `px4_only` and telemetry-style fields are available.
-`truth_assisted` is the simulator-side upper bound used to validate the method itself.
-
-Current truth-assisted checkpoint
-- Frozen candidate:
-  - `examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/`
-- Current comparable x500 SDF errors are effectively zero.
-- Current blended twin score:
-  - `99.99999999996612 / 100`
-
-Why this matters
-- If truth-assisted SITL does not recover the x500 SDF nearly exactly, the identification method is not ready.
-- That upper-bound requirement is now satisfied.
-- Any remaining future gap in real-flight use should therefore be treated as a logging / observability / sortie-design issue rather than a basic regression failure.
-
-Run the estimator on one log pair
+Estimate one maneuver from the latest log pair
+----------------------------------------------
 ```bash
+LATEST_IDENT=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
+LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
+
 cd ~/px4-system-identification
 python3 experimental_validation/cli.py \
-  --csv /path/to/identification_log.csv \
-  --truth-csv /path/to/gazebo_truth_log.csv \
+  --csv "$LATEST_IDENT" \
+  --truth-csv "$LATEST_TRUTH" \
   --ident-log \
-  --out-dir experimental_validation/outputs/session_001
+  --out-dir ~/px4-system-identification/experimental_validation/outputs/session_001
 ```
 
 Generated files
+---------------
 - `identified_parameters.json`
 - `candidate_inertial.sdf.xml`
 - `candidate_vehicle_params.yaml`
 
-Compare multiple sorties against the x500 SDF
+Estimate a full x500 candidate from the whole maneuver family
+-------------------------------------------------------------
 ```bash
+HOVER=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/hover_thrust*.csv | head -n 1)
+MASS=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/mass_vertical*.csv | head -n 1)
+ROLL=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/roll_sweep*.csv | head -n 1)
+PITCH=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/pitch_sweep*.csv | head -n 1)
+YAW=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/yaw_sweep*.csv | head -n 1)
+DRAG_X=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_x*.csv | head -n 1)
+DRAG_Y=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_y*.csv | head -n 1)
+DRAG_Z=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/drag_z*.csv | head -n 1)
+MOTOR=$(ls -1t ~/PX4-Autopilot/build/px4_sitl_default/rootfs/identification_logs/motor_step*.csv | head -n 1)
+
 cd ~/px4-system-identification
 python3 experimental_validation/compare_with_sdf.py \
-  --csv /path/to/mass_vertical.csv \
-  --csv /path/to/hover_thrust.csv \
-  --csv /path/to/roll_sweep.csv \
-  --csv /path/to/pitch_sweep.csv \
-  --csv /path/to/yaw_sweep.csv \
-  --csv /path/to/drag_x.csv \
-  --csv /path/to/drag_y.csv \
-  --csv /path/to/drag_z.csv \
-  --csv /path/to/motor_step.csv \
-  --out-dir experimental_validation/outputs/x500_candidate
+  --csv "$MASS" \
+  --csv "$HOVER" \
+  --csv "$ROLL" \
+  --csv "$PITCH" \
+  --csv "$YAW" \
+  --csv "$DRAG_X" \
+  --csv "$DRAG_Y" \
+  --csv "$DRAG_Z" \
+  --csv "$MOTOR" \
+  --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
 
 Generated comparison files
-- `identified_parameters.json`
-- `identified_parameters_by_mode.json`
-- `sdf_reference.json`
-- `sdf_comparison.json`
-- `sdf_comparison_by_mode.json`
-- `used_identification_logs.json`
-- `candidate_x500_base.sdf`
+--------------------------
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/identified_parameters.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/identified_parameters_by_mode.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/sdf_reference.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/sdf_comparison.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/sdf_comparison_by_mode.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/used_identification_logs.json`
+- `~/px4-system-identification/experimental_validation/outputs/x500_candidate/candidate_x500_base.sdf`
 
-Refresh paper assets from a completed SITL suite
-```bash
-cd ~/px4-system-identification
-python3 experimental_validation/refresh_sitl_truth_artifacts.py \
-  --results-root /path/to/completed_results_root \
-  --candidate-name x500_truth_assisted_sitl_v1 \
-  --out-dir examples/paper_assets
-```
-
-Generate paper-ready validation figures directly
+Generate the figure package
+---------------------------
 ```bash
 cd ~/px4-system-identification
 python3 experimental_validation/paper_artifacts.py \
-  --candidate-json examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json \
-  --out-dir examples/paper_assets
+  --candidate-json ~/px4-system-identification/experimental_validation/outputs/x500_candidate/identified_parameters.json \
+  --out-dir ~/px4-system-identification/examples/paper_assets
 ```
 
-What this produces
-- five trajectory overlay figures:
-  - `hairpin`, `lemniscate`, `circle`, `time_optimal_30s`, `minimum_snap_50s`
+This writes:
+- five validation trajectory overlays
 - five stress-test surfaces
-- five stress-test slice plots
-- direct parameter-error bars
-- family-score bars
-- trajectory-summary score chart
-- CSV files and `paper_validation_summary.json`
+- five stress-test line plots
+- parameter error bars
+- family score bars
+- trajectory summary scores
+- `paper_validation_summary.json`
 
-Interpretation of the figures
-- Stage 1 overlay figures:
-  - use synthetic noisy stand-ins until real-flight logs are available
-  - later you replace only the CSV inputs and regenerate the same plots
-- Stage 2 stress-test surfaces and line plots:
-  - keep the identified twin fixed
-  - perturb the reference plant
-  - quantify robustness against payload, COM shift, arm length, and motor-model mismatch
-- Base-model-fit figures:
-  - quantify how close the identified candidate is to the x500 SDF itself
+Interpretation
+--------------
+- Stage 1 overlay plots are the place where real-flight traces will be compared against the digital twin.
+- Stage 2 surface and line plots are robustness figures; they show how the fixed identified twin reacts when payload, COM, arm length, or motor dynamics are perturbed.
+- The direct parameter-comparison files quantify how close the identified candidate is to the reference x500 SDF.
 
 QGroundControl parameter dump
-- Put the latest exported parameter file here:
-  - `experimental_validation/qgc/current_vehicle.params`
+----------------------------
+Put the latest exported parameter file here:
+- `~/px4-system-identification/experimental_validation/qgc/current_vehicle.params`
 
 Restore calibration values after a firmware update
+--------------------------------------------------
 ```bash
 cd ~/px4-system-identification
 python3 experimental_validation/calibration_restore.py \
-  --input experimental_validation/qgc/current_vehicle.params \
-  --out-dir experimental_validation/qgc/restore
+  --input ~/px4-system-identification/experimental_validation/qgc/current_vehicle.params \
+  --out-dir ~/px4-system-identification/experimental_validation/qgc/restore
 ```
 
 Tests
+-----
 ```bash
 cd ~/px4-system-identification
 python3 -m unittest \
@@ -142,5 +126,6 @@ python3 -m unittest \
   experimental_validation.tests.test_calibration_restore \
   experimental_validation.tests.test_composite_candidate \
   experimental_validation.tests.test_perfect_recovery_benchmark \
-  experimental_validation.tests.test_paper_artifacts
+  experimental_validation.tests.test_paper_artifacts \
+  experimental_validation.tests.test_repo_cleanliness
 ```

@@ -50,6 +50,8 @@ DEFAULT_TRAJECTORIES = (
     TrajectoryCase("minimum_snap_50s", 50.0, {"payload_mass": 0.18, "com_x": 0.01, "com_y": 0.01, "com_z": 0.02, "arm_scale": 1.01}),
 )
 
+COMMON_LOGGED_START = (0.0, 0.0, -3.0)
+
 
 def _interp_waypoints(
     t: np.ndarray,
@@ -167,36 +169,38 @@ def _trajectory_reference(case: TrajectoryCase, samples: int) -> tuple[np.ndarra
             t,
             case.duration_s,
             [
-                (-4.2, -1.6, -3.00),
-                (4.0, -1.6, -3.00),
-                (4.6, -0.2, -3.10),
-                (4.0, 1.6, -3.18),
-                (-4.2, 1.6, -3.18),
+                COMMON_LOGGED_START,
+                (3.8, -1.4, -3.00),
+                (4.4, -0.1, -3.10),
+                (3.8, 1.4, -3.18),
+                (-3.9, 1.4, -3.18),
+                COMMON_LOGGED_START,
             ],
+            knot_times=[0.0, 0.14, 0.34, 0.48, 0.78, 1.0],
             smooth_window=19,
         )
     elif case.name == "lemniscate":
         x = 2.8 * np.sin(w * t)
         y = 1.6 * np.sin(w * t) * np.cos(w * t)
-        z = -3.0 - 0.35 * np.sin(0.5 * w * t)
+        z = -3.0 - 0.20 * (1.0 - np.cos(0.5 * w * t))
     elif case.name == "circle":
         radius = 2.6
-        x = radius * np.cos(w * t)
+        x = radius * (np.cos(w * t) - 1.0)
         y = radius * np.sin(w * t)
-        z = -3.05 - 0.18 * np.sin(0.5 * w * t)
+        z = -3.0 - 0.15 * (1.0 - np.cos(0.5 * w * t))
     elif case.name == "time_optimal_30s":
         x, y, z = _interp_waypoints(
             t,
             case.duration_s,
             [
-                (-3.5, -1.8, -2.9),
-                (-1.0, 1.6, -3.0),
-                (2.6, 1.9, -3.25),
-                (4.2, -0.4, -3.35),
-                (1.8, -2.0, -3.10),
-                (-1.8, -0.8, -2.85),
-                (-4.0, 1.4, -3.05),
-                (-3.5, -1.8, -2.9),
+                COMMON_LOGGED_START,
+                (-1.2, 1.5, -3.00),
+                (2.6, 1.8, -3.20),
+                (4.1, -0.2, -3.28),
+                (1.9, -2.0, -3.08),
+                (-1.7, -0.9, -3.00),
+                (-3.8, 1.2, -3.10),
+                COMMON_LOGGED_START,
             ],
             knot_times=[0.0, 0.08, 0.18, 0.30, 0.45, 0.62, 0.82, 1.0],
             smooth_window=11,
@@ -206,21 +210,23 @@ def _trajectory_reference(case: TrajectoryCase, samples: int) -> tuple[np.ndarra
             t,
             case.duration_s,
             [
-                (-3.8, -1.2, -2.9),
-                (-2.2, 0.8, -3.0),
-                (0.0, 2.2, -3.2),
-                (2.4, 1.6, -3.35),
-                (3.5, -0.2, -3.25),
-                (2.1, -1.8, -3.1),
-                (-0.5, -2.3, -3.0),
-                (-3.0, -0.8, -2.95),
-                (-3.8, -1.2, -2.9),
+                COMMON_LOGGED_START,
+                (-2.0, 0.8, -3.00),
+                (0.0, 2.2, -3.16),
+                (2.4, 1.6, -3.28),
+                (3.5, -0.2, -3.24),
+                (2.1, -1.8, -3.08),
+                (-0.6, -2.2, -3.00),
+                (-3.0, -0.8, -3.00),
+                COMMON_LOGGED_START,
             ],
             knot_times=[0.0, 0.10, 0.22, 0.36, 0.50, 0.66, 0.80, 0.92, 1.0],
             smooth_window=29,
         )
     else:
         raise ValueError(f"unsupported trajectory case: {case.name}")
+    x[0], y[0], z[0] = COMMON_LOGGED_START
+    x[-1], y[-1], z[-1] = COMMON_LOGGED_START
     return t, x, y, z
 
 

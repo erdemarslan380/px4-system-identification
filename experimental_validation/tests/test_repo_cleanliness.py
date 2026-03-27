@@ -35,6 +35,18 @@ class RepoCleanlinessTests(unittest.TestCase):
             for token in ("tools/optimization", "run_simulation_plan", "serve_dashboard", "all_controllers_quick_validation", "overnight_bayes_viable"):
                 self.assertNotIn(token, content, msg=f"unexpected legacy token {token} in {doc}")
 
+    def test_primary_docs_use_real_default_paths_instead_of_path_to_placeholders(self) -> None:
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "system_identification.txt",
+            REPO_ROOT / "experimental_validation" / "README.md",
+            REPO_ROOT / "examples" / "visual_sitl_walkthrough.md",
+            REPO_ROOT / "examples" / "real_flight_sorties.md",
+        ]
+        for doc in docs:
+            content = doc.read_text(encoding="utf-8")
+            self.assertNotIn("/path/to/", content, msg=f"placeholder path remained in {doc}")
+
     def test_overlay_includes_multi_trajectory_message(self) -> None:
         msg_path = REPO_ROOT / "overlay" / "msg" / "MultiTrajectorySetpoint.msg"
         self.assertTrue(msg_path.exists())

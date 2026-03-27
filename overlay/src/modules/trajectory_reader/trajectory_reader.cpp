@@ -161,6 +161,32 @@ const char *TrajectoryReader::identProfileToString(IdentificationProfile profile
 	}
 }
 
+const char *TrajectoryReader::identProfilePurpose(IdentificationProfile profile) const
+{
+	switch (profile) {
+	case IdentificationProfile::HOVER_THRUST:
+		return "vertical hover excitation for hover-thrust tracking";
+	case IdentificationProfile::ROLL_SWEEP:
+		return "lateral sweep for roll-axis inertia and coupling";
+	case IdentificationProfile::PITCH_SWEEP:
+		return "longitudinal sweep for pitch-axis inertia and coupling";
+	case IdentificationProfile::YAW_SWEEP:
+		return "yaw excitation for yaw inertia and moment balance";
+	case IdentificationProfile::DRAG_X:
+		return "forward-back motion for X-axis drag";
+	case IdentificationProfile::DRAG_Y:
+		return "side-to-side motion for Y-axis drag";
+	case IdentificationProfile::DRAG_Z:
+		return "vertical motion for Z-axis drag";
+	case IdentificationProfile::MASS_VERTICAL:
+		return "multi-frequency vertical motion for mass and thrust scale";
+	case IdentificationProfile::MOTOR_STEP:
+		return "step-like thrust sequence for motor time constants";
+	default:
+		return "system identification maneuver";
+	}
+}
+
 float TrajectoryReader::identificationDurationS(IdentificationProfile profile) const
 {
 	switch (profile) {
@@ -320,6 +346,7 @@ void TrajectoryReader::stopTrajectoryTrackingLog()
 
 	clearPendingTrackingSamples();
 	_start_new_tracking_log = false;
+	_finalize_tracking_log = false;
 }
 
 void TrajectoryReader::resetIdentificationState()
@@ -329,6 +356,8 @@ void TrajectoryReader::resetIdentificationState()
 	_ident_start_time = 0;
 	_ident_started = false;
 	_ident_finalize_log = false;
+	_ident_start_announced = false;
+	_ident_completion_announced = false;
 	_cursor = 0;
 	_num_samples = 0;
 	_eof = false;
@@ -515,6 +544,13 @@ void TrajectoryReader::fillIdentificationBuffer(const matrix::Vector3f &current_
 		_cursor = 0;
 		const float duration_s = identificationDurationS(_ident_profile);
 		_num_samples = static_cast<uint32_t>(duration_s / 0.02f);
+		if (!_ident_start_announced) {
+			PX4_INFO("Identification maneuver started: %s", identProfileToString(_ident_profile));
+			PX4_INFO("  Purpose: %s", identProfilePurpose(_ident_profile));
+			PX4_INFO("  Estimated duration: %.1f s", (double)duration_s);
+			PX4_INFO("  After completion: hold the final reference until the next profile, mode change, or landing");
+			_ident_start_announced = true;
+		}
 	}
 
 	const float elapsed_s = math::max(0.0f, (now - _ident_start_time) * 1e-6f);
@@ -549,6 +585,12 @@ void TrajectoryReader::fillIdentificationBuffer(const matrix::Vector3f &current_
 	_eof = finished;
 	if (finished) {
 		_ident_finalize_log = true;
+		if (!_ident_completion_announced) {
+			PX4_INFO("Identification maneuver completed: %s", identProfileToString(_ident_profile));
+			PX4_INFO("  Logged duration: %.1f s", (double)duration_s);
+			PX4_INFO("  Vehicle state: holding the final reference while waiting for the next command");
+			_ident_completion_announced = true;
+		}
 	}
 }
 
@@ -715,6 +757,8 @@ void TrajectoryReader::updateRcSelections()
 		if (ident_param != PARAM_INVALID) {
 			param_set(ident_param, &profile_value);
 		}
+		stopTrajectoryTrackingLog();
+		stopIdentificationLog();
 		resetIdentificationState();
 		_start_new_tracking_log = true;
 	} else {
@@ -780,7 +824,11 @@ void TrajectoryReader::flushTrackingLogSamples(const matrix::Vector3f &current_p
 	}
 
 	if (_finalize_tracking_log && _pending_tracking_size == 0) {
-		PX4_INFO("Trajectory EOF reached, tracking log closed");
+		if (_mode == Mode::IDENTIFICATION) {
+			PX4_INFO("Tracking log completed: %s", identProfileToString(_ident_profile));
+		} else {
+			PX4_INFO("Trajectory EOF reached, tracking log closed");
+		}
 		stopTrajectoryTrackingLog();
 	}
 }
@@ -917,7 +965,8 @@ void TrajectoryReader::publishSetpoint(const matrix::Vector3f &current_pos) {
 
 		if (_mode == Mode::IDENTIFICATION) {
 			writeIdentificationLogSample(current_pos, hrt_absolute_time());
-			if (_ident_finalize_log && _eof) {
+			if (_ident_finalize_log && _eof && _ident_log_fd >= 0) {
+				PX4_INFO("Identification log completed: %s", identProfileToString(_ident_profile));
 				stopIdentificationLog();
 			}
 		}
@@ -1477,6 +1526,8 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
         }
 
         instance->_ident_profile = profile;
+        instance->stopTrajectoryTrackingLog();
+        instance->stopIdentificationLog();
         instance->resetIdentificationState();
         instance->_start_new_tracking_log = (instance->_mode == Mode::IDENTIFICATION);
         const int32_t profile_value = static_cast<int32_t>(profile);
@@ -1485,6 +1536,8 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
             param_set(ident_param, &profile_value);
         }
         PX4_INFO("Identification profile set to %s", instance->identProfileToString(profile));
+        PX4_INFO("  Purpose: %s", instance->identProfilePurpose(profile));
+        PX4_INFO("  Estimated duration: %.1f s", (double)instance->identificationDurationS(profile));
         return PX4_OK;
     }
 
@@ -1536,6 +1589,7 @@ int TrajectoryReader::print_status()
 	PX4_INFO("  Pending tracking samples: %u",
 		 static_cast<unsigned>(_pending_tracking_size));
 	PX4_INFO("  Identification profile: %s", identProfileToString(_ident_profile));
+	PX4_INFO("  Identification purpose: %s", identProfilePurpose(_ident_profile));
 	PX4_INFO("  Identification duration: %.2f s", (double)identificationDurationS(_ident_profile));
 	PX4_INFO("  Identification log open: %s", (_ident_log_fd >= 0) ? "yes" : "no");
 
