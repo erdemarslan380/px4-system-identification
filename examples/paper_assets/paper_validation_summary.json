@@ -8,7 +8,7 @@
     "motor_dynamics": 100.0
   },
   "stage_1_real_flight_validation": {
-    "note": "Synthetic noisy flight data generated from the reference x500 model. Replace the CSV files with real-flight logs later and regenerate the figures.",
+    "note": "Until real-flight logs are available, the real-flight slot is populated with stock x500 SITL proxy runs. The orange curve is the identified digital twin SITL run. A very small display-only jitter is applied to the blue stock proxy curve when needed so both trajectories remain visible in the overlay figures.",
     "trajectory_overlays": [
       {
         "name": "hairpin",
@@ -17,14 +17,12 @@
           "com_z": 0.01,
           "tau_scale": 1.02
         },
-        "real_rmse_m": 0.0882662087701551,
-        "twin_rmse_m": 0.16885807494998312,
-        "real_score": 95.01836474166086,
-        "twin_score": 84.05176045907369,
-        "match_score": 88.45843715327712,
+        "stock_sitl_proxy_rmse_m": 0.11156136424123274,
+        "digital_twin_rmse_m": 0.06797351553546424,
+        "stock_proxy_vs_twin_rmse_m": 0.06886447190021136,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_reference.csv",
-          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_synthetic_real.csv",
+          "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_stock_sitl_proxy.csv",
           "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_digital_twin.csv"
         }
       },
@@ -35,14 +33,12 @@
           "com_z": 0.01,
           "tau_scale": 1.02
         },
-        "real_rmse_m": 0.03784881314319021,
-        "twin_rmse_m": 0.09840925998577056,
-        "real_score": 95.36104731326263,
-        "twin_score": 85.66671304238643,
-        "match_score": 89.83407319444579,
+        "stock_sitl_proxy_rmse_m": 0.05312140873458334,
+        "digital_twin_rmse_m": 0.02566324120403864,
+        "stock_proxy_vs_twin_rmse_m": 0.029030628025988926,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_reference.csv",
-          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_synthetic_real.csv",
+          "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_stock_sitl_proxy.csv",
           "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_digital_twin.csv"
         }
       },
@@ -53,14 +49,12 @@
           "com_x": 0.01,
           "com_y": -0.01
         },
-        "real_rmse_m": 0.048317920110620916,
-        "twin_rmse_m": 0.12168596310645259,
-        "real_score": 95.96371833171122,
-        "twin_score": 85.71880800277809,
-        "match_score": 89.32418365290906,
+        "stock_sitl_proxy_rmse_m": 0.06823730091535958,
+        "digital_twin_rmse_m": 0.031237896624319427,
+        "stock_proxy_vs_twin_rmse_m": 0.03817421985378351,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_reference.csv",
-          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_synthetic_real.csv",
+          "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_stock_sitl_proxy.csv",
           "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_digital_twin.csv"
         }
       },
@@ -73,14 +67,12 @@
           "com_z": 0.03,
           "tau_scale": 1.04
         },
-        "real_rmse_m": 0.08378545789457803,
-        "twin_rmse_m": 0.19661151203823307,
-        "real_score": 87.04891360309666,
-        "twin_score": 67.01555553622423,
-        "match_score": 76.98609064988977,
+        "stock_sitl_proxy_rmse_m": 0.11168321297927904,
+        "digital_twin_rmse_m": 0.06783072143382624,
+        "stock_proxy_vs_twin_rmse_m": 0.06583718996703156,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_reference.csv",
-          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_synthetic_real.csv",
+          "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_stock_sitl_proxy.csv",
           "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_digital_twin.csv"
         }
       },
@@ -93,19 +85,17 @@
           "com_z": 0.02,
           "arm_scale": 1.01
         },
-        "real_rmse_m": 0.09079704761690141,
-        "twin_rmse_m": 0.15415839871331818,
-        "real_score": 90.176619485266,
-        "twin_score": 72.94307387419714,
-        "match_score": 80.88911991884476,
+        "stock_sitl_proxy_rmse_m": 0.07198607485451614,
+        "digital_twin_rmse_m": 0.06854698911246941,
+        "stock_proxy_vs_twin_rmse_m": 0.013621424174989925,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_reference.csv",
-          "synthetic_real": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_synthetic_real.csv",
+          "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_stock_sitl_proxy.csv",
           "digital_twin": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_digital_twin.csv"
         }
       }
     ],
-    "summary_figure": "/home/earsub/px4-system-identification/examples/paper_assets/figures/trajectory_match_scores.png"
+    "summary_figure": "/home/earsub/px4-system-identification/examples/paper_assets/figures/trajectory_rmse_summary.png"
   },
   "stage_2_sitl_statistical_validation": {
     "note": "Stress-test figures keep the identified twin fixed and perturb the reference plant across payload, center-of-mass, arm-length, and motor-model variations. The surface height is the twin-similarity score, and the line plots show representative slices through each surface.",

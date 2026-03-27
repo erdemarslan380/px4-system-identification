@@ -1,0 +1,9 @@
+{
+  "out_root": "/home/earsub/px4-system-identification/examples/paper_assets/stage1_inputs",
+  "stock_root": "/home/earsub/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy",
+  "twin_root": "/home/earsub/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl",
+  "candidate_json": "/home/earsub/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json",
+  "seed": 17,
+  "samples_per_traj": 600,
+  "stock_noise_bias": 1.0
+}

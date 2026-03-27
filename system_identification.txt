@@ -218,6 +218,10 @@ Layer 3: figure generation and statistical validation
   - family score bars,
   - trajectory summary score plots,
   - `paper_validation_summary.json`.
+- `experimental_validation/generate_placeholder_sitl_runs.py` creates a reproducible two-SITL Stage-1 input bundle:
+  - `stock x500 SITL proxy`
+  - `identified digital twin SITL`
+- `experimental_validation/sitl_validation_artifacts.py` rebuilds the final paper figures from those run roots.
 
 Validation modes
 ----------------
@@ -273,6 +277,14 @@ Stage 1: real-flight versus digital-twin overlays
 - overlay real flight and digital twin on the same axes,
 - report RMSE, delay, and blended twin score.
 
+Current repository state before real-flight logs exist:
+- the Stage-1 structure is already populated with two SITL roots:
+  - `~/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy/`
+  - `~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/`
+- the blue-side root is intentionally a stock x500 SITL proxy with mild smooth perturbation,
+- the orange-side root is the identified digital twin SITL run,
+- later, only the blue-side CSV files need to be replaced with real-flight logs.
+
 Stage 2: SITL statistical stress tests
 - keep the identified twin fixed,
 - perturb the reference plant across multiple families,
@@ -287,6 +299,13 @@ Stage 2: SITL statistical stress tests
 Important interpretation of Stage 2
 -----------------------------------
 These surfaces are not meant to claim real-flight equivalence by themselves. They are robustness plots. Their role is to show how the fixed identified twin behaves when the plant is perturbed.
+
+Surface-height interpretation:
+- the vertical axis is the twin-similarity score in percent,
+- `100%` means the perturbed plant still looks almost indistinguishable from the fixed twin under that stress condition,
+- lower values indicate where the current identified model is more fragile.
+
+The line plots are not separate experiments. They are readable slices through the same surfaces.
 
 Real-flight sortie plan
 -----------------------
@@ -316,6 +335,9 @@ After estimation, the inertial snippet written by the tool is stored in `candida
 4. rerun the five validation trajectories with the identified model,
 5. generate the overlay figures again.
 
+This repository also provides the direct helper:
+- `python3 experimental_validation/prepare_identified_model.py --px4-root ~/PX4-Autopilot --candidate-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate --model-name x500_identified`
+
 Real-flight calibration restore after firmware update
 -----------------------------------------------------
 This repository also supports restoring calibration-related parameters after a firmware update.
@@ -344,3 +366,45 @@ Key generated artifacts:
 - `~/px4-system-identification/examples/paper_assets/paper_validation_summary.json`
 - `~/px4-system-identification/examples/paper_assets/figures/`
 - `~/px4-system-identification/experimental_validation/outputs/`
+
+Current shipped figures and values
+----------------------------------
+Generated with:
+- `python3 experimental_validation/generate_sitl_validation_bundle.py --mode placeholder --candidate-dir ~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1 --run-out-root ~/px4-system-identification/examples/paper_assets/stage1_inputs --paper-assets-root ~/px4-system-identification/examples/paper_assets`
+
+Current upper-bound model score:
+- blended twin score: `100.00 / 100`
+- family scores:
+  - inertia: `100.00`
+  - mass: `100.00`
+  - motor coefficients: `100.00`
+  - motor dynamics: `100.00`
+
+Current Stage-1 trajectory RMSE values, blue-side stock SITL proxy vs orange-side digital twin SITL:
+- `hairpin`: `0.112 m` vs `0.068 m`
+- `lemniscate`: `0.053 m` vs `0.026 m`
+- `circle`: `0.068 m` vs `0.031 m`
+- `time_optimal_30s`: `0.112 m` vs `0.068 m`
+- `minimum_snap_50s`: `0.072 m` vs `0.069 m`
+
+Current Stage-2 mean similarity values:
+- payload mass vs Z offset: `64.09%`
+- payload mass vs X offset: `67.21%`
+- payload mass vs Y offset: `66.40%`
+- payload mass vs arm-length scale: `54.16%`
+- motor constant vs motor time-scale: `72.15%`
+
+How to swap in real-flight logs later
+-------------------------------------
+1. Keep the orange-side digital twin root:
+   - `~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/`
+2. Replace the blue-side CSV files under:
+   - `~/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy/tracking_logs/`
+3. Keep or recreate the filenames:
+   - `hairpin.csv`
+   - `lemniscate.csv`
+   - `circle.csv`
+   - `time_optimal_30s.csv`
+   - `minimum_snap_50s.csv`
+4. Rerun:
+   - `python3 experimental_validation/sitl_validation_artifacts.py --out-dir ~/px4-system-identification/examples/paper_assets --stock-root ~/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy --twin-root ~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl --candidate-json ~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json`

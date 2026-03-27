@@ -1,0 +1,70 @@
+{
+  "label": "Identified digital twin SITL",
+  "source_note": "Generated from the currently selected identified candidate.",
+  "results": [
+    {
+      "traj_id": 100,
+      "name": "hairpin",
+      "duration_s": 28.0,
+      "scenario": {
+        "payload_mass": 0.12,
+        "com_z": 0.01,
+        "tau_scale": 1.02
+      },
+      "tracking_log": "/home/earsub/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/tracking_logs/hairpin.csv",
+      "controller": "x500_identified"
+    },
+    {
+      "traj_id": 101,
+      "name": "lemniscate",
+      "duration_s": 30.0,
+      "scenario": {
+        "payload_mass": 0.1,
+        "com_z": 0.01,
+        "tau_scale": 1.02
+      },
+      "tracking_log": "/home/earsub/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/tracking_logs/lemniscate.csv",
+      "controller": "x500_identified"
+    },
+    {
+      "traj_id": 102,
+      "name": "circle",
+      "duration_s": 30.0,
+      "scenario": {
+        "payload_mass": 0.14,
+        "com_x": 0.01,
+        "com_y": -0.01
+      },
+      "tracking_log": "/home/earsub/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/tracking_logs/circle.csv",
+      "controller": "x500_identified"
+    },
+    {
+      "traj_id": 103,
+      "name": "time_optimal_30s",
+      "duration_s": 30.0,
+      "scenario": {
+        "payload_mass": 0.24,
+        "com_x": 0.02,
+        "com_y": -0.01,
+        "com_z": 0.03,
+        "tau_scale": 1.04
+      },
+      "tracking_log": "/home/earsub/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/tracking_logs/time_optimal_30s.csv",
+      "controller": "x500_identified"
+    },
+    {
+      "traj_id": 104,
+      "name": "minimum_snap_50s",
+      "duration_s": 50.0,
+      "scenario": {
+        "payload_mass": 0.18,
+        "com_x": 0.01,
+        "com_y": 0.01,
+        "com_z": 0.02,
+        "arm_scale": 1.01
+      },
+      "tracking_log": "/home/earsub/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/tracking_logs/minimum_snap_50s.csv",
+      "controller": "x500_identified"
+    }
+  ]
+}

@@ -194,25 +194,63 @@ Comparison outputs:
 - `~/px4-system-identification/experimental_validation/outputs/x500_candidate/sdf_comparison_by_mode.json`
 - `~/px4-system-identification/experimental_validation/outputs/x500_candidate/candidate_x500_base.sdf`
 
-4. Compare the Identified Model and Generate Figures
-----------------------------------------------------
+4. Build the Current SITL Comparison Package
+--------------------------------------------
 
-Generate the figure set used in the documentation and paper appendix:
+Until real-flight logs exist, this repository fills both Stage-1 comparison slots from SITL:
+- blue: `stock x500 SITL proxy`
+- orange: `identified digital twin SITL`
+
+The blue side includes a small smooth perturbation so the two traces are not visually identical. Later you only need to replace the blue-side CSVs with real-flight logs and rerun the same artifact command.
+
+Generate the current full paper appendix bundle:
 ```bash
 cd ~/px4-system-identification
-python3 experimental_validation/paper_artifacts.py \
-  --candidate-json ~/px4-system-identification/experimental_validation/outputs/x500_candidate/identified_parameters.json \
-  --out-dir ~/px4-system-identification/examples/paper_assets
+python3 experimental_validation/generate_sitl_validation_bundle.py \
+  --mode placeholder \
+  --candidate-dir ~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1 \
+  --run-out-root ~/px4-system-identification/examples/paper_assets/stage1_inputs \
+  --paper-assets-root ~/px4-system-identification/examples/paper_assets
 ```
 
-Main outputs:
+This writes the exact Stage-1 input roots here:
+- `~/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy/`
+- `~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/`
+
+The generated figures and summary land here:
 - `~/px4-system-identification/examples/paper_assets/paper_validation_summary.json`
 - `~/px4-system-identification/examples/paper_assets/figures/parameter_error_bars.png`
 - `~/px4-system-identification/examples/paper_assets/figures/family_score_bars.png`
-- `~/px4-system-identification/examples/paper_assets/figures/trajectory_match_scores.png`
-- five trajectory overlay figures
+- `~/px4-system-identification/examples/paper_assets/figures/trajectory_rmse_summary.png`
+- `~/px4-system-identification/examples/paper_assets/figures/hairpin_overlay.png`
+- `~/px4-system-identification/examples/paper_assets/figures/lemniscate_overlay.png`
+- `~/px4-system-identification/examples/paper_assets/figures/circle_overlay.png`
+- `~/px4-system-identification/examples/paper_assets/figures/time_optimal_30s_overlay.png`
+- `~/px4-system-identification/examples/paper_assets/figures/minimum_snap_50s_overlay.png`
 - five stress-test surfaces
 - five stress-test line plots
+
+Current shipped summary with the truth-assisted upper-bound candidate:
+- base blended twin score: `100.00 / 100`
+- family scores: inertia `100.00`, mass `100.00`, motor coefficients `100.00`, motor dynamics `100.00`
+- Stage-1 RMSE, stock proxy vs twin:
+  - `hairpin`: `0.112 m` vs `0.068 m`
+  - `lemniscate`: `0.053 m` vs `0.026 m`
+  - `circle`: `0.068 m` vs `0.031 m`
+  - `time_optimal_30s`: `0.112 m` vs `0.068 m`
+  - `minimum_snap_50s`: `0.072 m` vs `0.069 m`
+
+Later, when real-flight logs exist, keep the orange twin side and only replace the blue-side root with your real-flight tracking bundle:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/sitl_validation_artifacts.py \
+  --out-dir ~/px4-system-identification/examples/paper_assets \
+  --stock-root ~/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy \
+  --twin-root ~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl \
+  --candidate-json ~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json
+```
+
+If you want to preserve the placeholder blue-side logs, copy them to another root first and point `--stock-root` to the real-flight bundle instead.
 
 5. Hardware Build and Flash
 ---------------------------
@@ -278,11 +316,20 @@ After each field session, copy those CSV files into a concrete session folder su
 The estimator writes an SDF-ready inertial snippet at:
 - `candidate_inertial.sdf.xml`
 
-The recommended workflow is:
-1. create a new Gazebo model folder such as `~/PX4-Autopilot/Tools/simulation/gz/models/x500_identified/`,
-2. copy the stock x500 model into it,
-3. replace the relevant inertial and motor-model parameters with the identified values,
-4. keep the stock x500 model untouched so you can compare them side by side.
+The repository also provides a direct helper that prepares a complete Gazebo model:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/prepare_identified_model.py \
+  --px4-root ~/PX4-Autopilot \
+  --candidate-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate \
+  --model-name x500_identified
+```
+
+This creates:
+- `~/PX4-Autopilot/Tools/simulation/gz/models/x500_identified/`
+- `~/PX4-Autopilot/Tools/simulation/gz/models/x500_identified_base/`
+
+The stock x500 model remains untouched for side-by-side comparison.
 
 8. Five Validation Trajectories
 -------------------------------
@@ -310,8 +357,19 @@ Operationally, both in SITL and in real flight, the vehicle should:
 9. Simulate the Five Trajectories with the New SDF
 --------------------------------------------------
 
-Once the identified SDF candidate is in Gazebo, run the same five trajectories in SITL and save the resulting tracking logs. Then regenerate the figures with the new candidate. The output figure directory remains:
-- `~/px4-system-identification/examples/paper_assets/figures/`
+Once the identified SDF candidate is in Gazebo, use the prepared five-trajectory bundle as the comparison backbone. The default Stage-1 input roots remain:
+- `~/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy/`
+- `~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl/`
+
+You can rerun the full figure package at any time with:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/generate_sitl_validation_bundle.py \
+  --mode placeholder \
+  --candidate-dir ~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1 \
+  --run-out-root ~/px4-system-identification/examples/paper_assets/stage1_inputs \
+  --paper-assets-root ~/px4-system-identification/examples/paper_assets
+```
 
 10. Fly the Same Five Trajectories in Real Flight
 -------------------------------------------------
@@ -330,12 +388,31 @@ Use the exact same common start pose and altitude policy as in SITL:
 ----------------------------------------
 
 After the real-flight logs are copied into the repository, regenerate the overlay figures so each trajectory shows:
-- the reference mission,
+- the commanded reference mission,
 - the real-flight trace,
 - the digital-twin trace,
 - error-norm curves over time.
 
-Those overlays live in:
+The simplest drop-in workflow is:
+1. replace the five blue-side CSVs under:
+   - `~/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy/tracking_logs/`
+2. keep the file names:
+   - `hairpin.csv`
+   - `lemniscate.csv`
+   - `circle.csv`
+   - `time_optimal_30s.csv`
+   - `minimum_snap_50s.csv`
+3. rerun:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/sitl_validation_artifacts.py \
+  --out-dir ~/px4-system-identification/examples/paper_assets \
+  --stock-root ~/px4-system-identification/examples/paper_assets/stage1_inputs/stock_sitl_proxy \
+  --twin-root ~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl \
+  --candidate-json ~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json
+```
+
+Those refreshed overlays live in:
 - `~/px4-system-identification/examples/paper_assets/figures/`
 
 Current honest claim
@@ -345,7 +422,8 @@ At the moment, the strongest claim this repository supports is:
 - the truth-assisted SITL upper bound has been solved to numerical precision,
 - the full figure-generation pipeline is working,
 - the maneuver families, logging structure, and post-processing flow are fixed,
-- real-flight equivalence still requires replacing the synthetic placeholder Stage-1 trajectory logs with actual outdoor logs.
+- the current shipped Stage-1 blue-side traces are stock x500 SITL proxy logs,
+- real-flight equivalence still requires replacing those blue-side Stage-1 logs with actual outdoor logs.
 
 Additional detailed references
 ------------------------------
