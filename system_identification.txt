@@ -317,6 +317,7 @@ The repository also now patches the manual x500 model so Gazebo truth logs are w
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
 If that directory is missing, the operator should resync the overlay and rebuild before interpreting the comparison results.
+If the directory exists but remains empty after a completed maneuver, the operator should still treat the run as invalid for truth-assisted comparison. In that case the most likely cause is that the Gazebo launcher was started without the required system-plugin search path, and the correct action is to resync the overlay, restart SITL, and rerun the maneuver.
 
 Five validation trajectories
 ----------------------------

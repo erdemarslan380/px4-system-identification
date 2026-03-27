@@ -76,6 +76,39 @@ if changed:
 PY
 }
 
+patch_simulation_gazebo_script() {
+  local script_path="$1"
+  [ -f "$script_path" ] || return 0
+  python3 - "$script_path" <<'PY'
+from pathlib import Path
+import sys
+import re
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+if "from pathlib import Path\n" not in text:
+    text = text.replace("import shutil\n", "import shutil\nfrom pathlib import Path\n")
+
+pattern = re.compile(
+    r"(?ms)^        cmd = f'GZ_SIM_RESOURCE_PATH=\{args\.model_store\}/models '\n"
+    r"(?:        .*?\n)*?"
+    r"        cmd \+= f'GZ_SIM_SERVER_CONFIG_PATH=\{args\.model_store\}/server\.config '\n"
+)
+replacement = (
+    "        px4_root = Path(__file__).resolve().parents[3]\n"
+    "        plugin_root = px4_root / 'build' / 'px4_sitl_default' / 'src' / 'modules' / 'simulation' / 'gz_plugins'\n"
+    "        truth_root = px4_root / 'build' / 'px4_sitl_default' / 'rootfs' / 'sysid_truth_logs'\n"
+    "        cmd = f'GZ_SIM_RESOURCE_PATH={args.model_store}/models '\n"
+    "        cmd += f'GZ_SIM_SYSTEM_PLUGIN_PATH={plugin_root} '\n"
+    "        cmd += f'PX4_SYSID_LOG_DIR={truth_root} '\n"
+    "        cmd += f'PX4_SYSID_LOG_SLOT=manual '\n"
+    "        cmd += f'GZ_SIM_SERVER_CONFIG_PATH={args.model_store}/server.config '\n"
+)
+text = pattern.sub(replacement, text, count=1)
+path.write_text(text, encoding='utf-8')
+PY
+}
+
 patch_x500_model_sdf() {
   local model_path="$1"
   [ -f "$model_path" ] || return 0
@@ -178,6 +211,7 @@ PY
 
 patch_board_file "$px4_root/$board_rel"
 patch_gz_plugins_cmake "$px4_root/src/modules/simulation/gz_plugins/CMakeLists.txt"
+patch_simulation_gazebo_script "$px4_root/Tools/simulation/gz/simulation-gazebo"
 patch_x500_model_sdf "$px4_root/Tools/simulation/gz/models/x500/model.sdf"
 patch_msg_cmake "$px4_root/msg/CMakeLists.txt"
 cleanup_legacy_param_sources "$px4_root/src/modules/custom_pos_control"
@@ -186,6 +220,7 @@ cleanup_legacy_param_sources "$px4_root/src/modules/trajectory_reader"
 echo "Overlay copied into $px4_root"
 echo "Board flags ensured in $board_rel"
 echo "Gazebo plugin CMake patched for SystemIdentificationLoggerPlugin"
+echo "Gazebo launcher patched for GZ_SIM_SYSTEM_PLUGIN_PATH"
 echo "x500 model.sdf patched for SystemIdentificationLoggerPlugin"
 echo "uORB message list patched for MultiTrajectorySetpoint.msg"
 echo "Legacy params.c overlays removed in favor of module.yaml"

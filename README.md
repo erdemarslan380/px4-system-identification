@@ -290,6 +290,18 @@ If `sysid_truth_logs/` is missing:
 In the current repository version, manual x500 SITL writes Gazebo truth logs automatically to:
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
+If the directory exists but stays empty after a completed maneuver, treat that as a plugin-loading problem, not as a valid identification result. The current sync script patches both:
+- `Tools/simulation/gz/models/x500/model.sdf`
+- `Tools/simulation/gz/simulation-gazebo`
+
+so the normal recovery is:
+1. `cd ~/px4-system-identification`
+2. `./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification`
+3. restart SITL
+4. rerun the maneuver
+
+Do not trust `truth_assisted` comparisons while `sysid_truth_logs/` is empty.
+
 Complete shipped stress-test figure set:
 - `examples/paper_assets/figures/payload_z_surface.png`
 - `examples/paper_assets/figures/payload_x_offset_surface.png`

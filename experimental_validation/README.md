@@ -85,6 +85,7 @@ The current repository version patches `x500/model.sdf` so `SystemIdentification
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
 If that folder is missing, resync the overlay and rebuild the dedicated PX4 workspace before trusting any comparison result.
+If the folder exists but contains no CSV files after a completed maneuver, resync and restart anyway. An empty `sysid_truth_logs/` folder means the logger plugin was not active for that run.
 
 Common runtime note:
 - `NodeShared::Publish() Error: Interrupted system call`
