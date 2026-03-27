@@ -59,6 +59,11 @@ class RepoCleanlinessTests(unittest.TestCase):
             self.assertIn("module.yaml", cmake)
             self.assertNotIn("_params.c", cmake)
 
+    def test_identification_mode_is_not_forced_back_to_position_on_offboard_entry(self) -> None:
+        content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")
+        self.assertNotIn("Always reset to POSITION mode on OFFBOARD entry", content)
+        self.assertIn("Preserve the selected workflow across OFFBOARD entry.", content)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -969,12 +969,31 @@ void TrajectoryReader::Run()
 	}
 
 	if (entered_offboard) {
-		// Always reset to POSITION mode on OFFBOARD entry and recapture offset.
-		setTrajectoryReaderMode(Mode::POSITION);
-		_need_pos_offset = true;
-		_pos_offset_valid = false;
-		_pos_ref_absolute = false;
-		_pos_target = {};
+		// Preserve the selected workflow across OFFBOARD entry.
+		// We only reset the state that must be recaptured at the mode boundary.
+		if (_mode == Mode::POSITION) {
+			_need_pos_offset = true;
+			_pos_offset_valid = false;
+			_pos_ref_absolute = false;
+			_pos_target = {};
+
+		} else if (_mode == Mode::TRAJECTORY) {
+			stopTrajectoryTrackingLog();
+			closeTrajectoryFile();
+			_buffer_len = 0;
+			_eof = false;
+			_finalize_tracking_log = false;
+			_traj_offset_valid = false;
+			_need_traj_offset = true;
+			_start_new_tracking_log = true;
+
+		} else if (_mode == Mode::IDENTIFICATION) {
+			stopTrajectoryTrackingLog();
+			stopIdentificationLog();
+			_finalize_tracking_log = false;
+			_start_new_tracking_log = true;
+			resetIdentificationState();
+		}
 	}
 
 	vehicle_local_position_s vehicle_local_position{};

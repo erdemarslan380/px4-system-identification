@@ -41,6 +41,14 @@ trajectory_reader set_mode identification
 trajectory_reader set_ident_profile hover_thrust
 ```
 
+Expected behavior:
+- after you arm, take off, and switch to OFFBOARD, the selected identification motion should start without needing to reselect the mode
+- if you are still on an older build, re-run:
+```bash
+trajectory_reader set_mode identification
+trajectory_reader set_ident_profile hover_thrust
+```
+
 6. Change profiles when the vehicle is stable
 ```bash
 trajectory_reader set_ident_profile mass_vertical

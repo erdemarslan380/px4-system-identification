@@ -143,6 +143,13 @@ custom_pos_control set sysid
 trajectory_reader set_mode identification
 trajectory_reader set_ident_profile hover_thrust
 ```
+Current behavior:
+- On the current build, identification mode is preserved when you switch into OFFBOARD.
+- If you are testing an older synced build and the motion does not start after OFFBOARD entry, run these two commands again after OFFBOARD becomes active:
+```bash
+trajectory_reader set_mode identification
+trajectory_reader set_ident_profile hover_thrust
+```
 3. Arm and take off using your normal safe bootstrap workflow.
 4. Keep the vehicle near a stable hover reference.
 5. Run one identification profile at a time:
