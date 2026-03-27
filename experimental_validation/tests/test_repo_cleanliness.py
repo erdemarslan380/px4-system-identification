@@ -8,6 +8,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 OVERLAY_ROOT = REPO_ROOT / "overlay" / "src" / "modules"
 SYNC_SCRIPT = REPO_ROOT / "sync_into_px4_workspace.sh"
 PREPARE_SCRIPT = REPO_ROOT / "prepare_identification_workspace.sh"
+REFRESH_DEMO_SCRIPT = REPO_ROOT / "examples" / "refresh_demo_assets.sh"
+SMOKE_TEST_SCRIPT = REPO_ROOT / "examples" / "run_repo_smoke_test.sh"
 
 
 class RepoCleanlinessTests(unittest.TestCase):
@@ -68,6 +70,16 @@ class RepoCleanlinessTests(unittest.TestCase):
         prepare_content = PREPARE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("PX4-Autopilot-Identification", prepare_content)
         self.assertIn("git clone https://github.com/PX4/PX4-Autopilot.git --recursive", prepare_content)
+
+    def test_operator_helper_scripts_exist(self) -> None:
+        self.assertTrue(REFRESH_DEMO_SCRIPT.exists())
+        self.assertTrue(SMOKE_TEST_SCRIPT.exists())
+        refresh_content = REFRESH_DEMO_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("validation_trajectories.py", refresh_content)
+        self.assertIn("generate_sitl_validation_bundle.py", refresh_content)
+        smoke_content = SMOKE_TEST_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("test_repo_cleanliness", smoke_content)
+        self.assertIn("test_paper_artifacts", smoke_content)
 
     def test_modules_use_module_yaml_instead_of_legacy_param_sources(self) -> None:
         modules = ("custom_pos_control", "trajectory_reader")

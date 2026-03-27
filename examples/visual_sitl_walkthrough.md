@@ -1,46 +1,41 @@
 Visual Gazebo SITL walkthrough
 =============================
 
-1. Sync the overlay into the dedicated PX4 tree
+This is the shortest manual path for a first individual test.
+
+1. Sync the overlay
+-------------------
 ```bash
 cd ~/px4-system-identification
 ./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification
 ```
 
-2. Build and start SITL
+2. Start Gazebo SITL
+--------------------
 ```bash
 cd ~/PX4-Autopilot-Identification
 unset HEADLESS
 make px4_sitl gz_x500
 ```
 
-If this command seems to reuse an older simulation instead of starting cleanly, stop the old instance first:
+If the build seems to reuse an older run:
 ```bash
-# In pxh> if it is still open
 shutdown
-
-# In a normal terminal
 pkill -f '/PX4-Autopilot-Identification/build/px4_sitl_default/bin/px4' || true
 pkill -f '/PX4-Autopilot-Identification/.*/gz/worlds/' || true
 rm -f /tmp/px4_lock-0 /tmp/px4-sock-0
-
 cd ~/PX4-Autopilot-Identification
 unset HEADLESS
 make px4_sitl gz_x500
 ```
 
-Healthy signs in the terminal:
-- `Linking CXX executable bin/px4`
-- `INFO [init] Gazebo simulator ...`
-- `INFO [init] Starting gazebo with world: ...`
-- `pxh>`
-
-3. If the Gazebo GUI window does not appear, open it manually
+If the GUI window does not appear:
 ```bash
 gz sim -g
 ```
 
-4. Start the helper modules in `pxh>`
+3. Start the helper modules in `pxh>`
+-------------------------------------
 ```bash
 custom_pos_control start
 trajectory_reader start
@@ -50,25 +45,27 @@ trajectory_reader set_mode identification
 trajectory_reader set_ident_profile hover_thrust
 ```
 
-5. Arm and take off from QGroundControl
-- arm normally
-- take off manually to about `3 m`
-- stabilize hover
-- switch to `OFFBOARD`
+4. Use QGroundControl
+---------------------
+1. arm,
+2. take off manually to about `3 m`,
+3. stabilize hover,
+4. switch to `OFFBOARD`.
 
-6. What you should see in the PX4 console when a profile runs
-- `Identification profile set to ...`
+5. Watch the PX4 console
+------------------------
+For every profile, the PX4 console prints:
+- `Identification maneuver started: ...`
 - `Purpose: ...`
 - `Estimated duration: ...`
-- `Identification maneuver started: ...`
-- `Identification log started: ...`
 - `Identification maneuver completed: ...`
 - `Identification log completed: ...`
 - `Tracking log completed: ...`
 
-That final pair means the current maneuver has finished and the vehicle is holding the final reference.
+Only send the next profile after the completion messages appear.
 
-7. Run the remaining profiles one by one
+6. Run the remaining profiles
+-----------------------------
 ```bash
 trajectory_reader set_ident_profile mass_vertical
 trajectory_reader set_ident_profile roll_sweep
@@ -80,7 +77,8 @@ trajectory_reader set_ident_profile drag_z
 trajectory_reader set_ident_profile motor_step
 ```
 
-8. Approximate durations
+7. Durations
+------------
 - `hover_thrust`: `26 s`
 - `mass_vertical`: `36 s`
 - `roll_sweep`: `28 s`
@@ -91,20 +89,13 @@ trajectory_reader set_ident_profile motor_step
 - `drag_z`: `30 s`
 - `motor_step`: `24 s`
 
-9. Exact SITL log folders
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/`
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/tracking_logs/`
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
-
-10. Estimate from the latest logs
+8. Refresh the shipped figures after the test
+---------------------------------------------
 ```bash
-LATEST_IDENT=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
-LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
-
 cd ~/px4-system-identification
-python3 experimental_validation/cli.py \
-  --csv "$LATEST_IDENT" \
-  --truth-csv "$LATEST_TRUTH" \
-  --ident-log \
-  --out-dir ~/px4-system-identification/experimental_validation/outputs/session_001
+./examples/refresh_demo_assets.sh ~/PX4-Autopilot-Identification
 ```
+
+The updated outputs appear here:
+- `~/px4-system-identification/examples/paper_assets/paper_validation_summary.json`
+- `~/px4-system-identification/examples/paper_assets/figures/`

@@ -7,7 +7,7 @@ This text explains exactly how the repository identifies a multicopter model fro
 
 Repository scope
 ----------------
-This repository contains only the system-identification workflow. It does not contain the separate optimization stack. The pipeline is intentionally split into two parts:
+This repository contains the full system-identification workflow. The pipeline is intentionally split into two parts:
 - `overlay/`: PX4 and Gazebo code that creates the maneuvers and records the logs.
 - `experimental_validation/`: the offline estimators, SDF comparison scripts, scoring logic, and figure generators.
 
@@ -104,6 +104,17 @@ The repository assumes one dedicated PX4 clone at:
 - `~/PX4-Autopilot-Identification`
 
 That tree belongs only to this identification workflow.
+
+Helper scripts for the operator
+-------------------------------
+Two small helper scripts are now part of the repository:
+- `~/px4-system-identification/examples/run_repo_smoke_test.sh`
+  - runs the shipped repository tests and confirms the documentation state, validation-trajectory generator, and figure-generation pipeline.
+- `~/px4-system-identification/examples/refresh_demo_assets.sh ~/PX4-Autopilot-Identification`
+  - regenerates the five validation trajectories,
+  - rebuilds the shipped Stage-1 proxy inputs,
+  - regenerates the current figure set,
+  - updates `examples/paper_assets/paper_validation_summary.json`.
 
 Maneuver definitions
 --------------------
@@ -236,6 +247,21 @@ Layer 3: figure generation and statistical validation
   - `stock x500 SITL proxy`
   - `identified digital twin SITL`
 - `experimental_validation/sitl_validation_artifacts.py` rebuilds the final paper figures from those run roots.
+
+Current shipped figure package
+------------------------------
+The repository already ships one complete figure package under:
+- `~/px4-system-identification/examples/paper_assets/`
+
+The main outputs are:
+- `paper_validation_summary.json`
+- `figures/trajectory_rmse_summary.png`
+- `figures/parameter_error_bars.png`
+- the five trajectory overlay figures
+- the five stress-test surface figures
+- the five stress-test line figures
+
+The currently shipped Stage-1 blue-side data are `stock x500 SITL proxy` logs, not real-flight logs. This is intentional. It makes the full appendix reproducible now, and later the stock-proxy CSV files can be replaced with real-flight CSV files without changing the figure-generation path.
 
 Validation modes
 ----------------
