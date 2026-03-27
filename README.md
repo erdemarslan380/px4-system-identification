@@ -16,7 +16,6 @@ What is in this repository
 - `experimental_validation/`: the offline parameter-estimation and validation scripts
 - `examples/`: operator walkthroughs, sortie definitions, and generated figures
 - `system_identification.txt`: long-form method description for papers and reports
-- `prepare_identification_workspace.sh`: creates or reuses a dedicated PX4 clone at `~/PX4-Autopilot-Identification`
 - `sync_into_px4_workspace.sh`: copies the overlay into an upstream PX4 workspace
 
 What is not in this repository
@@ -28,25 +27,20 @@ What is not in this repository
 1. Installation
 ---------------
 
-This repository should not patch a shared `~/PX4-Autopilot` tree. Use a dedicated clone:
+Use one dedicated PX4 tree for this repository:
 - `~/PX4-Autopilot-Identification`
 
-The sync script now refuses to modify a shared `~/PX4-Autopilot` tree unless you explicitly override that protection.
+Do not use a different PX4 workspace for this workflow.
 
-Recommended commands:
+Commands:
 ```bash
 cd ~
-git clone git@github.com:erdemarslan380/px4-system-identification.git
-cd ~/px4-system-identification
-./prepare_identification_workspace.sh ~/PX4-Autopilot-Identification
-
+git clone https://github.com/PX4/PX4-Autopilot.git --recursive PX4-Autopilot-Identification
 cd ~/PX4-Autopilot-Identification
 bash ./Tools/setup/ubuntu.sh
-make px4_sitl gz_x500
-```
 
-If you already have the dedicated clone and only want to resync the overlay:
-```bash
+cd ~
+git clone git@github.com:erdemarslan380/px4-system-identification.git
 cd ~/px4-system-identification
 ./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification
 
@@ -65,12 +59,6 @@ Benign warnings during the first run:
 - the CMake `CMP0148` warning
 - stock x500 `gz_frame_id` warnings
 - temporary `No connection to the GCS` preflight warnings before QGroundControl connects
-
-Safety note for shared workstations:
-- `sync_into_px4_workspace.sh` now blocks the shared `~/PX4-Autopilot` path by default.
-- If you truly want to patch that shared tree anyway, you must set:
-  - `PX4_SYSID_ALLOW_SHARED_TREE=1`
-- This is intentionally inconvenient.
 
 2. SITL Identification Test
 ---------------------------
@@ -252,7 +240,7 @@ Current shipped summary with the truth-assisted upper-bound candidate:
   - `time_optimal_30s`: `0.112 m` vs `0.068 m`
   - `minimum_snap_50s`: `0.072 m` vs `0.069 m`
 
-Later, when real-flight logs exist, keep the orange twin side and only replace the blue-side root with your real-flight tracking bundle:
+Later, when real-flight logs exist, keep the orange twin side and replace the blue-side root with your real-flight tracking bundle:
 ```bash
 cd ~/px4-system-identification
 python3 experimental_validation/sitl_validation_artifacts.py \
@@ -261,8 +249,6 @@ python3 experimental_validation/sitl_validation_artifacts.py \
   --twin-root ~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl \
   --candidate-json ~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json
 ```
-
-If you want to preserve the placeholder blue-side logs, copy them to another root first and point `--stock-root` to the real-flight bundle instead.
 
 5. Hardware Build and Flash
 ---------------------------

@@ -6,8 +6,6 @@ This folder turns PX4 and Gazebo logs into an identified multicopter model, comp
 All commands below assume the dedicated PX4 clone lives here:
 - `~/PX4-Autopilot-Identification`
 
-That isolation is intentional. It avoids touching a shared `~/PX4-Autopilot` tree that may belong to another project.
-
 Validation modes
 ----------------
 - `px4_only`: use only PX4-side identification logs

@@ -57,10 +57,9 @@ Each maneuver is triggered directly from the PX4 shell through `trajectory_reade
 
 Exact SITL execution flow
 -------------------------
-0. Prepare a dedicated PX4 tree:
-   - `~/px4-system-identification/prepare_identification_workspace.sh ~/PX4-Autopilot-Identification`
-   - do not use a shared `~/PX4-Autopilot` tree for this workflow.
-1. Sync the overlay into the dedicated PX4 tree:
+0. Clone PX4 into a dedicated identification tree:
+   - `git clone https://github.com/PX4/PX4-Autopilot.git --recursive ~/PX4-Autopilot-Identification`
+1. Sync the overlay into that dedicated PX4 tree:
    - `~/px4-system-identification/sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification`
 2. Build and start Gazebo SITL:
    - `cd ~/PX4-Autopilot-Identification`
@@ -94,18 +93,12 @@ The current implementation prints the operational state explicitly:
 
 This means the operator does not need to guess when a maneuver ends. The end-of-maneuver condition is now visible from the PX4 console itself.
 
-Workspace safety
-----------------
-The repository now assumes a dedicated PX4 clone at:
+Workspace convention
+--------------------
+The repository assumes one dedicated PX4 clone at:
 - `~/PX4-Autopilot-Identification`
 
-Reason:
-- many researchers already use `~/PX4-Autopilot` for other overlays or branches,
-- overwriting that shared tree is an avoidable operational hazard.
-
-Protective behavior:
-- `sync_into_px4_workspace.sh` refuses to modify a tree whose basename is exactly `PX4-Autopilot`,
-- unless the user deliberately sets `PX4_SYSID_ALLOW_SHARED_TREE=1`.
+That tree belongs only to this identification workflow.
 
 Maneuver definitions
 --------------------
