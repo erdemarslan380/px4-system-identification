@@ -83,6 +83,7 @@ Exact SITL execution flow
    - stabilize hover
    - switch to `OFFBOARD`
 5. Run one maneuver at a time and wait for completion before sending the next one.
+6. For a full truth-assisted x500 candidate, keep all nine maneuvers inside the same uninterrupted SITL session.
 
 PX4 console behavior during a maneuver
 --------------------------------------
@@ -205,6 +206,7 @@ Exact SITL log directories
   - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
 The current repository version activates the truth logger in normal manual SITL as well. That means the operator no longer needs a separate special launch path to obtain truth-assisted upper-bound logs.
+For a clean new full-family run, the operator may delete the old CSV files in those three directories, but only while SITL is stopped.
 
 On hardware, the corresponding PX4 storage directories are typically:
 - `/fs/microsd/identification_logs/`
@@ -318,6 +320,8 @@ The repository also now patches the manual x500 model so Gazebo truth logs are w
 
 If that directory is missing, the operator should resync the overlay and rebuild before interpreting the comparison results.
 If the directory exists but remains empty after a completed maneuver, the operator should still treat the run as invalid for truth-assisted comparison. In that case the most likely cause is that the Gazebo launcher was started without the required system-plugin search path, and the correct action is to resync the overlay, restart SITL, and rerun the maneuver.
+
+Another practical operator rule is that the active truth CSV should not be deleted while SITL is still running. In earlier versions that caused Gazebo to continue writing into an already deleted file descriptor, which made `sysid_truth_logs/` look empty even though the logger had not actually stopped. The current repository version now reopens the file automatically if it is removed during an active run, but the preferred workflow is still to delete old truth logs only before startup or after shutdown.
 
 Five validation trajectories
 ----------------------------

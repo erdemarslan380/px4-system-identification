@@ -148,11 +148,20 @@ public:
 
 	void OpenLog()
 	{
-		if (!this->enabled || this->stream.is_open() || this->log_path.empty()) {
+		if (!this->enabled || this->log_path.empty()) {
 			return;
 		}
 
 		std::filesystem::path path(this->log_path);
+		if (this->stream.is_open()) {
+			if (std::filesystem::exists(path)) {
+				return;
+			}
+			gzwarn << "[SystemIdentificationLogger] Active truth log was removed on disk; reopening "
+			       << path << std::endl;
+			this->stream.close();
+		}
+
 		std::filesystem::create_directories(path.parent_path());
 		this->stream.open(path, std::ios::out | std::ios::trunc);
 		if (!this->stream.is_open()) {

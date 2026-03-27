@@ -60,6 +60,8 @@ This helper:
 - finds the latest suitable truth log under `sysid_truth_logs`,
 - writes the same comparison files as `compare_with_sdf.py`.
 
+For `truth_assisted` comparisons, the intended operator workflow is one uninterrupted SITL session that contains all nine maneuver families. The helper is not meant to merge a single Gazebo truth file with profile logs collected across unrelated simulator restarts.
+
 Use this helper instead of manual shell chains that assign `HOVER=...`, `ROLL=...`, and similar variables. Repeated maneuvers naturally create multiple CSV files. The helper is responsible for choosing the latest complete family.
 
 Regenerate figures from an existing stock/twin bundle
@@ -86,6 +88,7 @@ The current repository version patches `x500/model.sdf` so `SystemIdentification
 
 If that folder is missing, resync the overlay and rebuild the dedicated PX4 workspace before trusting any comparison result.
 If the folder exists but contains no CSV files after a completed maneuver, resync and restart anyway. An empty `sysid_truth_logs/` folder means the logger plugin was not active for that run.
+Also avoid deleting the active truth CSV while SITL is still running. In older runs that left Gazebo writing into a deleted file descriptor. The current repository version reopens the file if it is removed, but deleting old truth logs before startup is still the cleanest workflow.
 
 Common runtime note:
 - `NodeShared::Publish() Error: Interrupted system call`
