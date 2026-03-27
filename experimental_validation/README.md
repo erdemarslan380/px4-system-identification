@@ -48,29 +48,19 @@ python3 experimental_validation/cli.py \
 Estimate the full x500 candidate
 --------------------------------
 ```bash
-HOVER=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/hover_thrust*.csv | head -n 1)
-MASS=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/mass_vertical*.csv | head -n 1)
-ROLL=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/roll_sweep*.csv | head -n 1)
-PITCH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/pitch_sweep*.csv | head -n 1)
-YAW=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/yaw_sweep*.csv | head -n 1)
-DRAG_X=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_x*.csv | head -n 1)
-DRAG_Y=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_y*.csv | head -n 1)
-DRAG_Z=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_z*.csv | head -n 1)
-MOTOR=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/motor_step*.csv | head -n 1)
-
 cd ~/px4-system-identification
-python3 experimental_validation/compare_with_sdf.py \
-  --csv "$MASS" \
-  --csv "$HOVER" \
-  --csv "$ROLL" \
-  --csv "$PITCH" \
-  --csv "$YAW" \
-  --csv "$DRAG_X" \
-  --csv "$DRAG_Y" \
-  --csv "$DRAG_Z" \
-  --csv "$MOTOR" \
+python3 experimental_validation/build_latest_x500_candidate.py \
+  --rootfs ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs \
   --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
+
+This helper:
+- picks the latest CSV for every required profile,
+- reports missing profiles,
+- finds the latest suitable truth log under `sysid_truth_logs`,
+- writes the same comparison files as `compare_with_sdf.py`.
+
+Use this helper instead of manual shell chains that assign `HOVER=...`, `ROLL=...`, and similar variables. Repeated maneuvers naturally create multiple CSV files. The helper is responsible for choosing the latest complete family.
 
 Regenerate figures from an existing stock/twin bundle
 -----------------------------------------------------
@@ -88,6 +78,19 @@ Current shipped state
 - base blended twin score: `100.00 / 100`
 - Stage-1 blue side currently uses stock x500 SITL proxy logs
 - Later, replace only the stock-side CSV files with real-flight logs and rerun the figure command
+
+Manual SITL note
+----------------
+The current repository version patches `x500/model.sdf` so `SystemIdentificationLoggerPlugin` is active in normal manual SITL sessions as well. Truth logs are written automatically into:
+- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
+
+If that folder is missing, resync the overlay and rebuild the dedicated PX4 workspace before trusting any comparison result.
+
+Common runtime note:
+- `NodeShared::Publish() Error: Interrupted system call`
+- `vehicle_imu ... timestamp error`
+
+These are usually restart or transport interruptions around the end of a maneuver. Cleanly restart SITL, rerun the affected profile, and then rebuild the candidate with the helper above.
 
 Smoke test
 ----------

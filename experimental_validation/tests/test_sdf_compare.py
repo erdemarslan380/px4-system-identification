@@ -8,10 +8,12 @@ from pathlib import Path
 from experimental_validation.compare_with_sdf import (
     aggregate_identification_rows,
     build_identification_mode_reports,
+    choose_primary_identification_mode,
     collect_identification_logs,
     compare_identified_to_sdf,
     parse_x500_sdf_reference,
     resolve_px4_reference_path,
+    resolve_truth_csvs,
 )
 
 
@@ -95,9 +97,10 @@ class SdfComparisonTests(unittest.TestCase):
             )
             logs = collect_identification_logs(root.parents[1])
             self.assertEqual(logs, [csv_path])
-            rows, counts = aggregate_identification_rows(logs)
+            rows, counts, truth_csvs = aggregate_identification_rows(logs)
             self.assertEqual(len(rows), 1)
             self.assertEqual(counts["hover_thrust"], 1)
+            self.assertEqual(truth_csvs, [])
 
     def test_collect_identification_logs_prefers_latest_eval_per_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -175,6 +178,94 @@ class SdfComparisonTests(unittest.TestCase):
             self.assertAlmostEqual(reports["truth_assisted"]["identified"]["inertia"]["z"]["inertia_kgm2"], 0.04)
             self.assertAlmostEqual(reports["truth_assisted"]["identified"]["motor_model"]["time_constant_up_s"]["value"], 0.01)
             self.assertAlmostEqual(reports["truth_assisted"]["identified"]["motor_model"]["time_constant_down_s"]["value"], 0.02)
+            self.assertEqual(choose_primary_identification_mode(reports), "truth_assisted")
+
+    def test_resolve_truth_csvs_falls_back_to_rootfs_sysid_truth_logs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            rootfs = Path(tmp) / "rootfs"
+            ident_root = rootfs / "identification_logs"
+            truth_root = rootfs / "sysid_truth_logs"
+            ident_root.mkdir(parents=True)
+            truth_root.mkdir(parents=True)
+            ident_path = ident_root / "hover_thrust_r01.csv"
+            ident_path.write_text("timestamp_us,profile,az,thrust_cmd\n0,hover_thrust,0.0,0.5\n", encoding="utf-8")
+            truth_path = truth_root / "x500_manual_0001.csv"
+            truth_path.write_text("sim_time_us,thrust_n\n0,19.6133\n", encoding="utf-8")
+
+            mapping = resolve_truth_csvs([ident_path])
+            self.assertEqual(mapping[ident_path.resolve()], truth_path.resolve())
+
+    def test_primary_mode_falls_back_to_px4_only_when_truth_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ident_path = Path(tmp) / "hover_thrust.csv"
+            ident_path.write_text(
+                "timestamp_us,profile,az,thrust_cmd,motor_0,motor_1,motor_2,motor_3\n"
+                "500000,hover_thrust,0.0,0.5,0.5,0.5,0.5,0.5\n",
+                encoding="utf-8",
+            )
+            sdf_reference = {
+                "mass": {"mass_kg": 2.0},
+                "inertia": {
+                    "x": {"inertia_kgm2": 0.02},
+                    "y": {"inertia_kgm2": 0.02},
+                    "z": {"inertia_kgm2": 0.04},
+                },
+                "motor_model": {
+                    "time_constant_up_s": 0.01,
+                    "time_constant_down_s": 0.02,
+                    "max_rot_velocity_radps": 800.0,
+                    "motor_constant": 1.0e-5,
+                    "moment_constant": 0.01,
+                    "rotor_drag_coefficient": 8.0e-5,
+                    "rolling_moment_coefficient": 1.0e-6,
+                    "rotor_velocity_slowdown_sim": 10.0,
+                },
+            }
+            reports = build_identification_mode_reports([ident_path], sdf_reference)
+            self.assertFalse(reports["truth_assisted"]["truth_available"])
+            self.assertEqual(reports["truth_assisted"]["effective_truth_policy"], "none")
+            self.assertEqual(choose_primary_identification_mode(reports), "px4_only")
+
+    def test_primary_mode_falls_back_when_truth_file_exists_but_does_not_align(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            rootfs = Path(tmp) / "rootfs"
+            ident_root = rootfs / "identification_logs"
+            truth_root = rootfs / "sysid_truth_logs"
+            ident_root.mkdir(parents=True)
+            truth_root.mkdir(parents=True)
+            ident_path = ident_root / "hover_thrust_r01.csv"
+            truth_path = truth_root / "x500_manual_0001.csv"
+            ident_path.write_text(
+                "timestamp_us,profile,az,thrust_cmd,motor_0,motor_1,motor_2,motor_3\n"
+                "500000,hover_thrust,0.0,0.5,0.5,0.5,0.5,0.5\n",
+                encoding="utf-8",
+            )
+            truth_path.write_text(
+                "sim_time_us,truth_mass_kg,rotor_0_actual_radps\n"
+                "9500000,2.0,400.0\n",
+                encoding="utf-8",
+            )
+            sdf_reference = {
+                "mass": {"mass_kg": 2.0},
+                "inertia": {
+                    "x": {"inertia_kgm2": 0.02},
+                    "y": {"inertia_kgm2": 0.02},
+                    "z": {"inertia_kgm2": 0.04},
+                },
+                "motor_model": {
+                    "time_constant_up_s": 0.01,
+                    "time_constant_down_s": 0.02,
+                    "max_rot_velocity_radps": 800.0,
+                    "motor_constant": 1.0e-5,
+                    "moment_constant": 0.01,
+                    "rotor_drag_coefficient": 8.0e-5,
+                    "rolling_moment_coefficient": 1.0e-6,
+                    "rotor_velocity_slowdown_sim": 10.0,
+                },
+            }
+            reports = build_identification_mode_reports([ident_path], sdf_reference, explicit_truth_csvs=[truth_path])
+            self.assertFalse(reports["truth_assisted"]["truth_available"])
+            self.assertEqual(choose_primary_identification_mode(reports), "px4_only")
 
     def test_compare_identified_to_sdf_reports_metric_errors(self) -> None:
         identified = {

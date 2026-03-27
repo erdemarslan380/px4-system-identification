@@ -76,6 +76,80 @@ if changed:
 PY
 }
 
+patch_x500_model_sdf() {
+  local model_path="$1"
+  [ -f "$model_path" ] || return 0
+  python3 - "$model_path" <<'PY'
+from pathlib import Path
+import sys
+from xml.etree import ElementTree as ET
+
+
+def indent(elem, level=0):
+    text = "\n" + ("  " * level)
+    if len(elem):
+        if not elem.text or not elem.text.strip():
+            elem.text = text + "  "
+        for child in elem:
+            indent(child, level + 1)
+        if not elem[-1].tail or not elem[-1].tail.strip():
+            elem[-1].tail = text
+    if level and (not elem.tail or not elem.tail.strip()):
+        elem.tail = text
+
+
+path = Path(sys.argv[1])
+tree = ET.parse(path)
+root = tree.getroot()
+model = root.find(".//model")
+if model is None:
+    raise SystemExit(0)
+
+for plugin in list(model.findall("plugin")):
+    if plugin.attrib.get("filename") == "SystemIdentificationLoggerPlugin" or plugin.attrib.get("name") == "SystemIdentificationLoggerPlugin":
+        model.remove(plugin)
+
+rotor_plugins = [
+    plugin for plugin in model.findall("plugin")
+    if plugin.attrib.get("name") == "gz::sim::systems::MulticopterMotorModel"
+]
+if not rotor_plugins:
+    raise SystemExit(0)
+
+logger = ET.SubElement(model, "plugin", {
+    "filename": "SystemIdentificationLoggerPlugin",
+    "name": "SystemIdentificationLoggerPlugin",
+})
+ET.SubElement(logger, "enabled").text = "true"
+ET.SubElement(logger, "base_link_name").text = "base_link"
+ET.SubElement(logger, "sample_period_s").text = "0.005"
+ET.SubElement(logger, "command_sub_topic").text = "command/motor_speed"
+
+def copy_field(src_plugin, src_name, dst_parent, dst_name):
+    node = src_plugin.find(src_name)
+    if node is not None and node.text is not None:
+        ET.SubElement(dst_parent, dst_name).text = node.text.strip()
+
+for plugin in rotor_plugins:
+    rotor = ET.SubElement(logger, "rotor")
+    copy_field(plugin, "motorNumber", rotor, "motor_number")
+    copy_field(plugin, "jointName", rotor, "joint_name")
+    copy_field(plugin, "linkName", rotor, "link_name")
+    copy_field(plugin, "turningDirection", rotor, "turning_direction")
+    copy_field(plugin, "timeConstantUp", rotor, "time_constant_up_s")
+    copy_field(plugin, "timeConstantDown", rotor, "time_constant_down_s")
+    copy_field(plugin, "maxRotVelocity", rotor, "max_rot_velocity_radps")
+    copy_field(plugin, "motorConstant", rotor, "motor_constant")
+    copy_field(plugin, "momentConstant", rotor, "moment_constant")
+    copy_field(plugin, "rotorDragCoefficient", rotor, "rotor_drag_coefficient")
+    copy_field(plugin, "rollingMomentCoefficient", rotor, "rolling_moment_coefficient")
+    copy_field(plugin, "rotorVelocitySlowdownSim", rotor, "rotor_velocity_slowdown_sim")
+
+indent(root)
+tree.write(path, encoding="utf-8", xml_declaration=True)
+PY
+}
+
 patch_msg_cmake() {
   local cmake_path="$1"
   [ -f "$cmake_path" ] || return 0
@@ -104,6 +178,7 @@ PY
 
 patch_board_file "$px4_root/$board_rel"
 patch_gz_plugins_cmake "$px4_root/src/modules/simulation/gz_plugins/CMakeLists.txt"
+patch_x500_model_sdf "$px4_root/Tools/simulation/gz/models/x500/model.sdf"
 patch_msg_cmake "$px4_root/msg/CMakeLists.txt"
 cleanup_legacy_param_sources "$px4_root/src/modules/custom_pos_control"
 cleanup_legacy_param_sources "$px4_root/src/modules/trajectory_reader"
@@ -111,6 +186,7 @@ cleanup_legacy_param_sources "$px4_root/src/modules/trajectory_reader"
 echo "Overlay copied into $px4_root"
 echo "Board flags ensured in $board_rel"
 echo "Gazebo plugin CMake patched for SystemIdentificationLoggerPlugin"
+echo "x500 model.sdf patched for SystemIdentificationLoggerPlugin"
 echo "uORB message list patched for MultiTrajectorySetpoint.msg"
 echo "Legacy params.c overlays removed in favor of module.yaml"
 echo "Next step: build SITL with 'make px4_sitl gz_x500' or your target board build."

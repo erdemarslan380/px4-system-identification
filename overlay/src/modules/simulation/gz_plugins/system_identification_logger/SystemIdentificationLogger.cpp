@@ -312,9 +312,9 @@ void SystemIdentificationLogger::Configure(const Entity &_entity,
 	this->dataPtr->model_name = this->dataPtr->model.Name(_ecm);
 	this->dataPtr->robot_namespace = this->dataPtr->model_name;
 	auto sdf_clone = _sdf->Clone();
-	const std::string env_dir = envOr("PX4_SYSID_LOG_DIR");
-	const std::string env_slot = envOr("PX4_SYSID_LOG_SLOT", "slot");
-	this->dataPtr->enabled = !env_dir.empty();
+	const std::string env_dir = envOr("PX4_SYSID_LOG_DIR", "sysid_truth_logs");
+	const std::string env_slot = envOr("PX4_SYSID_LOG_SLOT", "manual");
+	this->dataPtr->enabled = true;
 
 	if (sdf_clone->HasElement("enabled")) {
 		this->dataPtr->enabled = sdf_clone->Get<bool>("enabled") && this->dataPtr->enabled;
@@ -382,8 +382,7 @@ void SystemIdentificationLogger::Configure(const Entity &_entity,
 		gzmsg << "[SystemIdentificationLogger] Subscribed to " << topic << std::endl;
 		this->dataPtr->OpenLog();
 	} else if (!this->dataPtr->enabled) {
-		gzwarn << "[SystemIdentificationLogger] Disabled because PX4_SYSID_LOG_DIR is not set or plugin disabled in SDF."
-		       << std::endl;
+		gzwarn << "[SystemIdentificationLogger] Disabled by SDF configuration." << std::endl;
 	} else {
 		gzwarn << "[SystemIdentificationLogger] No rotor configs found; logger will stay idle." << std::endl;
 	}

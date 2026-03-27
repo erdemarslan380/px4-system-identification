@@ -65,6 +65,7 @@ def _merge_truth_rows(
     *,
     truth_field_allowlist: set[str] | None = None,
     tolerance_s: float = 0.05,
+    allow_relative_alignment: bool = True,
 ) -> None:
     if not identification_rows or not truth_rows:
         return
@@ -73,7 +74,7 @@ def _merge_truth_rows(
     truth_times = [float(row.get("t_s", 0.0)) for row in truth_rows]
     ident_t0 = ident_times[0]
     truth_t0 = truth_times[0]
-    prefer_absolute = abs(ident_t0 - truth_t0) <= max(tolerance_s * 4.0, 0.25)
+    prefer_absolute = abs(ident_t0 - truth_t0) <= max(tolerance_s * 4.0, 0.25) or not allow_relative_alignment
     truth_idx = 0
 
     for row, ident_time in zip(identification_rows, ident_times):
@@ -104,6 +105,7 @@ def _expand_truth_rows(
     *,
     truth_field_allowlist: set[str] | None = None,
     tolerance_s: float = 0.05,
+    allow_relative_alignment: bool = True,
 ) -> list[dict[str, float | str]]:
     if not identification_rows or not truth_rows:
         return []
@@ -112,7 +114,7 @@ def _expand_truth_rows(
     truth_times = [float(row.get("t_s", 0.0)) for row in truth_rows]
     ident_t0 = ident_times[0]
     truth_t0 = truth_times[0]
-    prefer_absolute = abs(ident_t0 - truth_t0) <= max(tolerance_s * 4.0, 0.25)
+    prefer_absolute = abs(ident_t0 - truth_t0) <= max(tolerance_s * 4.0, 0.25) or not allow_relative_alignment
     ident_idx = 0
     out: list[dict[str, float | str]] = []
 
@@ -157,6 +159,7 @@ def load_identification_csv(
     path: str | Path,
     truth_csv: str | Path | None = None,
     truth_field_allowlist: set[str] | None = None,
+    allow_relative_truth_alignment: bool = True,
 ) -> list[dict[str, float | str]]:
     rows: list[dict[str, float | str]] = [dict(row) for row in load_numeric_csv(path)]
 
@@ -177,9 +180,21 @@ def load_identification_csv(
 
     if truth_csv:
         truth_rows = load_gazebo_truth_csv(truth_csv)
-        _merge_truth_rows(rows, truth_rows, truth_field_allowlist=truth_field_allowlist)
+        _merge_truth_rows(
+            rows,
+            truth_rows,
+            truth_field_allowlist=truth_field_allowlist,
+            allow_relative_alignment=allow_relative_truth_alignment,
+        )
         if len(truth_rows) >= len(rows) * 2:
-            rows.extend(_expand_truth_rows(rows, truth_rows, truth_field_allowlist=truth_field_allowlist))
+            rows.extend(
+                _expand_truth_rows(
+                    rows,
+                    truth_rows,
+                    truth_field_allowlist=truth_field_allowlist,
+                    allow_relative_alignment=allow_relative_truth_alignment,
+                )
+            )
 
     _apply_identification_aliases(rows)
     return rows

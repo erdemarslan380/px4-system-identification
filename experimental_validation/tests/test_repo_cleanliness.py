@@ -10,6 +10,7 @@ SYNC_SCRIPT = REPO_ROOT / "sync_into_px4_workspace.sh"
 PREPARE_SCRIPT = REPO_ROOT / "prepare_identification_workspace.sh"
 REFRESH_DEMO_SCRIPT = REPO_ROOT / "examples" / "refresh_demo_assets.sh"
 SMOKE_TEST_SCRIPT = REPO_ROOT / "examples" / "run_repo_smoke_test.sh"
+LATEST_CANDIDATE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_latest_x500_candidate.py"
 
 
 class RepoCleanlinessTests(unittest.TestCase):
@@ -74,12 +75,16 @@ class RepoCleanlinessTests(unittest.TestCase):
     def test_operator_helper_scripts_exist(self) -> None:
         self.assertTrue(REFRESH_DEMO_SCRIPT.exists())
         self.assertTrue(SMOKE_TEST_SCRIPT.exists())
+        self.assertTrue(LATEST_CANDIDATE_SCRIPT.exists())
         refresh_content = REFRESH_DEMO_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("validation_trajectories.py", refresh_content)
         self.assertIn("generate_sitl_validation_bundle.py", refresh_content)
         smoke_content = SMOKE_TEST_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("test_repo_cleanliness", smoke_content)
         self.assertIn("test_paper_artifacts", smoke_content)
+        latest_candidate_content = LATEST_CANDIDATE_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("REQUIRED_PROFILES", latest_candidate_content)
+        self.assertIn("sysid_truth_logs", latest_candidate_content)
 
     def test_modules_use_module_yaml_instead_of_legacy_param_sources(self) -> None:
         modules = ("custom_pos_control", "trajectory_reader")

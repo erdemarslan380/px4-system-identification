@@ -54,7 +54,13 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.ident_log:
-        rows = load_identification_csv(args.csv, truth_csv=args.truth_csv or None)
+        truth_csv = args.truth_csv or None
+        allow_relative_truth_alignment = not truth_csv or Path(truth_csv).expanduser().resolve().parent.name != "sysid_truth_logs"
+        rows = load_identification_csv(
+            args.csv,
+            truth_csv=truth_csv,
+            allow_relative_truth_alignment=allow_relative_truth_alignment,
+        )
         base_report = estimate_parameters_from_identification_log(rows)
         mass = base_report["mass"]
         thrust = base_report["thrust_scale"]

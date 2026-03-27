@@ -171,7 +171,9 @@ Trajectory mapping:
 6. Estimate the model and export the SDF candidate
 --------------------------------------------------
 
-Estimate from the latest maneuver logs:
+If you rerun a profile, multiple CSV files with the same profile name are expected. Do not select them manually with long shell chains. Use the helper below. It always chooses the latest CSV for each required profile and reports missing families clearly.
+
+Estimate from the latest maneuver log pair:
 ```bash
 LATEST_IDENT=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
 LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
@@ -189,31 +191,21 @@ Main outputs:
 - `~/px4-system-identification/experimental_validation/outputs/session_001/candidate_inertial.sdf.xml`
 - `~/px4-system-identification/experimental_validation/outputs/session_001/candidate_vehicle_params.yaml`
 
-Build a combined x500 candidate from the full maneuver family:
+Recommended path for the full family:
 ```bash
-HOVER=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/hover_thrust*.csv | head -n 1)
-MASS=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/mass_vertical*.csv | head -n 1)
-ROLL=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/roll_sweep*.csv | head -n 1)
-PITCH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/pitch_sweep*.csv | head -n 1)
-YAW=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/yaw_sweep*.csv | head -n 1)
-DRAG_X=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_x*.csv | head -n 1)
-DRAG_Y=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_y*.csv | head -n 1)
-DRAG_Z=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/drag_z*.csv | head -n 1)
-MOTOR=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/motor_step*.csv | head -n 1)
-
 cd ~/px4-system-identification
-python3 experimental_validation/compare_with_sdf.py \
-  --csv "$MASS" \
-  --csv "$HOVER" \
-  --csv "$ROLL" \
-  --csv "$PITCH" \
-  --csv "$YAW" \
-  --csv "$DRAG_X" \
-  --csv "$DRAG_Y" \
-  --csv "$DRAG_Z" \
-  --csv "$MOTOR" \
+python3 experimental_validation/build_latest_x500_candidate.py \
+  --rootfs ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs \
   --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
+
+This helper script:
+- selects the latest CSV for each required profile,
+- uses the latest matching truth log under `sysid_truth_logs` when available,
+- falls back honestly if truth data are not available,
+- reports missing profiles instead of silently producing a partial candidate.
+
+This is now the recommended operator path. The older manual `HOVER=$(ls -1t ...)` style selection is intentionally no longer the documented workflow.
 
 7. Refresh the shipped figures
 ------------------------------
@@ -270,6 +262,34 @@ One example line-plot view:
 
 ![Payload Z Lines](examples/paper_assets/figures/payload_z_lines.png)
 
+9. Troubleshooting
+------------------
+
+If PX4 prints:
+- `NodeShared::Publish() Error: Interrupted system call`
+- `vehicle_imu ... gyro timestamp error`
+- `vehicle_imu ... accel timestamp error`
+
+right after a maneuver ends or while you restart the simulation, that usually means Gazebo transport was interrupted during shutdown or the session was restarted too quickly. It is not by itself proof that the identified model is wrong.
+
+What to do:
+1. stop the current SITL session cleanly with `shutdown`,
+2. restart `make px4_sitl gz_x500`,
+3. rerun only the affected profile,
+4. then rebuild the candidate with `build_latest_x500_candidate.py`.
+
+If `sysid_truth_logs/` is missing:
+1. resync the overlay:
+   - `cd ~/px4-system-identification`
+   - `./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification`
+2. rebuild:
+   - `cd ~/PX4-Autopilot-Identification`
+   - `unset HEADLESS`
+   - `make px4_sitl gz_x500`
+
+In the current repository version, manual x500 SITL writes Gazebo truth logs automatically to:
+- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
+
 Complete shipped stress-test figure set:
 - `examples/paper_assets/figures/payload_z_surface.png`
 - `examples/paper_assets/figures/payload_x_offset_surface.png`
@@ -319,7 +339,31 @@ python3 experimental_validation/sitl_validation_artifacts.py \
   --candidate-json ~/px4-system-identification/examples/paper_assets/candidates/x500_truth_assisted_sitl_v1/identified_parameters.json
 ```
 
-11. Additional references
+11. Troubleshooting
+-------------------
+
+If you see a one-off warning such as:
+- `NodeShared::Publish() Error: Interrupted system call`
+- `vehicle_imu ... timestamp error`
+
+and the current profile still prints:
+- `Identification maneuver completed: ...`
+- `Identification log completed: ...`
+- `Tracking log completed: ...`
+
+then the current log was still closed cleanly. Finish that profile, then restart SITL before continuing the next session.
+
+If `sysid_truth_logs/` does not exist:
+1. rerun:
+   - `./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification`
+2. rebuild:
+   - `make px4_sitl gz_x500`
+3. start a fresh SITL session
+
+The current repository version injects `SystemIdentificationLoggerPlugin` into `x500/model.sdf` and writes truth CSVs automatically into:
+- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
+
+12. Additional references
 -------------------------
 - [experimental_validation/README.md](/home/earsub/px4-system-identification/experimental_validation/README.md)
 - [system_identification.txt](/home/earsub/px4-system-identification/system_identification.txt)

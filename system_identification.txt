@@ -115,6 +115,11 @@ Two small helper scripts are now part of the repository:
   - rebuilds the shipped Stage-1 proxy inputs,
   - regenerates the current figure set,
   - updates `examples/paper_assets/paper_validation_summary.json`.
+- `~/px4-system-identification/experimental_validation/build_latest_x500_candidate.py`
+  - selects the latest available identification CSV for each required maneuver family,
+  - checks whether any required profile is missing,
+  - automatically uses the latest suitable truth CSV from `rootfs/sysid_truth_logs/`,
+  - writes the comparison package into the requested output folder.
 
 Maneuver definitions
 --------------------
@@ -199,6 +204,8 @@ Exact SITL log directories
 - Gazebo truth logs:
   - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
+The current repository version activates the truth logger in normal manual SITL as well. That means the operator no longer needs a separate special launch path to obtain truth-assisted upper-bound logs.
+
 On hardware, the corresponding PX4 storage directories are typically:
 - `/fs/microsd/identification_logs/`
 - `/fs/microsd/tracking_logs/`
@@ -215,7 +222,8 @@ Layer 1: one-log estimation
   - `candidate_vehicle_params.yaml`
 
 Layer 2: full maneuver-family fusion
-- `experimental_validation/compare_with_sdf.py` combines the maneuver family:
+- `experimental_validation/build_latest_x500_candidate.py` is now the operator-facing wrapper around the full-family fusion step.
+- Internally it uses `experimental_validation/compare_with_sdf.py` to combine:
   - `hover_thrust`
   - `mass_vertical`
   - `roll_sweep`
@@ -233,6 +241,14 @@ Layer 2: full maneuver-family fusion
   - `sdf_comparison_by_mode.json`
   - `used_identification_logs.json`
   - `candidate_x500_base.sdf`
+
+The full-family helper is intentionally stricter than the old manual `ls -1t ...` workflow:
+- it refuses to proceed silently when a required profile is missing,
+- it records which exact log files were chosen,
+- it records which truth file was used,
+- and it reports the effective primary mode (`px4_only`, `telemetry_augmented`, or `truth_assisted`).
+
+This helper intentionally replaces the older manual shell pattern in which the operator assigned variables such as `HOVER=$(ls -1t ...)`, `ROLL=$(ls -1t ...)`, and then called `compare_with_sdf.py` directly. That older pattern was too brittle when a profile had been rerun several times or when a truth log was missing from the latest manual session.
 
 Layer 3: figure generation and statistical validation
 - `experimental_validation/paper_artifacts.py` generates:
@@ -283,6 +299,24 @@ At the current checkpoint, the strongest validated claim is:
 - the repository can now show the complete operator flow from maneuver execution to SDF comparison and paper figures.
 
 This is the correct upper-bound milestone. It does not automatically imply that real-flight digital-twin equivalence has already been proven.
+
+Practical troubleshooting note
+------------------------------
+During manual SITL it is possible to see messages such as:
+- `NodeShared::Publish() Error: Interrupted system call`
+- `vehicle_imu ... gyro timestamp error`
+- `vehicle_imu ... accel timestamp error`
+
+In the current workflow those messages usually indicate that Gazebo transport or the SITL session was interrupted during shutdown or rapid restart, especially near the end of a maneuver. The correct operator response is:
+1. stop PX4 cleanly with `shutdown`,
+2. restart `make px4_sitl gz_x500`,
+3. rerun only the affected maneuver,
+4. rebuild the candidate with `build_latest_x500_candidate.py`.
+
+The repository also now patches the manual x500 model so Gazebo truth logs are written automatically into:
+- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
+
+If that directory is missing, the operator should resync the overlay and rebuild before interpreting the comparison results.
 
 Five validation trajectories
 ----------------------------
