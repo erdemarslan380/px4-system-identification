@@ -18,6 +18,11 @@ using namespace time_literals;
 
 namespace
 {
+TrajectoryReader *trajectoryReaderInstance()
+{
+	return ModuleBase::get_instance<TrajectoryReader>(TrajectoryReader::desc);
+}
+
 float readAuxChannel(const manual_control_setpoint_s &manual_control, int channel)
 {
 	switch (channel) {
@@ -47,8 +52,10 @@ float squaref(float value)
 }
 }
 
+ModuleBase::Descriptor TrajectoryReader::desc{task_spawn, custom_command, print_usage};
+
 TrajectoryReader::TrajectoryReader() :
-    ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::custom_pos_control),
+    ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
     ModuleParams(nullptr)
 {
     PX4_INFO("TrajectoryReader constructed");
@@ -922,7 +929,7 @@ void TrajectoryReader::Run()
 	if (should_exit()) {
 		stopTrajectoryTrackingLog();
 		closeTrajectoryFile();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -1282,6 +1289,14 @@ bool TrajectoryReader::setTrajectoryId(uint8_t traj_id)
 
 int TrajectoryReader::task_spawn(int argc, char *argv[])
 {
+    (void)argc;
+    (void)argv;
+
+    if (ModuleBase::is_running(desc)) {
+        PX4_WARN("already running");
+        return PX4_OK;
+    }
+
     TrajectoryReader *instance = new TrajectoryReader();
 
     if (!instance) {
@@ -1292,23 +1307,25 @@ int TrajectoryReader::task_spawn(int argc, char *argv[])
     if (!instance->init()) {
         PX4_ERR("init failed");
         delete instance;
+        desc.object.store(nullptr);
+        desc.task_id = -1;
         return PX4_ERROR;
     }
 
-    _object.store(instance);
-    _task_id = task_id_is_work_queue;
+    desc.object.store(instance);
+    desc.task_id = task_id_is_work_queue;
 
     return PX4_OK;
 }
 
 int TrajectoryReader::custom_command(int argc, char *argv[])
 {
-    if (!is_running()) {
+    if (!ModuleBase::is_running(desc)) {
         PX4_WARN("module not running");
         return PX4_ERROR;
     }
 
-    TrajectoryReader *instance = get_instance();
+    TrajectoryReader *instance = trajectoryReaderInstance();
 
     if (!instance) {
         return PX4_ERROR;
@@ -1586,5 +1603,5 @@ profiles such as hover, inertia sweeps, drag sweeps, and motor-step tests.
 
 extern "C" __EXPORT int trajectory_reader_main(int argc, char *argv[])
 {
-    return TrajectoryReader::main(argc, argv);
+    return ModuleBase::main(TrajectoryReader::desc, argc, argv);
 }

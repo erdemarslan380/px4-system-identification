@@ -6,12 +6,18 @@ Visual Gazebo SITL checklist
 cd ~/px4-system-identification
 ./sync_into_px4_workspace.sh ~/PX4-Autopilot
 ```
+If you synced this PX4 tree before, rerun the same command. It refreshes the overlay, patches the custom uORB message list, and removes obsolete legacy parameter source files.
 
 2. Build PX4 SITL
 ```bash
 cd ~/PX4-Autopilot
 make px4_sitl gz_x500
 ```
+Healthy output signs:
+- `Generating uORB topic headers`
+- `Linking CXX executable bin/px4`
+- `INFO [init] Gazebo simulator ...`
+- `INFO [init] Starting gazebo with world: ...`
 
 3. Relaunch with GUI enabled
 ```bash

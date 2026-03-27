@@ -6,6 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OVERLAY_ROOT = REPO_ROOT / "overlay" / "src" / "modules"
+SYNC_SCRIPT = REPO_ROOT / "sync_into_px4_workspace.sh"
 
 
 class RepoCleanlinessTests(unittest.TestCase):
@@ -31,8 +32,32 @@ class RepoCleanlinessTests(unittest.TestCase):
         ]
         for doc in docs:
             content = doc.read_text(encoding="utf-8").lower()
-            for token in ("tools/optimization", "run_simulation_plan", "serve_dashboard", "planner", "dashboard", "review"):
+            for token in ("tools/optimization", "run_simulation_plan", "serve_dashboard", "all_controllers_quick_validation", "overnight_bayes_viable"):
                 self.assertNotIn(token, content, msg=f"unexpected legacy token {token} in {doc}")
+
+    def test_overlay_includes_multi_trajectory_message(self) -> None:
+        msg_path = REPO_ROOT / "overlay" / "msg" / "MultiTrajectorySetpoint.msg"
+        self.assertTrue(msg_path.exists())
+        content = msg_path.read_text(encoding="utf-8")
+        self.assertIn("MAX_HORIZON", content)
+        self.assertIn("position_x", content)
+
+    def test_sync_script_patches_msg_cmakelists(self) -> None:
+        content = SYNC_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("patch_msg_cmake", content)
+        self.assertIn("MultiTrajectorySetpoint.msg", content)
+
+    def test_modules_use_module_yaml_instead_of_legacy_param_sources(self) -> None:
+        modules = ("custom_pos_control", "trajectory_reader")
+        for module_name in modules:
+            module_dir = OVERLAY_ROOT / module_name
+            self.assertTrue((module_dir / "module.yaml").exists(), msg=f"missing module.yaml for {module_name}")
+            self.assertFalse((module_dir / f"{module_name}_params.c").exists(), msg=f"legacy params.c still present for {module_name}")
+
+            cmake = (module_dir / "CMakeLists.txt").read_text(encoding="utf-8")
+            self.assertIn("MODULE_CONFIG", cmake)
+            self.assertIn("module.yaml", cmake)
+            self.assertNotIn("_params.c", cmake)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,12 @@ fi
 
 rsync -a "$repo_root/overlay/" "$px4_root/"
 
+cleanup_legacy_param_sources() {
+  local module_dir="$1"
+  [ -d "$module_dir" ] || return 0
+  rm -f "$module_dir/custom_pos_control_params.c" "$module_dir/trajectory_reader_params.c"
+}
+
 patch_board_file() {
   local board_path="$1"
   [ -f "$board_path" ] || return 0
@@ -62,10 +68,41 @@ if changed:
 PY
 }
 
+patch_msg_cmake() {
+  local cmake_path="$1"
+  [ -f "$cmake_path" ] || return 0
+  python3 - "$cmake_path" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+line = '\tMultiTrajectorySetpoint.msg\n'
+if 'MultiTrajectorySetpoint.msg' not in text:
+    for anchor in (
+        '\tMissionResult.msg\n',
+        '\tMission.msg\n',
+        '\tManualControlSwitches.msg\n',
+    ):
+        if anchor in text:
+            text = text.replace(anchor, anchor + line, 1)
+            break
+    else:
+        marker = 'set(msg_files\n'
+        if marker in text:
+            text = text.replace(marker, marker + line, 1)
+path.write_text(text, encoding='utf-8')
+PY
+}
+
 patch_board_file "$px4_root/$board_rel"
 patch_gz_plugins_cmake "$px4_root/src/modules/simulation/gz_plugins/CMakeLists.txt"
+patch_msg_cmake "$px4_root/msg/CMakeLists.txt"
+cleanup_legacy_param_sources "$px4_root/src/modules/custom_pos_control"
+cleanup_legacy_param_sources "$px4_root/src/modules/trajectory_reader"
 
 echo "Overlay copied into $px4_root"
 echo "Board flags ensured in $board_rel"
 echo "Gazebo plugin CMake patched for SystemIdentificationLoggerPlugin"
+echo "uORB message list patched for MultiTrajectorySetpoint.msg"
+echo "Legacy params.c overlays removed in favor of module.yaml"
 echo "Next step: build SITL with 'make px4_sitl gz_x500' or your target board build."

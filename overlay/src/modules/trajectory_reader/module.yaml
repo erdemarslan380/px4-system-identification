@@ -1,0 +1,47 @@
+module_name: trajectory_reader
+
+parameters:
+  - group: Trajectory Reader
+    definitions:
+      TRJ_RC_SEL_EN:
+        description:
+          short: Enable RC trajectory or profile selection
+          long: |
+            When enabled, one AUX channel selects either the active trajectory id
+            or the active identification profile, depending on the module mode.
+        type: boolean
+        default: 0
+
+      TRJ_RC_SEL_CH:
+        description:
+          short: RC AUX channel used for selection
+        type: int32
+        min: 1
+        max: 6
+        default: 6
+
+      TRJ_RC_MAX_ID:
+        description:
+          short: Maximum trajectory id reachable by the RC selector
+        type: int32
+        min: 0
+        max: 255
+        default: 3
+
+      TRJ_IDENT_PROF:
+        description:
+          short: Identification profile
+        type: enum
+        values:
+          0: Hover thrust
+          1: Roll sweep
+          2: Pitch sweep
+          3: Yaw sweep
+          4: Drag X
+          5: Drag Y
+          6: Drag Z
+          7: Mass vertical
+          8: Motor step
+        min: 0
+        max: 8
+        default: 0

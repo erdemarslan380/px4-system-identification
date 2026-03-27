@@ -27,11 +27,13 @@ enum class ControllerType : uint8_t {
 };
 
 class CustomPosControl :
-	public ModuleBase<CustomPosControl>,
+	public ModuleBase,
 	public px4::ScheduledWorkItem,
 	public ModuleParams
 {
 public:
+	static Descriptor desc;
+
 	CustomPosControl();
 	~CustomPosControl() override;
 

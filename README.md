@@ -78,11 +78,19 @@ git clone git@github.com:erdemarslan380/px4-system-identification.git
 cd ~/px4-system-identification
 ./sync_into_px4_workspace.sh ~/PX4-Autopilot
 ```
+If you previously synced an older version of this repository into the same PX4 tree, run the sync command again before rebuilding. The script now also patches the custom uORB message list and removes obsolete `*_params.c` overlays.
+
 6. Build Gazebo SITL with the x500 model:
 ```bash
 cd ~/PX4-Autopilot
 make px4_sitl gz_x500
 ```
+
+Expected first-run behavior
+- `make px4_sitl gz_x500` should finish linking `bin/px4`, start PX4, and then launch Gazebo with the x500 model.
+- A warning about CMake policy `CMP0148` is benign.
+- Gazebo warnings about `gz_frame_id` inside the stock x500 SDF are also benign.
+- If you see `INFO [init] Gazebo simulator ...` followed by `INFO [init] Starting gazebo with world: ...`, the clean build path is working.
 
 Real-board note
 - The sync script patches SITL by default.

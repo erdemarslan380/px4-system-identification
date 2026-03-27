@@ -8,6 +8,11 @@
 
 namespace
 {
+CustomPosControl *customPosControlInstance()
+{
+	return ModuleBase::get_instance<CustomPosControl>(CustomPosControl::desc);
+}
+
 float readAuxChannel(const manual_control_setpoint_s &manual_control, int channel)
 {
 	switch (channel) {
@@ -32,8 +37,10 @@ int quantizeAuxSelection(float aux_value, int slots)
 }
 }
 
+ModuleBase::Descriptor CustomPosControl::desc{task_spawn, custom_command, print_usage};
+
 CustomPosControl::CustomPosControl() :
-	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::custom_pos_control),
+	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
 	ModuleParams(nullptr)
 {
 	_ref = {};
@@ -107,7 +114,7 @@ void CustomPosControl::Run()
 {
 	if (should_exit()) {
 		ScheduleClear();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -318,7 +325,10 @@ void CustomPosControl::switchController(ControllerType new_type)
 
 int CustomPosControl::task_spawn(int argc, char *argv[])
 {
-	if (get_instance() != nullptr) {
+	(void)argc;
+	(void)argv;
+
+	if (ModuleBase::is_running(desc)) {
 		PX4_WARN("already running");
 		return 0;
 	}
@@ -332,11 +342,13 @@ int CustomPosControl::task_spawn(int argc, char *argv[])
 	if (!instance->init()) {
 		PX4_ERR("init failed");
 		delete instance;
+		desc.object.store(nullptr);
+		desc.task_id = -1;
 		return -1;
 	}
 
-	_object.store(instance);
-	_task_id = task_id_is_work_queue;
+	desc.object.store(instance);
+	desc.task_id = task_id_is_work_queue;
 	PX4_INFO("custom_pos_control started (work queue)");
 	return 0;
 }
@@ -347,7 +359,7 @@ int CustomPosControl::custom_command(int argc, char *argv[])
 		return print_usage("missing command");
 	}
 
-	CustomPosControl *instance = get_instance();
+	CustomPosControl *instance = customPosControlInstance();
 	if (!instance) {
 		PX4_WARN("module not running");
 		return 0;
@@ -429,5 +441,5 @@ It only supports two active modes:
 
 extern "C" __EXPORT int custom_pos_control_main(int argc, char *argv[])
 {
-	return CustomPosControl::main(argc, argv);
+	return ModuleBase::main(CustomPosControl::desc, argc, argv);
 }

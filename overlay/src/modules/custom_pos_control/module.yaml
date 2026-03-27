@@ -1,0 +1,42 @@
+module_name: custom_pos_control
+
+parameters:
+  - group: Custom Position Control
+    definitions:
+      CST_POS_CTRL_EN:
+        description:
+          short: Enable custom position forwarding
+          long: |
+            Set to 1 to let custom_pos_control publish offboard position setpoints generated
+            by trajectory_reader. Set to 0 to keep the module passive.
+        type: boolean
+        default: 0
+
+      CST_POS_CTRL_TYP:
+        description:
+          short: Active forwarding mode
+        type: enum
+        values:
+          0: No controller
+          4: PX4 default
+          6: System identification
+        default: 0
+        min: 0
+        max: 6
+
+      CST_RC_SEL_EN:
+        description:
+          short: Enable RC controller selection
+          long: |
+            When enabled, the selected AUX channel is split into slots that switch between
+            PX4 baseline control and the SYSID forwarding path.
+        type: boolean
+        default: 0
+
+      CST_RC_CTRL_CH:
+        description:
+          short: RC AUX channel used for controller selection
+        type: int32
+        min: 1
+        max: 6
+        default: 5

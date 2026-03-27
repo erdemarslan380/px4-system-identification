@@ -66,11 +66,13 @@ enum class IdentificationProfile : uint8_t {
 };
 
 class TrajectoryReader :
-	public ModuleBase<TrajectoryReader>,
+	public ModuleBase,
 	public px4::ScheduledWorkItem,
 	public ModuleParams
 {
 public:
+	static Descriptor desc;
+
 	TrajectoryReader();
 	~TrajectoryReader() override;
 
