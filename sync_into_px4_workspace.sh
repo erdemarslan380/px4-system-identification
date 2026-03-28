@@ -42,6 +42,7 @@ text = path.read_text(encoding='utf-8')
 required = [
     'CONFIG_MODULES_CUSTOM_POS_CONTROL=y',
     'CONFIG_MODULES_TRAJECTORY_READER=y',
+    'CONFIG_MODULES_SIMULATION_PWM_OUT_SIM=y',
 ]
 changed = False
 for line in required:

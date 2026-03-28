@@ -41,13 +41,14 @@ cd ~/px4-system-identification
 
 cd ~/PX4-Autopilot-Identification
 make cubepilot_cubeorange_default
+make cubepilot_cubeorange_default upload
 ```
 
 Build output:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
-With the CubeOrange connected over USB, load that `.px4` file from QGroundControl when you want to flash the hardware build.
-Use this same firmware as the starting point for the first USB-connected HIL/HITL bring-up.
+With the CubeOrange connected over USB, you can either upload directly from the terminal with `make cubepilot_cubeorange_default upload` or load the `.px4` file from QGroundControl.
+If you use a different flight controller, change both the board file path and the `make <board>_default` / `make <board>_default upload` target together.
 
 3. Build and open Gazebo SITL
 -----------------------------
@@ -213,6 +214,50 @@ trajectory_reader set_traj_anchor 0 0 -3
 trajectory_reader set_traj_id 104
 trajectory_reader set_mode trajectory
 ```
+
+7. HIL/HITL on CubeOrange with jMAVSim
+-------------------------------------
+Use jMAVSim only for the hardware-in-the-loop check. On this machine the verified cable split is:
+- USB `ttyACM0`: jMAVSim serial link to the CubeOrange
+- FTDI `ttyUSB0`: MAVLink shell or QGroundControl side link before the HIL run
+
+Build jMAVSim once in the dedicated PX4 tree:
+
+```bash
+cd ~/PX4-Autopilot-Identification/Tools/simulation/jmavsim/jMAVSim
+ant create_run_jar copy_res
+```
+
+Set the board to the HIL quadrotor airframe once in QGroundControl:
+- `SYS_AUTOSTART = 1001`
+- `SYS_HITL = 1`
+
+This repository was checked with:
+- `pwm_out_sim` active in HIL mode,
+- `HIL_ACT_FUNC1..4 = 101..104`,
+- CubeOrange memory still below full use during the HIL boot path.
+
+Start jMAVSim on the USB link:
+
+```bash
+cd ~/px4-system-identification
+./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
+```
+
+For a headless run:
+
+```bash
+cd ~/px4-system-identification
+PX4_SYSID_HEADLESS=1 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
+```
+
+For trajectory checks in HIL, use the same `custom_pos_control` and `trajectory_reader` commands listed in the SITL sections of this README. Enter those board-side shell commands over the FTDI MAVLink console before launching jMAVSim, then keep QGroundControl and jMAVSim running for the actual HIL motion.
+
+The intent is the same:
+- baseline controller path: `custom_pos_control set px4_default`
+- common start pose: `trajectory_reader abs_ref 0 0 -3 0`
+- shared trajectory anchor: `trajectory_reader set_traj_anchor 0 0 -3`
+- trajectory IDs: `100..104`
 
 Tracking CSV files for these runs are written under:
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/tracking_logs/`

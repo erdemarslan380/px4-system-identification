@@ -18,12 +18,13 @@ cd ~/px4-system-identification
 
 cd ~/PX4-Autopilot-Identification
 make cubepilot_cubeorange_default
+make cubepilot_cubeorange_default upload
 ```
 
 Firmware artifact:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
-Use this same firmware for the first USB-connected HIL/HITL check.
+If another board is used, replace the board file path and the build/upload target together.
 
 Fastest way to refresh the shipped demo package
 -----------------------------------------------
@@ -119,3 +120,36 @@ Smoke test
 cd ~/px4-system-identification
 ./examples/run_repo_smoke_test.sh
 ```
+
+HIL/HITL check on CubeOrange
+----------------------------
+Keep jMAVSim setup local to the HIL step. On this machine the verified cable split is:
+- USB `ttyACM0`: jMAVSim serial link
+- FTDI `ttyUSB0`: MAVLink shell or QGroundControl side link before the HIL run
+
+Build jMAVSim once:
+
+```bash
+cd ~/PX4-Autopilot-Identification/Tools/simulation/jmavsim/jMAVSim
+ant create_run_jar copy_res
+```
+
+Set the HIL airframe once:
+- `SYS_AUTOSTART = 1001`
+- `SYS_HITL = 1`
+
+Start jMAVSim:
+
+```bash
+cd ~/px4-system-identification
+./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
+```
+
+Headless variant:
+
+```bash
+cd ~/px4-system-identification
+PX4_SYSID_HEADLESS=1 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
+```
+
+Use the same board-side shell commands from the main README over the FTDI MAVLink console before launching jMAVSim. After that, keep the HIL motion itself on the USB `ttyACM0` link.

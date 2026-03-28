@@ -11,12 +11,14 @@ cd ~/px4-system-identification
 
 cd ~/PX4-Autopilot-Identification
 make cubepilot_cubeorange_default
+make cubepilot_cubeorange_default upload
 ```
 
-Flash this file from QGroundControl with the CubeOrange connected over USB:
+You can upload directly from the terminal, or flash this file from QGroundControl with the CubeOrange connected over USB:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
 Keep this same firmware on the board for the first USB-connected HIL/HITL check.
+The HIL/HITL wiring and simulator steps are described in the main README.
 
 Use one calm day and keep the same simple rule in every sortie:
 - manual takeoff,
