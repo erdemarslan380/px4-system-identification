@@ -221,6 +221,10 @@ Use jMAVSim only for the hardware-in-the-loop check. On this machine the verifie
 - USB `ttyACM0`: jMAVSim serial link to the CubeOrange
 - FTDI `ttyUSB0`: MAVLink shell or QGroundControl side link before the HIL run
 
+Important:
+- do not let QGroundControl and jMAVSim open the same `ttyACM0` device at the same time,
+- if `ttyACM0` is reserved for jMAVSim, use the FTDI link for shell access and for the ground-station side connection.
+
 Build jMAVSim once in the dedicated PX4 tree:
 
 ```bash
@@ -258,6 +262,22 @@ The intent is the same:
 - common start pose: `trajectory_reader abs_ref 0 0 -3 0`
 - shared trajectory anchor: `trajectory_reader set_traj_anchor 0 0 -3`
 - trajectory IDs: `100..104`
+
+Do not expect motion from `trajectory_reader set_mode trajectory` on its own. The minimum trajectory command block is:
+
+```bash
+trajectory_reader set_mode position
+trajectory_reader abs_ref 0 0 -3 0
+trajectory_reader set_traj_anchor 0 0 -3
+trajectory_reader set_traj_id 100
+trajectory_reader set_mode trajectory
+```
+
+Open the board-side shell from the FTDI link with:
+
+```bash
+python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600
+```
 
 Tracking CSV files for these runs are written under:
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/tracking_logs/`

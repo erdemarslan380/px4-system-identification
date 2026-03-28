@@ -107,6 +107,10 @@ Use jMAVSim only in the HIL section of the workflow. The verified cable split on
 - USB `ttyACM0`: jMAVSim serial link to the CubeOrange
 - FTDI `ttyUSB0`: MAVLink shell or QGroundControl side link before the HIL run
 
+Important:
+- do not let QGroundControl and jMAVSim open the same `ttyACM0` device at the same time,
+- if `ttyACM0` is reserved for jMAVSim, use `ttyUSB0` for the board-side shell and the ground-station side connection.
+
 Build jMAVSim once:
 - `cd ~/PX4-Autopilot-Identification/Tools/simulation/jmavsim/jMAVSim`
 - `ant create_run_jar copy_res`
@@ -127,6 +131,16 @@ For a headless run:
 - `PX4_SYSID_HEADLESS=1 ~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600`
 
 Use the FTDI link for the same board-side `custom_pos_control` and `trajectory_reader` commands described elsewhere in this text, then start jMAVSim on USB for the actual HIL motion.
+
+The minimum board-side shell entry point is:
+- `python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600`
+
+For trajectory playback, `trajectory_reader set_mode trajectory` alone is not enough. Use at least:
+- `trajectory_reader set_mode position`
+- `trajectory_reader abs_ref 0 0 -3 0`
+- `trajectory_reader set_traj_anchor 0 0 -3`
+- `trajectory_reader set_traj_id 100`
+- `trajectory_reader set_mode trajectory`
 
 PX4 console behavior during a maneuver
 --------------------------------------

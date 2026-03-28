@@ -162,6 +162,9 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertNotIn("jMAVSim", before_hitl)
         self.assertIn("/dev/ttyACM0 921600", after_hitl)
         self.assertIn("ttyUSB0", after_hitl)
+        self.assertIn("do not let QGroundControl and jMAVSim open the same `ttyACM0` device", after_hitl)
+        self.assertIn("Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600", after_hitl)
+        self.assertIn("trajectory_reader set_traj_anchor 0 0 -3", after_hitl)
 
 
 if __name__ == "__main__":

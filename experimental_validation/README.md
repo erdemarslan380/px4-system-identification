@@ -127,6 +127,10 @@ Keep jMAVSim setup local to the HIL step. On this machine the verified cable spl
 - USB `ttyACM0`: jMAVSim serial link
 - FTDI `ttyUSB0`: MAVLink shell or QGroundControl side link before the HIL run
 
+Important:
+- do not let QGroundControl and jMAVSim open `ttyACM0` at the same time,
+- if jMAVSim owns `ttyACM0`, use `ttyUSB0` for the board-side shell and ground-station side link.
+
 Build jMAVSim once:
 
 ```bash
@@ -153,3 +157,9 @@ PX4_SYSID_HEADLESS=1 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identifica
 ```
 
 Use the same board-side shell commands from the main README over the FTDI MAVLink console before launching jMAVSim. After that, keep the HIL motion itself on the USB `ttyACM0` link.
+
+Open the board-side shell with:
+
+```bash
+python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600
+```
