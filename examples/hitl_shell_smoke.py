@@ -64,7 +64,12 @@ class MavlinkShell:
                 chunks.append(data)
                 last_data_time = time.monotonic()
                 cleaned = ANSI_RE.sub("", "".join(chunks))
-                if "nsh> " in cleaned or cleaned.rstrip().endswith("nsh>"):
+                if (
+                    "nsh> " in cleaned
+                    or cleaned.rstrip().endswith("nsh>")
+                    or "pxh> " in cleaned
+                    or cleaned.rstrip().endswith("pxh>")
+                ):
                     return cleaned
             elif chunks and last_data_time is not None and (time.monotonic() - last_data_time) > quiet_timeout_s:
                 return ANSI_RE.sub("", "".join(chunks))

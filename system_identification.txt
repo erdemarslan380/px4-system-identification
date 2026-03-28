@@ -101,6 +101,17 @@ The same overlay can be built for CubeOrange in the dedicated PX4 tree.
 5. The same `custom_pos_control` and `trajectory_reader` shell commands described in this text are then used for hardware identification sorties and later validation flights.
 6. If another board is used, replace the board file path and the build/upload target consistently for that board.
 
+Before hardware identification or HITL trajectory playback, prepare the SD card from the workstation:
+- `cd ~/px4-system-identification`
+- `./examples/prepare_sdcard_payload.sh /media/$USER/<sdcard_mount_name>`
+
+That step copies the five shipped trajectory binaries into:
+- `/fs/microsd/trajectories/`
+
+and creates the two hardware log roots:
+- `/fs/microsd/tracking_logs/`
+- `/fs/microsd/identification_logs/`
+
 CubeOrange HIL/HITL check with jMAVSim
 --------------------------------------
 Use jMAVSim only in the HIL section of the workflow. The verified cable split on this machine is:
@@ -146,6 +157,13 @@ The practical HIL order is:
 8. set `TRJ_MODE_CMD = 1` to start the selected trajectory,
 9. set `TRJ_MODE_CMD = 0` to return to position-hold.
 
+Before commanding a hardware trajectory, verify from the MAVLink shell that the SD card is visible:
+- `ls /fs/microsd`
+- `ls /fs/microsd/trajectories`
+- `free`
+
+If the trajectory files are missing from `/fs/microsd/trajectories/`, hardware trajectory playback will not start.
+
 PX4 console behavior during a maneuver
 --------------------------------------
 The current implementation prints the operational state explicitly:
@@ -159,6 +177,21 @@ The current implementation prints the operational state explicitly:
 - `Tracking log completed: ...`
 
 This means the operator does not need to guess when a maneuver ends. The end-of-maneuver condition is now visible from the PX4 console itself.
+
+The current implementation also closes and flushes each CSV at the end of a run. The operator can therefore execute multiple identification profiles or multiple validation trajectories in one PX4 boot session without rebooting between them.
+
+Interactive review of hardware logs
+-----------------------------------
+After a HITL or real-flight session, the intended review flow is:
+1. remove the SD card and mount it on the workstation,
+2. import the logs into the repository:
+   - `./examples/import_sdcard_logs.sh /media/$USER/<sdcard_mount_name> ~/px4-system-identification/hitl_runs/session_001`
+3. build the review bundle:
+   - `python3 experimental_validation/build_hitl_review_bundle.py --log-root ~/px4-system-identification/hitl_runs/session_001 --out-dir ~/px4-system-identification/hitl_runs/session_001/review`
+4. open:
+   - `~/px4-system-identification/hitl_runs/session_001/review/index.html`
+
+The resulting page provides a zoomable and pannable 3D path plot, X/Y/Z versus time plots, basic summary metrics, and copied raw CSV files. The imported logs and generated review bundle can both be committed into the repository for later inspection or GitHub sharing.
 
 Workspace convention
 --------------------
@@ -182,6 +215,10 @@ Two small helper scripts are now part of the repository:
   - checks whether any required profile is missing,
   - automatically uses the latest suitable truth CSV from `rootfs/sysid_truth_logs/`,
   - writes the comparison package into the requested output folder.
+- `~/px4-system-identification/examples/import_sdcard_logs.sh`
+  - copies `tracking_logs/*.csv` and `identification_logs/*.csv` from a mounted SD card into a versionable folder inside this repository.
+- `~/px4-system-identification/experimental_validation/build_hitl_review_bundle.py`
+  - builds a static HTML review bundle with a zoomable and pannable 3D path plot, X/Y/Z versus time plots, summary metrics, and raw CSV copies.
 
 Maneuver definitions
 --------------------

@@ -13,7 +13,10 @@ SMOKE_TEST_SCRIPT = REPO_ROOT / "examples" / "run_repo_smoke_test.sh"
 HITL_SMOKE_SCRIPT = REPO_ROOT / "examples" / "hitl_shell_smoke.py"
 HITL_SMOKE_RUNNER = REPO_ROOT / "examples" / "run_hitl_smoke_test.sh"
 JMAVSIM_HITL_RUNNER = REPO_ROOT / "examples" / "start_jmavsim_hitl.sh"
+PREPARE_SDCARD_SCRIPT = REPO_ROOT / "examples" / "prepare_sdcard_payload.sh"
+IMPORT_SDCARD_LOGS_SCRIPT = REPO_ROOT / "examples" / "import_sdcard_logs.sh"
 LATEST_CANDIDATE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_latest_x500_candidate.py"
+HITL_REVIEW_BUNDLE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_hitl_review_bundle.py"
 TRAJECTORY_ASSET_DIR = REPO_ROOT / "assets" / "validation_trajectories"
 
 
@@ -71,6 +74,8 @@ class RepoCleanlinessTests(unittest.TestCase):
         content = SYNC_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("patch_msg_cmake", content)
         self.assertIn("MultiTrajectorySetpoint.msg", content)
+        self.assertIn("patch_local_position_estimator_params", content)
+        self.assertIn("LTEST_MODE", content)
 
     def test_workspace_scripts_protect_the_shared_px4_tree(self) -> None:
         sync_content = SYNC_SCRIPT.read_text(encoding="utf-8")
@@ -87,13 +92,18 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertTrue(HITL_SMOKE_SCRIPT.exists())
         self.assertTrue(HITL_SMOKE_RUNNER.exists())
         self.assertTrue(JMAVSIM_HITL_RUNNER.exists())
+        self.assertTrue(PREPARE_SDCARD_SCRIPT.exists())
+        self.assertTrue(IMPORT_SDCARD_LOGS_SCRIPT.exists())
         self.assertTrue(LATEST_CANDIDATE_SCRIPT.exists())
+        self.assertTrue(HITL_REVIEW_BUNDLE_SCRIPT.exists())
         refresh_content = REFRESH_DEMO_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("validation_trajectories.py", refresh_content)
         self.assertIn("generate_sitl_validation_bundle.py", refresh_content)
+        self.assertIn("build_hitl_review_bundle.py", refresh_content)
         smoke_content = SMOKE_TEST_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("test_repo_cleanliness", smoke_content)
         self.assertIn("test_paper_artifacts", smoke_content)
+        self.assertIn("test_hitl_review_bundle", smoke_content)
         hitl_smoke_content = HITL_SMOKE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("SERIAL_CONTROL_FLAG_EXCLUSIVE", hitl_smoke_content)
         self.assertIn("--cmd", hitl_smoke_content)
@@ -110,6 +120,17 @@ class RepoCleanlinessTests(unittest.TestCase):
         latest_candidate_content = LATEST_CANDIDATE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("REQUIRED_PROFILES", latest_candidate_content)
         self.assertIn("sysid_truth_logs", latest_candidate_content)
+        prepare_sdcard = PREPARE_SDCARD_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("tracking_logs", prepare_sdcard)
+        self.assertIn("identification_logs", prepare_sdcard)
+        self.assertIn("id_104.traj", prepare_sdcard)
+        import_sdcard = IMPORT_SDCARD_LOGS_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("hitl_runs", import_sdcard)
+        self.assertIn("tracking_logs", import_sdcard)
+        hitl_review = HITL_REVIEW_BUNDLE_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("Plotly.newPlot('plot3d'", hitl_review)
+        self.assertIn("tracking_logs", hitl_review)
+        self.assertIn("identification_logs", hitl_review)
 
     def test_primary_docs_cover_cubeorange_build_flow(self) -> None:
         docs = [
@@ -170,6 +191,8 @@ class RepoCleanlinessTests(unittest.TestCase):
     def test_readme_mentions_jmavsim_only_in_hitl_section(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         hitl_header = "7. HIL/HITL on CubeOrange with jMAVSim"
+        if hitl_header not in readme:
+            hitl_header = "8. HIL/HITL on CubeOrange with jMAVSim"
         self.assertIn(hitl_header, readme)
         before_hitl, after_hitl = readme.split(hitl_header, maxsplit=1)
         self.assertNotIn("jMAVSim", before_hitl)
@@ -178,6 +201,19 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600", after_hitl)
         self.assertIn("TRJ_ACTIVE_ID", after_hitl)
         self.assertIn("TRJ_MODE_CMD = 1", after_hitl)
+
+    def test_docs_cover_sdcard_and_hitl_review_bundle(self) -> None:
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "examples" / "operator_quickstart.md",
+            REPO_ROOT / "examples" / "real_flight_sorties.md",
+            REPO_ROOT / "system_identification.txt",
+        ]
+        for doc in docs:
+            content = doc.read_text(encoding="utf-8")
+            self.assertIn("prepare_sdcard_payload.sh", content, msg=f"missing SD-card preparation flow in {doc}")
+            self.assertIn("/fs/microsd/trajectories", content, msg=f"missing hardware trajectory path in {doc}")
+            self.assertIn("build_hitl_review_bundle.py", content, msg=f"missing review bundle flow in {doc}")
 
 
 if __name__ == "__main__":

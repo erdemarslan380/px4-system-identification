@@ -245,10 +245,6 @@ float TrajectoryReader::identificationDurationS(IdentificationProfile profile) c
 
 
 bool TrajectoryReader::openTrajectoryFile() {
-	if (_tracking_log_failed_latched) {
-		return false;
-	}
-
     closeTrajectoryFile();
 
     char path[128];
@@ -260,6 +256,7 @@ bool TrajectoryReader::openTrajectoryFile() {
 
     if (stat(path, &st) != 0) {
         PX4_ERR("Trajectory file does not exist: %s", path);
+        PX4_INFO("For hardware/HITL, copy id_100..104.traj into " PX4_STORAGEDIR "/trajectories/");
         return false;
     }
 
@@ -295,14 +292,47 @@ void TrajectoryReader::closeTrajectoryFile() {
 	_eof = true;
 }
 
-bool TrajectoryReader::startTrajectoryTrackingLog(hrt_abstime setpoint_timestamp)
+bool TrajectoryReader::storageRootAvailable() const
 {
-	if (_tracking_log_failed_latched) {
+	struct stat st{};
+
+	if (stat(PX4_STORAGEDIR, &st) != 0) {
+		PX4_ERR("Storage root unavailable: %s (%d)", PX4_STORAGEDIR, errno);
 		return false;
 	}
 
+	if (!S_ISDIR(st.st_mode)) {
+		PX4_ERR("Storage root is not a directory: %s", PX4_STORAGEDIR);
+		return false;
+	}
+
+	return true;
+}
+
+void TrajectoryReader::clearTrackingLogFailure()
+{
+	if (_tracking_log_failed_latched) {
+		PX4_INFO("Clearing previous tracking log failure state");
+	}
+
+	_tracking_log_failed_latched = false;
+}
+
+bool TrajectoryReader::startTrajectoryTrackingLog(hrt_abstime setpoint_timestamp)
+{
 	if (_tracking_log_fd >= 0) {
 		return true;
+	}
+
+	if (_tracking_log_failed_latched) {
+		PX4_WARN("Retrying tracking log after a previous failure");
+		_tracking_log_failed_latched = false;
+	}
+
+	if (!storageRootAvailable()) {
+		_tracking_log_failed_latched = true;
+		_tracking_log_fail_count++;
+		return false;
 	}
 
 	constexpr mode_t dir_mode = S_IRWXU | S_IRWXG | S_IRWXO;
@@ -311,6 +341,7 @@ bool TrajectoryReader::startTrajectoryTrackingLog(hrt_abstime setpoint_timestamp
 	if (mkdir(log_dir, dir_mode) != 0 && errno != EEXIST) {
 		PX4_ERR("Failed to create tracking log dir: %s (%d)", log_dir, errno);
 		_tracking_log_failed_latched = true;
+		_tracking_log_fail_count++;
 		if (_mode == Mode::TRAJECTORY) {
 			setTrajectoryReaderMode(Mode::POSITION);
 		}
@@ -339,6 +370,7 @@ bool TrajectoryReader::startTrajectoryTrackingLog(hrt_abstime setpoint_timestamp
 	if (_tracking_log_fd < 0) {
 		PX4_INFO("Tracking log open failed: %s (%d)", path, errno);
 		_tracking_log_failed_latched = true;
+		_tracking_log_fail_count++;
 		if (_mode == Mode::TRAJECTORY) {
 			setTrajectoryReaderMode(Mode::POSITION);
 		}
@@ -353,6 +385,7 @@ bool TrajectoryReader::startTrajectoryTrackingLog(hrt_abstime setpoint_timestamp
 		close(_tracking_log_fd);
 		_tracking_log_fd = -1;
 		_tracking_log_failed_latched = true;
+		_tracking_log_fail_count++;
 		if (_mode == Mode::TRAJECTORY) {
 			setTrajectoryReaderMode(Mode::POSITION);
 		}
@@ -373,6 +406,7 @@ void TrajectoryReader::clearPendingTrackingSamples()
 void TrajectoryReader::stopTrajectoryTrackingLog()
 {
 	if (_tracking_log_fd >= 0) {
+		(void)fsync(_tracking_log_fd);
 		close(_tracking_log_fd);
 		_tracking_log_fd = -1;
 	}
@@ -400,6 +434,10 @@ bool TrajectoryReader::startIdentificationLog(hrt_abstime setpoint_timestamp)
 {
 	if (_ident_log_fd >= 0) {
 		return true;
+	}
+
+	if (!storageRootAvailable()) {
+		return false;
 	}
 
 	constexpr mode_t dir_mode = S_IRWXU | S_IRWXG | S_IRWXO;
@@ -450,6 +488,7 @@ bool TrajectoryReader::startIdentificationLog(hrt_abstime setpoint_timestamp)
 void TrajectoryReader::stopIdentificationLog()
 {
 	if (_ident_log_fd >= 0) {
+		(void)fsync(_ident_log_fd);
 		close(_ident_log_fd);
 		_ident_log_fd = -1;
 	}
@@ -1301,12 +1340,8 @@ void TrajectoryReader::setTrajectoryReaderMode(Mode mode)
 		return;
 	}
 
-	if (mode == Mode::TRAJECTORY && _tracking_log_failed_latched) {
-		PX4_INFO("Tracking log unavailable, staying in POSITION mode");
-		return;
-	}
-
 	_mode = mode;
+	clearTrackingLogFailure();
 
 	if (_mode == Mode::TRAJECTORY) {
 		stopTrajectoryTrackingLog();
@@ -1521,6 +1556,7 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
 
 	if (!strcmp(argv[0], "reload")) {
 		PX4_INFO("Reloading trajectory");
+		instance->clearTrackingLogFailure();
 		instance->stopTrajectoryTrackingLog();
 		instance->_finalize_tracking_log = false;
 		instance->_start_new_tracking_log = (instance->_mode == Mode::TRAJECTORY);
@@ -1532,6 +1568,7 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
 
 	if (!strcmp(argv[0], "rewind")) {
 		PX4_INFO("Rewinding trajectory");
+		instance->clearTrackingLogFailure();
 		instance->stopTrajectoryTrackingLog();
 		instance->_finalize_tracking_log = false;
 		instance->_start_new_tracking_log = (instance->_mode == Mode::TRAJECTORY);
@@ -1662,6 +1699,7 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
         }
 
         instance->_ident_profile = profile;
+        instance->clearTrackingLogFailure();
         instance->stopTrajectoryTrackingLog();
         instance->stopIdentificationLog();
         instance->resetIdentificationState();
@@ -1730,6 +1768,9 @@ int TrajectoryReader::print_status()
 	PX4_INFO("  Tracking log open: %s", (_tracking_log_fd >= 0) ? "yes" : "no");
 	PX4_INFO("  Pending tracking samples: %u",
 		 static_cast<unsigned>(_pending_tracking_size));
+	PX4_INFO("  Tracking log fail count: %u",
+		 static_cast<unsigned>(_tracking_log_fail_count));
+	PX4_INFO("  Tracking log latched: %s", _tracking_log_failed_latched ? "yes" : "no");
 	PX4_INFO("  Identification profile: %s", identProfileToString(_ident_profile));
 	PX4_INFO("  Identification purpose: %s", identProfilePurpose(_ident_profile));
 	PX4_INFO("  Identification duration: %.2f s", (double)identificationDurationS(_ident_profile));

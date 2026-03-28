@@ -38,6 +38,15 @@ python3 Tools/px4_uploader.py \
 If another board is used, replace the board file path and the build/upload target together.
 During upload, keep jMAVSim, QGroundControl, and any MAVLink shell closed so the bootloader port is not contested.
 
+Before any hardware logging or HITL trajectory playback, prepare the SD card:
+
+```bash
+cd ~/px4-system-identification
+./examples/prepare_sdcard_payload.sh /media/$USER/<sdcard_mount_name>
+```
+
+That step installs the five shipped `.traj` files into `/fs/microsd/trajectories/` and creates `/fs/microsd/tracking_logs/` and `/fs/microsd/identification_logs/`.
+
 Fastest way to refresh the shipped demo package
 -----------------------------------------------
 ```bash
@@ -132,6 +141,34 @@ Smoke test
 cd ~/px4-system-identification
 ./examples/run_repo_smoke_test.sh
 ```
+
+Review HITL or real-flight SD-card logs
+---------------------------------------
+Copy the SD-card CSV files into the repository:
+
+```bash
+cd ~/px4-system-identification
+./examples/import_sdcard_logs.sh /media/$USER/<sdcard_mount_name> \
+  ~/px4-system-identification/hitl_runs/session_001
+```
+
+Build the browser review bundle:
+
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/build_hitl_review_bundle.py \
+  --log-root ~/px4-system-identification/hitl_runs/session_001 \
+  --out-dir ~/px4-system-identification/hitl_runs/session_001/review
+```
+
+Then open:
+- `~/px4-system-identification/hitl_runs/session_001/review/index.html`
+
+The generated page is a static Plotly UI with:
+- 3D zoom/pan trajectory inspection,
+- reference versus vehicle overlays,
+- X/Y/Z versus time plots,
+- raw CSV copies under `review/raw/`.
 
 HIL/HITL check on CubeOrange
 ----------------------------

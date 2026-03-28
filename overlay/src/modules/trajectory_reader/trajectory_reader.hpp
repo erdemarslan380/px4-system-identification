@@ -108,6 +108,7 @@ private:
 	// file handling
 	bool openTrajectoryFile();
 	void closeTrajectoryFile();
+	bool storageRootAvailable() const;
 	bool loadNextHorizon();
 	void publishSetpoint(const matrix::Vector3f &current_pos);
 	void publishHoldPositionSetpoint(const matrix::Vector3f &current_pos);
@@ -116,6 +117,7 @@ private:
 	void queueTrackingLogSample(const matrix::Vector3f &ref_first_pos, hrt_abstime setpoint_timestamp);
 	void flushTrackingLogSamples(const matrix::Vector3f &current_pos, hrt_abstime now);
 	void clearPendingTrackingSamples();
+	void clearTrackingLogFailure();
 	void updateControllerTypeCache();
 	const char *controllerTypeToString(int32_t controller_type) const;
 	const char *identProfileToString(IdentificationProfile profile) const;
@@ -193,6 +195,7 @@ private:
 	uint16_t _tracking_log_run_counter{0};
 	int32_t _controller_type_cached{0};
 	bool _tracking_log_failed_latched{false};
+	uint32_t _tracking_log_fail_count{0};
 	int _ident_log_fd{-1};
 	uint16_t _ident_log_run_counter{0};
 

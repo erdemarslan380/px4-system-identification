@@ -31,6 +31,22 @@ You can also flash this file from QGroundControl with the CubeOrange connected o
 Keep this same firmware on the board for the first USB-connected HIL/HITL check.
 The HIL/HITL wiring and simulator steps are described in the main README.
 
+Before the flight day, prepare the SD card on the workstation:
+
+```bash
+cd ~/px4-system-identification
+./examples/prepare_sdcard_payload.sh /media/$USER/<sdcard_mount_name>
+```
+
+This must leave these paths on the card:
+- `/fs/microsd/trajectories/id_100.traj`
+- `/fs/microsd/trajectories/id_101.traj`
+- `/fs/microsd/trajectories/id_102.traj`
+- `/fs/microsd/trajectories/id_103.traj`
+- `/fs/microsd/trajectories/id_104.traj`
+- `/fs/microsd/tracking_logs/`
+- `/fs/microsd/identification_logs/`
+
 Use one calm day and keep the same simple rule in every sortie:
 - manual takeoff,
 - stabilize at about `3 m`,
@@ -89,6 +105,8 @@ Wait for these PX4 messages before the next command:
 Logs are written to:
 - `/fs/microsd/identification_logs/`
 - `/fs/microsd/tracking_logs/`
+
+The current overlay flushes and closes each CSV when a maneuver finishes, so the next profile can be started in the same boot session without rebooting PX4.
 
 2. Validation trajectories on the real vehicle
 ----------------------------------------------
@@ -167,8 +185,15 @@ Validation tracking logs are written to:
 3. After the flights
 --------------------
 1. copy the identification logs and tracking logs to your workstation,
-2. estimate the identified model,
-3. write the candidate into the Gazebo SDF,
-4. run the same five validation trajectories in SITL,
-5. overlay the real-flight traces and the digital-twin traces,
-6. regenerate the same figures.
+2. import the SD-card CSV files into this repository:
+   - `cd ~/px4-system-identification`
+   - `./examples/import_sdcard_logs.sh /media/$USER/<sdcard_mount_name> ~/px4-system-identification/hitl_runs/session_001`
+3. build the interactive review bundle:
+   - `python3 experimental_validation/build_hitl_review_bundle.py --log-root ~/px4-system-identification/hitl_runs/session_001 --out-dir ~/px4-system-identification/hitl_runs/session_001/review`
+4. open:
+   - `~/px4-system-identification/hitl_runs/session_001/review/index.html`
+5. estimate the identified model,
+6. write the candidate into the Gazebo SDF,
+7. run the same five validation trajectories in SITL,
+8. overlay the real-flight traces and the digital-twin traces,
+9. regenerate the same figures.

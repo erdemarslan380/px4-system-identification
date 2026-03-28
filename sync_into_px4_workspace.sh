@@ -255,11 +255,75 @@ path.write_text(text, encoding='utf-8')
 PY
 }
 
+patch_local_position_estimator_params() {
+  local yaml_path="$1"
+  [ -f "$yaml_path" ] || return 0
+  python3 - "$yaml_path" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+
+if '    LTEST_MODE:\n' in text:
+    raise SystemExit(0)
+
+anchor = (
+    "    LPE_LT_COV:\n"
+    "      description:\n"
+    "        short: Minimum landing target standard covariance\n"
+    "        long: Minimum landing target standard covariance, uses reported covariance\n"
+    "          if greater\n"
+    "      type: float\n"
+    "      default: 0.0001\n"
+    "      unit: m^2\n"
+    "      min: 0.0\n"
+    "      max: 10\n"
+    "      decimal: 2\n"
+)
+
+insert = (
+    anchor +
+    "    LTEST_MODE:\n"
+    "      description:\n"
+    "        short: Landing target test mode\n"
+    "        long: Select whether the landing target logic treats the target as moving or stationary.\n"
+    "      type: int32\n"
+    "      default: 0\n"
+    "      min: 0\n"
+    "      max: 1\n"
+)
+
+if anchor in text:
+    text = text.replace(anchor, insert, 1)
+else:
+    fallback = "    LPE_FUSION:\n"
+    if fallback not in text:
+        raise SystemExit("could not patch local_position_estimator params.yaml")
+    text = text.replace(
+        fallback,
+        "    LTEST_MODE:\n"
+        "      description:\n"
+        "        short: Landing target test mode\n"
+        "        long: Select whether the landing target logic treats the target as moving or stationary.\n"
+        "      type: int32\n"
+        "      default: 0\n"
+        "      min: 0\n"
+        "      max: 1\n"
+        + fallback,
+        1,
+    )
+
+path.write_text(text, encoding='utf-8')
+PY
+}
+
 patch_board_file "$px4_root/$board_rel"
 patch_gz_plugins_cmake "$px4_root/src/modules/simulation/gz_plugins/CMakeLists.txt"
 patch_simulation_gazebo_script "$px4_root/Tools/simulation/gz/simulation-gazebo"
 patch_x500_model_sdf "$px4_root/Tools/simulation/gz/models/x500/model.sdf"
 patch_msg_cmake "$px4_root/msg/CMakeLists.txt"
+patch_local_position_estimator_params "$px4_root/src/modules/local_position_estimator/params.yaml"
 cleanup_legacy_param_sources "$px4_root/src/modules/custom_pos_control"
 cleanup_legacy_param_sources "$px4_root/src/modules/trajectory_reader"
 
@@ -269,5 +333,6 @@ echo "Gazebo plugin CMake patched for SystemIdentificationLoggerPlugin"
 echo "Gazebo launcher patched for GZ_SIM_SYSTEM_PLUGIN_PATH"
 echo "x500 model.sdf patched for SystemIdentificationLoggerPlugin"
 echo "uORB message list patched for MultiTrajectorySetpoint.msg"
+echo "local_position_estimator params.yaml patched for LTEST_MODE compatibility"
 echo "Legacy params.c overlays removed in favor of module.yaml"
 echo "Next step: build SITL with 'make px4_sitl gz_x500' or your target board build."
