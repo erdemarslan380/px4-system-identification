@@ -96,7 +96,40 @@ void TrajectoryReader::parametersUpdate() {
 	_rc_select_enabled = _param_trj_rc_sel_en.get();
 	_rc_selector_channel = _param_trj_rc_sel_ch.get();
 	_rc_selector_max_traj_id = math::max<int32_t>(0, _param_trj_rc_max_id.get());
-	_ident_profile = static_cast<IdentificationProfile>(math::constrain<int32_t>(_param_trj_ident_prof.get(), 0, 8));
+
+	const int32_t ident_profile = math::constrain<int32_t>(_param_trj_ident_prof.get(), 0, 8);
+	if (ident_profile != _param_ident_profile_cached) {
+		_param_ident_profile_cached = ident_profile;
+		_ident_profile = static_cast<IdentificationProfile>(ident_profile);
+		stopTrajectoryTrackingLog();
+		stopIdentificationLog();
+		resetIdentificationState();
+		_start_new_tracking_log = (_mode == Mode::IDENTIFICATION);
+	}
+
+	const matrix::Vector3f anchor{
+		_param_trj_anchor_x.get(),
+		_param_trj_anchor_y.get(),
+		_param_trj_anchor_z.get()
+	};
+
+	if (!_param_anchor_cached_valid || (anchor - _param_anchor_cached).norm_squared() > 1e-6f) {
+		_param_anchor_cached = anchor;
+		_param_anchor_cached_valid = true;
+		setTrajectoryAnchor(anchor);
+	}
+
+	const int32_t traj_id = math::constrain<int32_t>(_param_trj_active_id.get(), 0, 255);
+	if (traj_id != _param_traj_id_cached) {
+		_param_traj_id_cached = traj_id;
+		setTrajectoryId(static_cast<uint8_t>(traj_id));
+	}
+
+	const int32_t mode_cmd = math::constrain<int32_t>(_param_trj_mode_cmd.get(), 0, 2);
+	if (mode_cmd != _param_mode_cmd_cached) {
+		_param_mode_cmd_cached = mode_cmd;
+		setTrajectoryReaderMode(static_cast<Mode>(mode_cmd));
+	}
 }
 
 void TrajectoryReader::updateControllerTypeCache()
@@ -747,7 +780,13 @@ void TrajectoryReader::updateRcSelections()
 		resetIdentificationState();
 		_start_new_tracking_log = true;
 	} else {
-		setTrajectoryId(static_cast<uint8_t>(selection));
+		if (setTrajectoryId(static_cast<uint8_t>(selection))) {
+			const int32_t traj_value = selection;
+			param_t traj_param = param_find("TRJ_ACTIVE_ID");
+			if (traj_param != PARAM_INVALID) {
+				param_set(traj_param, &traj_value);
+			}
+		}
 	}
 }
 
@@ -958,6 +997,83 @@ void TrajectoryReader::publishSetpoint(const matrix::Vector3f &current_pos) {
 	}
 }
 
+void TrajectoryReader::publishHoldPositionSetpoint(const matrix::Vector3f &current_pos)
+{
+	const float dt = 0.02f;
+
+	if (!_pos_ref_absolute && (_need_pos_offset || !_pos_offset_valid)) {
+		_pos_offset = current_pos;
+		_pos_offset_valid = true;
+		_need_pos_offset = false;
+	}
+
+	const matrix::Vector3f pos_target = _pos_ref_absolute
+		? _pos_target
+		: (_pos_offset_valid ? (_pos_offset + _pos_target) : current_pos);
+
+	goto_setpoint_s goto_sp{};
+	goto_sp.position[0] = pos_target(0);
+	goto_sp.position[1] = pos_target(1);
+	goto_sp.position[2] = pos_target(2);
+	goto_sp.flag_control_heading = true;
+	goto_sp.heading = _pos_yaw;
+
+	setPositionSmootherLimits(goto_sp);
+	setHeadingSmootherLimits(goto_sp);
+
+	matrix::Vector3f pos = current_pos;
+	auto pos_tmp = _position_smoothing;
+	auto yaw_tmp = _heading_smoothing;
+
+	for (size_t i = 0; i < MAX_HORIZON; i++) {
+		PositionSmoothing::PositionSmoothingSetpoints out{};
+		pos_tmp.generateSetpoints(pos, pos_target, {}, dt, false, out);
+		pos = out.position;
+		yaw_tmp.update(_pos_yaw, dt);
+
+		_buffer[i].px = out.position(0);
+		_buffer[i].py = out.position(1);
+		_buffer[i].pz = out.position(2);
+		_buffer[i].vx = out.velocity(0);
+		_buffer[i].vy = out.velocity(1);
+		_buffer[i].vz = out.velocity(2);
+		_buffer[i].ax = out.acceleration(0);
+		_buffer[i].ay = out.acceleration(1);
+		_buffer[i].az = out.acceleration(2);
+		_buffer[i].yaw = yaw_tmp.getSmoothedHeading();
+		_buffer[i].yawspeed = yaw_tmp.getSmoothedHeadingRate();
+
+		if (i == 0) {
+			_position_smoothing = pos_tmp;
+			_heading_smoothing = yaw_tmp;
+		}
+	}
+
+	_buffer_len = MAX_HORIZON;
+
+	multi_trajectory_setpoint_s ref{};
+	ref.timestamp = hrt_absolute_time();
+	ref.horizon_length = MAX_HORIZON;
+	ref.valid = true;
+
+	for (size_t i = 0; i < MAX_HORIZON; ++i) {
+		const TrajSample &s = _buffer[i];
+		ref.position_x[i] = s.px;
+		ref.position_y[i] = s.py;
+		ref.position_z[i] = s.pz;
+		ref.velocity_x[i] = s.vx;
+		ref.velocity_y[i] = s.vy;
+		ref.velocity_z[i] = s.vz;
+		ref.accel_x[i] = s.ax;
+		ref.accel_y[i] = s.ay;
+		ref.accel_z[i] = s.az;
+		ref.yaw[i] = s.yaw;
+		ref.yawspeed[i] = s.yawspeed;
+	}
+
+	_pub.publish(ref);
+}
+
 void TrajectoryReader::Run()
 {
 	if (should_exit()) {
@@ -986,9 +1102,7 @@ void TrajectoryReader::Run()
 	const bool armed = (_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED);
 	const bool in_offboard = (_status.nav_state == vehicle_status_s::NAVIGATION_STATE_OFFBOARD);
 
-	// Keep POSITION-mode references streaming while armed so OFFBOARD can latch
-	// cleanly, but only allow actual trajectory playback once OFFBOARD is active.
-	if (!armed || ((_mode == Mode::TRAJECTORY || _mode == Mode::IDENTIFICATION) && !in_offboard)) {
+	if (!armed) {
 		if ((_mode == Mode::TRAJECTORY || _mode == Mode::IDENTIFICATION) && (_tracking_log_fd >= 0 || _pending_tracking_size > 0)) {
 			stopTrajectoryTrackingLog();
 			_start_new_tracking_log = true;
@@ -999,6 +1113,38 @@ void TrajectoryReader::Run()
 			resetIdentificationState();
 		}
 
+		return;
+	}
+
+	vehicle_local_position_s vehicle_local_position{};
+	if (!_local_pos_sub.update(&vehicle_local_position)) {
+		return;
+	}
+
+	const matrix::Vector3f current_pos{
+		vehicle_local_position.x,
+		vehicle_local_position.y,
+		vehicle_local_position.z
+	};
+
+	// Keep a hold reference streaming while armed so OFFBOARD can latch cleanly,
+	// even if the operator has already selected TRAJECTORY or IDENTIFICATION mode.
+	if ((_mode == Mode::TRAJECTORY || _mode == Mode::IDENTIFICATION) && !in_offboard) {
+		if ((_tracking_log_fd >= 0 || _pending_tracking_size > 0)) {
+			stopTrajectoryTrackingLog();
+			_start_new_tracking_log = true;
+		}
+
+		if (_mode == Mode::IDENTIFICATION) {
+			stopIdentificationLog();
+			resetIdentificationState();
+		}
+
+		if (_need_reset) {
+			resetSmoothers(current_pos, _pos_yaw);
+		}
+
+		publishHoldPositionSetpoint(current_pos);
 		return;
 	}
 
@@ -1029,17 +1175,6 @@ void TrajectoryReader::Run()
 			resetIdentificationState();
 		}
 	}
-
-	vehicle_local_position_s vehicle_local_position{};
-	if (!_local_pos_sub.update(&vehicle_local_position)) {
-		return;
-	}
-
-	const matrix::Vector3f current_pos{
-		vehicle_local_position.x,
-		vehicle_local_position.y,
-		vehicle_local_position.z
-	};
 
 	if (_mode == Mode::TRAJECTORY || _mode == Mode::IDENTIFICATION) {
 		flushTrackingLogSamples(current_pos, hrt_absolute_time());
@@ -1454,6 +1589,17 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
 		const float z = strtof(argv[3], nullptr);
 
 		instance->setTrajectoryAnchor(matrix::Vector3f(x, y, z));
+		const float anchor_values[3] = {x, y, z};
+		param_t anchor_params[3] = {
+			param_find("TRJ_ANCHOR_X"),
+			param_find("TRJ_ANCHOR_Y"),
+			param_find("TRJ_ANCHOR_Z"),
+		};
+		for (int i = 0; i < 3; ++i) {
+			if (anchor_params[i] != PARAM_INVALID) {
+				param_set(anchor_params[i], &anchor_values[i]);
+			}
+		}
 		PX4_INFO("Trajectory anchor set to [%.2f %.2f %.2f]", (double)x, (double)y, (double)z);
 		return PX4_OK;
 	}
@@ -1477,6 +1623,11 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
         }
 
         instance->setTrajectoryReaderMode(mode);
+		const int32_t mode_value = static_cast<int32_t>(mode);
+		param_t mode_param = param_find("TRJ_MODE_CMD");
+		if (mode_param != PARAM_INVALID) {
+			param_set(mode_param, &mode_value);
+		}
         return PX4_OK;
     }
 
@@ -1544,6 +1695,12 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
             PX4_ERR("Failed to set trajectory id %lu", id);
             return PX4_ERROR;
         }
+
+		const int32_t traj_param_value = static_cast<int32_t>(id);
+		param_t traj_param = param_find("TRJ_ACTIVE_ID");
+		if (traj_param != PARAM_INVALID) {
+			param_set(traj_param, &traj_param_value);
+		}
 
         PX4_INFO("Trajectory id set to %lu", id);
         return PX4_OK;

@@ -1,11 +1,13 @@
 Visual Gazebo SITL walkthrough
 =============================
 
-1. Sync the overlay
--------------------
+1. Install the shipped validation trajectories
+----------------------------------------------
 ```bash
 cd ~/px4-system-identification
 ./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification
+python3 experimental_validation/validation_trajectories.py \
+  --trajectories-dir ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories
 ```
 
 2. Start SITL
@@ -63,11 +65,13 @@ trajectory_reader set_mode trajectory
 ```
 
 Trajectory IDs:
-- `100`: `hairpin`
-- `101`: `lemniscate`
-- `102`: `circle`
-- `103`: `time_optimal_30s`
-- `104`: `minimum_snap_50s`
+- `100`: `hairpin`, `23 s`
+- `101`: `lemniscate`, `19 s`
+- `102`: `circle`, `15 s`
+- `103`: `time_optimal_30s`, `11 s`
+- `104`: `minimum_snap_50s`, `14 s`
+
+All five start from the same anchored hover pose at `(0, 0, -3)`, but they do not all end there. Return to position hold before launching the next one.
 
 After one trajectory finishes:
 ```bash

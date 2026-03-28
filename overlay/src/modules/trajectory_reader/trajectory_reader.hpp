@@ -110,6 +110,7 @@ private:
 	void closeTrajectoryFile();
 	bool loadNextHorizon();
 	void publishSetpoint(const matrix::Vector3f &current_pos);
+	void publishHoldPositionSetpoint(const matrix::Vector3f &current_pos);
 	bool startTrajectoryTrackingLog(hrt_abstime setpoint_timestamp);
 	void stopTrajectoryTrackingLog();
 	void queueTrackingLogSample(const matrix::Vector3f &ref_first_pos, hrt_abstime setpoint_timestamp);
@@ -221,6 +222,11 @@ private:
 	int32_t _rc_selector_channel{0};
 	int32_t _rc_selector_max_traj_id{3};
 	int32_t _rc_selected_index{-1};
+	int32_t _param_mode_cmd_cached{-1};
+	int32_t _param_traj_id_cached{-1};
+	int32_t _param_ident_profile_cached{-1};
+	bool _param_anchor_cached_valid{false};
+	matrix::Vector3f _param_anchor_cached{};
 
 	// position mode
 	matrix::Vector3f _pos_target{};
@@ -252,6 +258,11 @@ private:
 		(ParamInt<px4::params::TRJ_RC_SEL_EN>) _param_trj_rc_sel_en,
 		(ParamInt<px4::params::TRJ_RC_SEL_CH>) _param_trj_rc_sel_ch,
 		(ParamInt<px4::params::TRJ_RC_MAX_ID>) _param_trj_rc_max_id,
-		(ParamInt<px4::params::TRJ_IDENT_PROF>) _param_trj_ident_prof
+		(ParamInt<px4::params::TRJ_IDENT_PROF>) _param_trj_ident_prof,
+		(ParamInt<px4::params::TRJ_MODE_CMD>) _param_trj_mode_cmd,
+		(ParamInt<px4::params::TRJ_ACTIVE_ID>) _param_trj_active_id,
+		(ParamFloat<px4::params::TRJ_ANCHOR_X>) _param_trj_anchor_x,
+		(ParamFloat<px4::params::TRJ_ANCHOR_Y>) _param_trj_anchor_y,
+		(ParamFloat<px4::params::TRJ_ANCHOR_Z>) _param_trj_anchor_z
 	)
 };

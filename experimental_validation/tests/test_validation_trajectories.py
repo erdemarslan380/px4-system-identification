@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import struct
 import tempfile
 import unittest
 from pathlib import Path
 
 from experimental_validation.validation_trajectories import COMMON_LOGGED_START, DEFAULT_VALIDATION_TRAJECTORIES, export_validation_trajectories
+from experimental_validation.trajectory_catalog import validation_trajectory_asset_path
 
 
 class ValidationTrajectoriesTests(unittest.TestCase):
@@ -19,14 +19,12 @@ class ValidationTrajectoriesTests(unittest.TestCase):
             first = manifest["entries"][0]
             traj_path = Path(first["path"])
             self.assertTrue(traj_path.exists())
-            data = traj_path.read_bytes()
-            self.assertGreater(len(data), 0)
-            row = struct.unpack("11f", data[:44])
-            self.assertAlmostEqual(row[0], COMMON_LOGGED_START[0], places=5)
-            self.assertAlmostEqual(row[1], COMMON_LOGGED_START[1], places=5)
-            self.assertAlmostEqual(row[2], COMMON_LOGGED_START[2], places=5)
+            source = validation_trajectory_asset_path(DEFAULT_VALIDATION_TRAJECTORIES[0])
+            self.assertEqual(traj_path.read_bytes(), source.read_bytes())
             payload = json.loads((out_dir / "validation_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["entries"][0]["traj_id"], DEFAULT_VALIDATION_TRAJECTORIES[0].traj_id)
+            self.assertEqual(payload["entries"][0]["sha256"], DEFAULT_VALIDATION_TRAJECTORIES[0].sha256)
+            self.assertAlmostEqual(payload["common_logged_start"]["x_m"], COMMON_LOGGED_START[0], places=5)
 
 
 if __name__ == "__main__":

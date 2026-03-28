@@ -28,6 +28,7 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
 from experimental_validation.reference_models import default_candidate_identified, default_x500_reference
+from experimental_validation.trajectory_catalog import COMMON_LOGGED_START, load_validation_reference
 from experimental_validation.twin_metrics import (
     build_blended_twin_score_from_values,
     flatten_identified_metrics,
@@ -43,14 +44,12 @@ class TrajectoryCase:
 
 
 DEFAULT_TRAJECTORIES = (
-    TrajectoryCase("hairpin", 28.0, {"payload_mass": 0.12, "com_z": 0.01, "tau_scale": 1.02}),
-    TrajectoryCase("lemniscate", 30.0, {"payload_mass": 0.10, "com_z": 0.01, "tau_scale": 1.02}),
-    TrajectoryCase("circle", 30.0, {"payload_mass": 0.14, "com_x": 0.01, "com_y": -0.01}),
-    TrajectoryCase("time_optimal_30s", 30.0, {"payload_mass": 0.24, "com_x": 0.02, "com_y": -0.01, "com_z": 0.03, "tau_scale": 1.04}),
-    TrajectoryCase("minimum_snap_50s", 50.0, {"payload_mass": 0.18, "com_x": 0.01, "com_y": 0.01, "com_z": 0.02, "arm_scale": 1.01}),
+    TrajectoryCase("hairpin", 23.0, {"payload_mass": 0.12, "com_z": 0.01, "tau_scale": 1.02}),
+    TrajectoryCase("lemniscate", 19.0, {"payload_mass": 0.10, "com_z": 0.01, "tau_scale": 1.02}),
+    TrajectoryCase("circle", 15.0, {"payload_mass": 0.14, "com_x": 0.01, "com_y": -0.01}),
+    TrajectoryCase("time_optimal_30s", 11.0, {"payload_mass": 0.24, "com_x": 0.02, "com_y": -0.01, "com_z": 0.03, "tau_scale": 1.04}),
+    TrajectoryCase("minimum_snap_50s", 14.0, {"payload_mass": 0.18, "com_x": 0.01, "com_y": 0.01, "com_z": 0.02, "arm_scale": 1.01}),
 )
-
-COMMON_LOGGED_START = (0.0, 0.0, -3.0)
 
 
 def _interp_waypoints(
@@ -162,72 +161,7 @@ def _mission_scores(reference_metrics: dict[str, float], candidate_metrics: dict
 
 
 def _trajectory_reference(case: TrajectoryCase, samples: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    t = np.linspace(0.0, case.duration_s, samples)
-    w = 2.0 * np.pi / case.duration_s
-    if case.name == "hairpin":
-        x, y, z = _interp_waypoints(
-            t,
-            case.duration_s,
-            [
-                COMMON_LOGGED_START,
-                (3.8, -1.4, -3.00),
-                (4.4, -0.1, -3.10),
-                (3.8, 1.4, -3.18),
-                (-3.9, 1.4, -3.18),
-                COMMON_LOGGED_START,
-            ],
-            knot_times=[0.0, 0.14, 0.34, 0.48, 0.78, 1.0],
-            smooth_window=19,
-        )
-    elif case.name == "lemniscate":
-        x = 2.8 * np.sin(w * t)
-        y = 1.6 * np.sin(w * t) * np.cos(w * t)
-        z = -3.0 - 0.20 * (1.0 - np.cos(0.5 * w * t))
-    elif case.name == "circle":
-        radius = 2.6
-        x = radius * (np.cos(w * t) - 1.0)
-        y = radius * np.sin(w * t)
-        z = -3.0 - 0.15 * (1.0 - np.cos(0.5 * w * t))
-    elif case.name == "time_optimal_30s":
-        x, y, z = _interp_waypoints(
-            t,
-            case.duration_s,
-            [
-                COMMON_LOGGED_START,
-                (-1.2, 1.5, -3.00),
-                (2.6, 1.8, -3.20),
-                (4.1, -0.2, -3.28),
-                (1.9, -2.0, -3.08),
-                (-1.7, -0.9, -3.00),
-                (-3.8, 1.2, -3.10),
-                COMMON_LOGGED_START,
-            ],
-            knot_times=[0.0, 0.08, 0.18, 0.30, 0.45, 0.62, 0.82, 1.0],
-            smooth_window=11,
-        )
-    elif case.name == "minimum_snap_50s":
-        x, y, z = _interp_waypoints(
-            t,
-            case.duration_s,
-            [
-                COMMON_LOGGED_START,
-                (-2.0, 0.8, -3.00),
-                (0.0, 2.2, -3.16),
-                (2.4, 1.6, -3.28),
-                (3.5, -0.2, -3.24),
-                (2.1, -1.8, -3.08),
-                (-0.6, -2.2, -3.00),
-                (-3.0, -0.8, -3.00),
-                COMMON_LOGGED_START,
-            ],
-            knot_times=[0.0, 0.10, 0.22, 0.36, 0.50, 0.66, 0.80, 0.92, 1.0],
-            smooth_window=29,
-        )
-    else:
-        raise ValueError(f"unsupported trajectory case: {case.name}")
-    x[0], y[0], z[0] = COMMON_LOGGED_START
-    x[-1], y[-1], z[-1] = COMMON_LOGGED_START
-    return t, x, y, z
+    return load_validation_reference(case.name, resample_to=samples)
 
 
 def _low_frequency_noise(rng: np.random.Generator, samples: int, scale: float) -> np.ndarray:

@@ -11,10 +11,21 @@ cd ~/px4-system-identification
 
 cd ~/PX4-Autopilot-Identification
 make cubepilot_cubeorange_default
-make cubepilot_cubeorange_default upload
 ```
 
-You can upload directly from the terminal, or flash this file from QGroundControl with the CubeOrange connected over USB:
+With FTDI disconnected, you can upload from the terminal:
+- `make cubepilot_cubeorange_default upload`
+
+If FTDI stays connected, use the targeted uploader command:
+
+```bash
+cd ~/PX4-Autopilot-Identification
+python3 Tools/px4_uploader.py \
+  --port /dev/serial/by-id/usb-CubePilot_CubeOrange_0-if00 \
+  build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4
+```
+
+You can also flash this file from QGroundControl with the CubeOrange connected over USB:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
 Keep this same firmware on the board for the first USB-connected HIL/HITL check.
@@ -93,11 +104,13 @@ trajectory_reader abs_ref 0 0 -3 0
 ```
 
 The five validation trajectories are:
-- `100`: `hairpin`, `28 s`
-- `101`: `lemniscate`, `30 s`
-- `102`: `circle`, `30 s`
-- `103`: `time_optimal_30s`, `30 s`
-- `104`: `minimum_snap_50s`, `50 s`
+- `100`: `hairpin`, `23 s`
+- `101`: `lemniscate`, `19 s`
+- `102`: `circle`, `15 s`
+- `103`: `time_optimal_30s`, `11 s`
+- `104`: `minimum_snap_50s`, `14 s`
+
+They share the same anchored start hover at `(0, 0, -3)`, but they do not all return to that point on their own. After each run, command position hold again before starting the next ID.
 
 Run them with this pattern:
 

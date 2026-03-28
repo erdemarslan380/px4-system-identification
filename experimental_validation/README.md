@@ -18,13 +18,25 @@ cd ~/px4-system-identification
 
 cd ~/PX4-Autopilot-Identification
 make cubepilot_cubeorange_default
-make cubepilot_cubeorange_default upload
 ```
 
 Firmware artifact:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
+With FTDI disconnected, upload from the terminal with:
+- `make cubepilot_cubeorange_default upload`
+
+If FTDI stays connected, use the targeted uploader:
+
+```bash
+cd ~/PX4-Autopilot-Identification
+python3 Tools/px4_uploader.py \
+  --port /dev/serial/by-id/usb-CubePilot_CubeOrange_0-if00 \
+  build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4
+```
+
 If another board is used, replace the board file path and the build/upload target together.
+During upload, keep jMAVSim, QGroundControl, and any MAVLink shell closed so the bootloader port is not contested.
 
 Fastest way to refresh the shipped demo package
 -----------------------------------------------
@@ -34,7 +46,7 @@ cd ~/px4-system-identification
 ```
 
 This command:
-- regenerates the five validation trajectories,
+- installs the five shipped validation trajectories into the PX4 workspace,
 - regenerates the current Stage-1 SITL proxy inputs,
 - regenerates all shipped figures,
 - updates `examples/paper_assets/paper_validation_summary.json`.
@@ -123,13 +135,7 @@ cd ~/px4-system-identification
 
 HIL/HITL check on CubeOrange
 ----------------------------
-Keep jMAVSim setup local to the HIL step. On this machine the verified cable split is:
-- USB `ttyACM0`: jMAVSim serial link
-- FTDI `ttyUSB0`: MAVLink shell or QGroundControl side link before the HIL run
-
-Important:
-- do not let QGroundControl and jMAVSim open `ttyACM0` at the same time,
-- if jMAVSim owns `ttyACM0`, use `ttyUSB0` for the board-side shell and ground-station side link.
+Keep jMAVSim setup local to the HIL step.
 
 Build jMAVSim once:
 
@@ -156,9 +162,9 @@ cd ~/px4-system-identification
 PX4_SYSID_HEADLESS=1 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
 ```
 
-Use the same board-side shell commands from the main README over the FTDI MAVLink console before launching jMAVSim. After that, keep the HIL motion itself on the USB `ttyACM0` link.
+After jMAVSim starts, open QGroundControl in UDP-only mode.
 
-Open the board-side shell with:
+If you want a board-side shell, use FTDI:
 
 ```bash
 python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600

@@ -104,12 +104,14 @@ The same overlay can be built for CubeOrange in the dedicated PX4 tree.
 CubeOrange HIL/HITL check with jMAVSim
 --------------------------------------
 Use jMAVSim only in the HIL section of the workflow. The verified cable split on this machine is:
-- USB `ttyACM0`: jMAVSim serial link to the CubeOrange
-- FTDI `ttyUSB0`: MAVLink shell or QGroundControl side link before the HIL run
+- USB `ttyACM0`: jMAVSim serial link
+- QGroundControl: UDP only
+- FTDI `ttyUSB0`: optional board-side MAVLink shell link
 
 Important:
-- do not let QGroundControl and jMAVSim open the same `ttyACM0` device at the same time,
-- if `ttyACM0` is reserved for jMAVSim, use `ttyUSB0` for the board-side shell and the ground-station side connection.
+- do not let QGroundControl, `mavlink_shell.py`, and jMAVSim open the same serial device at the same time,
+- the `newPosition > limit` jMAVSim exception is a corrupted serial-stream symptom, usually caused by two processes sharing one port.
+- during firmware upload, close jMAVSim, QGroundControl, and any MAVLink shell before talking to the board bootloader.
 
 Build jMAVSim once:
 - `cd ~/PX4-Autopilot-Identification/Tools/simulation/jmavsim/jMAVSim`
@@ -130,17 +132,19 @@ Start jMAVSim on USB:
 For a headless run:
 - `PX4_SYSID_HEADLESS=1 ~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600`
 
-Use the FTDI link for the same board-side `custom_pos_control` and `trajectory_reader` commands described elsewhere in this text, then start jMAVSim on USB for the actual HIL motion.
-
-The minimum board-side shell entry point is:
+Use QGroundControl in UDP-only mode after jMAVSim starts. If a board-side shell is also needed, use the FTDI link:
 - `python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600`
 
-For trajectory playback, `trajectory_reader set_mode trajectory` alone is not enough. Use at least:
-- `trajectory_reader set_mode position`
-- `trajectory_reader abs_ref 0 0 -3 0`
-- `trajectory_reader set_traj_anchor 0 0 -3`
-- `trajectory_reader set_traj_id 100`
-- `trajectory_reader set_mode trajectory`
+The practical HIL order is:
+1. connect CubeOrange over USB, and FTDI only if a shell is needed,
+2. start jMAVSim on `ttyACM0`,
+3. open QGroundControl with only UDP auto-connect enabled,
+4. set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`,
+5. arm and take off to about `3 m`,
+6. switch to `OFFBOARD`,
+7. set `TRJ_ACTIVE_ID` to `100..104`,
+8. set `TRJ_MODE_CMD = 1` to start the selected trajectory,
+9. set `TRJ_MODE_CMD = 0` to return to position-hold.
 
 PX4 console behavior during a maneuver
 --------------------------------------
@@ -169,7 +173,7 @@ Two small helper scripts are now part of the repository:
 - `~/px4-system-identification/examples/run_repo_smoke_test.sh`
   - runs the shipped repository tests and confirms the documentation state, validation-trajectory generator, and figure-generation pipeline.
 - `~/px4-system-identification/examples/refresh_demo_assets.sh ~/PX4-Autopilot-Identification`
-  - regenerates the five validation trajectories,
+  - installs the five shipped validation trajectories into the PX4 workspace,
   - rebuilds the shipped Stage-1 proxy inputs,
   - regenerates the current figure set,
   - updates `examples/paper_assets/paper_validation_summary.json`.
@@ -389,19 +393,23 @@ The repository uses five validation trajectories:
 - `time_optimal_30s`
 - `minimum_snap_50s`
 
-These are intentionally defined so that the logged mission segment:
-- starts from the same XY point,
-- starts from the same altitude (`3 m`, meaning `z = -3` in NED),
-- returns to the same logged start pose.
+The shipped binary files are:
+- `id_100.traj`: `hairpin`, nominally `23 s`
+- `id_101.traj`: `lemniscate`, nominally `19 s`
+- `id_102.traj`: `circle`, nominally `15 s`
+- `id_103.traj`: `time_optimal_30s`, nominally `11 s`
+- `id_104.traj`: `minimum_snap_50s`, nominally `14 s`
+
+These files are used as-is across SITL, HITL, and figure generation. The repository does not synthesize replacement validation trajectories anymore.
 
 Operational rule for both SITL and real flight:
 1. take off and stabilize at about `3 m`,
-2. move to the common start pose,
-3. begin logging only after the vehicle reaches that pose,
+2. keep the common anchor at `(0, 0, -3)` in local NED,
+3. begin logging only after the vehicle reaches a stable hover near that anchor,
 4. execute the trajectory,
-5. return to hover.
+5. return to hover if another trajectory will follow.
 
-This design makes trajectory overlays meaningful because the logged segments share the same spatial reference.
+This keeps the overlays meaningful because all runs still use the same anchor and reference frame, even though the shipped trajectories do not all return to the start point.
 
 Two-stage paper result flow
 ---------------------------
@@ -517,11 +525,11 @@ Current upper-bound model score:
   - motor dynamics: `100.00`
 
 Current Stage-1 trajectory RMSE values, blue-side stock SITL proxy vs orange-side digital twin SITL:
-- `hairpin`: `0.112 m` vs `0.068 m`
-- `lemniscate`: `0.053 m` vs `0.026 m`
-- `circle`: `0.068 m` vs `0.031 m`
-- `time_optimal_30s`: `0.112 m` vs `0.068 m`
-- `minimum_snap_50s`: `0.072 m` vs `0.069 m`
+- `hairpin`: `0.451 m` vs `0.150 m`
+- `lemniscate`: `0.336 m` vs `0.113 m`
+- `circle`: `0.438 m` vs `0.111 m`
+- `time_optimal_30s`: `0.644 m` vs `0.450 m`
+- `minimum_snap_50s`: `0.597 m` vs `0.341 m`
 
 Current Stage-2 mean similarity values:
 - payload mass vs Z offset: `64.09%`

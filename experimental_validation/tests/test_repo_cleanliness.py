@@ -14,6 +14,7 @@ HITL_SMOKE_SCRIPT = REPO_ROOT / "examples" / "hitl_shell_smoke.py"
 HITL_SMOKE_RUNNER = REPO_ROOT / "examples" / "run_hitl_smoke_test.sh"
 JMAVSIM_HITL_RUNNER = REPO_ROOT / "examples" / "start_jmavsim_hitl.sh"
 LATEST_CANDIDATE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_latest_x500_candidate.py"
+TRAJECTORY_ASSET_DIR = REPO_ROOT / "assets" / "validation_trajectories"
 
 
 class RepoCleanlinessTests(unittest.TestCase):
@@ -61,6 +62,11 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("MAX_HORIZON", content)
         self.assertIn("position_x", content)
 
+    def test_shipped_validation_trajectories_exist(self) -> None:
+        self.assertTrue(TRAJECTORY_ASSET_DIR.exists())
+        for traj_id in range(100, 105):
+            self.assertTrue((TRAJECTORY_ASSET_DIR / f"id_{traj_id}.traj").exists())
+
     def test_sync_script_patches_msg_cmakelists(self) -> None:
         content = SYNC_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("patch_msg_cmake", content)
@@ -99,6 +105,7 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn('DEVICE="${2:-/dev/ttyACM0}"', jmavsim_runner)
         self.assertIn('BAUDRATE="${3:-921600}"', jmavsim_runner)
         self.assertIn("PX4_SYSID_HEADLESS", jmavsim_runner)
+        self.assertIn("already open", jmavsim_runner)
         self.assertIn("jmavsim_run.sh", jmavsim_runner)
         latest_candidate_content = LATEST_CANDIDATE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("REQUIRED_PROFILES", latest_candidate_content)
@@ -154,6 +161,12 @@ class RepoCleanlinessTests(unittest.TestCase):
         content = SYNC_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("CONFIG_MODULES_SIMULATION_PWM_OUT_SIM=y", content)
 
+    def test_trajectory_reader_keeps_hold_setpoints_alive_before_offboard(self) -> None:
+        content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")
+        self.assertIn("publishHoldPositionSetpoint", content)
+        self.assertIn("Keep a hold reference streaming while armed so OFFBOARD can latch cleanly", content)
+        self.assertIn("even if the operator has already selected TRAJECTORY or IDENTIFICATION mode", content)
+
     def test_readme_mentions_jmavsim_only_in_hitl_section(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         hitl_header = "7. HIL/HITL on CubeOrange with jMAVSim"
@@ -161,10 +174,10 @@ class RepoCleanlinessTests(unittest.TestCase):
         before_hitl, after_hitl = readme.split(hitl_header, maxsplit=1)
         self.assertNotIn("jMAVSim", before_hitl)
         self.assertIn("/dev/ttyACM0 921600", after_hitl)
-        self.assertIn("ttyUSB0", after_hitl)
-        self.assertIn("do not let QGroundControl and jMAVSim open the same `ttyACM0` device", after_hitl)
+        self.assertIn("QGroundControl", after_hitl)
         self.assertIn("Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600", after_hitl)
-        self.assertIn("trajectory_reader set_traj_anchor 0 0 -3", after_hitl)
+        self.assertIn("TRJ_ACTIVE_ID", after_hitl)
+        self.assertIn("TRJ_MODE_CMD = 1", after_hitl)
 
 
 if __name__ == "__main__":

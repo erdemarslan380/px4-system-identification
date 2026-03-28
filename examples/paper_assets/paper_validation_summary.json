@@ -17,9 +17,9 @@
           "com_z": 0.01,
           "tau_scale": 1.02
         },
-        "stock_sitl_proxy_rmse_m": 0.11156136424123274,
-        "digital_twin_rmse_m": 0.06797351553546424,
-        "stock_proxy_vs_twin_rmse_m": 0.06886447190021136,
+        "stock_sitl_proxy_rmse_m": 0.45080914312605364,
+        "digital_twin_rmse_m": 0.15049567932076988,
+        "stock_proxy_vs_twin_rmse_m": 0.30075276210906193,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_reference.csv",
           "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/hairpin_stock_sitl_proxy.csv",
@@ -33,9 +33,9 @@
           "com_z": 0.01,
           "tau_scale": 1.02
         },
-        "stock_sitl_proxy_rmse_m": 0.05312140873458334,
-        "digital_twin_rmse_m": 0.02566324120403864,
-        "stock_proxy_vs_twin_rmse_m": 0.029030628025988926,
+        "stock_sitl_proxy_rmse_m": 0.33568207373705555,
+        "digital_twin_rmse_m": 0.11274907045416532,
+        "stock_proxy_vs_twin_rmse_m": 0.2235692917813588,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_reference.csv",
           "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/lemniscate_stock_sitl_proxy.csv",
@@ -49,9 +49,9 @@
           "com_x": 0.01,
           "com_y": -0.01
         },
-        "stock_sitl_proxy_rmse_m": 0.06823730091535958,
-        "digital_twin_rmse_m": 0.031237896624319427,
-        "stock_proxy_vs_twin_rmse_m": 0.03817421985378351,
+        "stock_sitl_proxy_rmse_m": 0.43773469454758024,
+        "digital_twin_rmse_m": 0.11095367727138805,
+        "stock_proxy_vs_twin_rmse_m": 0.3272980391788805,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_reference.csv",
           "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/circle_stock_sitl_proxy.csv",
@@ -67,9 +67,9 @@
           "com_z": 0.03,
           "tau_scale": 1.04
         },
-        "stock_sitl_proxy_rmse_m": 0.11168321297927904,
-        "digital_twin_rmse_m": 0.06783072143382624,
-        "stock_proxy_vs_twin_rmse_m": 0.06583718996703156,
+        "stock_sitl_proxy_rmse_m": 0.6435852308540921,
+        "digital_twin_rmse_m": 0.4501708102729711,
+        "stock_proxy_vs_twin_rmse_m": 0.43996760157608766,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_reference.csv",
           "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/time_optimal_30s_stock_sitl_proxy.csv",
@@ -85,9 +85,9 @@
           "com_z": 0.02,
           "arm_scale": 1.01
         },
-        "stock_sitl_proxy_rmse_m": 0.07198607485451614,
-        "digital_twin_rmse_m": 0.06854698911246941,
-        "stock_proxy_vs_twin_rmse_m": 0.013621424174989925,
+        "stock_sitl_proxy_rmse_m": 0.5970834457936107,
+        "digital_twin_rmse_m": 0.3410787476180977,
+        "stock_proxy_vs_twin_rmse_m": 0.4693396456532323,
         "csv": {
           "reference": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_reference.csv",
           "stock_sitl_proxy": "/home/earsub/px4-system-identification/examples/paper_assets/data/minimum_snap_50s_stock_sitl_proxy.csv",

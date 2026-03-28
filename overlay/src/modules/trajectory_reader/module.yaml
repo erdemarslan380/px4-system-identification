@@ -45,3 +45,41 @@ parameters:
         min: 0
         max: 8
         default: 0
+
+      TRJ_MODE_CMD:
+        description:
+          short: Active trajectory reader mode
+        type: enum
+        values:
+          0: Position
+          1: Trajectory
+          2: Identification
+        min: 0
+        max: 2
+        default: 0
+
+      TRJ_ACTIVE_ID:
+        description:
+          short: Active trajectory id
+        type: int32
+        min: 0
+        max: 255
+        default: 100
+
+      TRJ_ANCHOR_X:
+        description:
+          short: Trajectory anchor X in local NED
+        type: float
+        default: 0.0
+
+      TRJ_ANCHOR_Y:
+        description:
+          short: Trajectory anchor Y in local NED
+        type: float
+        default: 0.0
+
+      TRJ_ANCHOR_Z:
+        description:
+          short: Trajectory anchor Z in local NED
+        type: float
+        default: -3.0

@@ -6,18 +6,21 @@ import unittest
 from pathlib import Path
 
 from experimental_validation.paper_artifacts import COMMON_LOGGED_START, DEFAULT_TRAJECTORIES, _trajectory_reference, generate_paper_artifacts
+from experimental_validation.trajectory_catalog import validation_trajectory_case_map
 
 
 class PaperArtifactsTests(unittest.TestCase):
     def test_all_validation_trajectories_share_a_common_logged_start_pose(self) -> None:
+        shipped = validation_trajectory_case_map()
         for case in DEFAULT_TRAJECTORIES:
-            _, x_ref, y_ref, z_ref = _trajectory_reference(case, samples=240)
+            t_ref, x_ref, y_ref, z_ref = _trajectory_reference(case, samples=240)
             self.assertAlmostEqual(float(x_ref[0]), COMMON_LOGGED_START[0], places=6)
             self.assertAlmostEqual(float(y_ref[0]), COMMON_LOGGED_START[1], places=6)
             self.assertAlmostEqual(float(z_ref[0]), COMMON_LOGGED_START[2], places=6)
-            self.assertAlmostEqual(float(x_ref[-1]), COMMON_LOGGED_START[0], delta=0.12)
-            self.assertAlmostEqual(float(y_ref[-1]), COMMON_LOGGED_START[1], delta=0.12)
-            self.assertAlmostEqual(float(z_ref[-1]), COMMON_LOGGED_START[2], delta=0.12)
+            self.assertAlmostEqual(float(t_ref[-1]), shipped[case.name].nominal_duration_s, places=6)
+            self.assertTrue(abs(float(x_ref[-1])) < 20.0)
+            self.assertTrue(abs(float(y_ref[-1])) < 20.0)
+            self.assertTrue(-10.0 < float(z_ref[-1]) < 2.0)
 
     def test_generate_paper_artifacts_creates_expected_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

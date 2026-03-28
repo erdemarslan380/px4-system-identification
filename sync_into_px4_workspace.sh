@@ -44,11 +44,56 @@ required = [
     'CONFIG_MODULES_TRAJECTORY_READER=y',
     'CONFIG_MODULES_SIMULATION_PWM_OUT_SIM=y',
 ]
+disabled = [
+    'CONFIG_DRIVERS_ADC_ADS1115',
+    'CONFIG_DRIVERS_BATT_SMBUS',
+    'CONFIG_DRIVERS_CAMERA_CAPTURE',
+    'CONFIG_DRIVERS_CAMERA_TRIGGER',
+    'CONFIG_COMMON_DIFFERENTIAL_PRESSURE',
+    'CONFIG_DRIVERS_GNSS_SEPTENTRIO',
+    'CONFIG_DRIVERS_IMU_ANALOG_DEVICES_ADIS16448',
+    'CONFIG_DRIVERS_IRLOCK',
+    'CONFIG_DRIVERS_PCA9685_PWM_OUT',
+    'CONFIG_DRIVERS_POWER_MONITOR_INA226',
+    'CONFIG_DRIVERS_PWM_INPUT',
+    'CONFIG_DRIVERS_SMART_BATTERY_BATMON',
+    'CONFIG_DRIVERS_TRANSPONDER_SAGETECH_MXS',
+    'CONFIG_DRIVERS_UAVCAN',
+    'CONFIG_MODULES_AIRSPEED_SELECTOR',
+    'CONFIG_MODULES_CAMERA_FEEDBACK',
+    'CONFIG_MODULES_ESC_BATTERY',
+    'CONFIG_MODULES_FW_ATT_CONTROL',
+    'CONFIG_MODULES_FW_AUTOTUNE_ATTITUDE_CONTROL',
+    'CONFIG_MODULES_FW_MODE_MANAGER',
+    'CONFIG_MODULES_FW_LATERAL_LONGITUDINAL_CONTROL',
+    'CONFIG_MODULES_FW_RATE_CONTROL',
+    'CONFIG_MODULES_GIMBAL',
+    'CONFIG_MODULES_LANDING_TARGET_ESTIMATOR',
+    'CONFIG_MODULES_MC_AUTOTUNE_ATTITUDE_CONTROL',
+    'CONFIG_MODULES_UXRCE_DDS_CLIENT',
+    'CONFIG_MODULES_VTOL_ATT_CONTROL',
+    'CONFIG_SYSTEMCMDS_BL_UPDATE',
+    'CONFIG_SYSTEMCMDS_BSONDUMP',
+    'CONFIG_SYSTEMCMDS_HARDFAULT_LOG',
+    'CONFIG_SYSTEMCMDS_I2CDETECT',
+    'CONFIG_SYSTEMCMDS_MFT',
+]
 changed = False
 for line in required:
     if line not in text:
         text = text.rstrip() + '\n' + line + '\n'
         changed = True
+
+for symbol in disabled:
+    enabled_line = f'{symbol}=y'
+    disabled_line = f'# {symbol} is not set'
+    if enabled_line in text:
+        text = text.replace(enabled_line, disabled_line)
+        changed = True
+    elif disabled_line not in text:
+        text = text.rstrip() + '\n' + disabled_line + '\n'
+        changed = True
+
 if changed:
     path.write_text(text, encoding='utf-8')
 PY

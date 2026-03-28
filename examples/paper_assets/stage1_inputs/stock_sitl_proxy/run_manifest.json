@@ -5,7 +5,7 @@
     {
       "traj_id": 100,
       "name": "hairpin",
-      "duration_s": 28.0,
+      "duration_s": 23.0,
       "scenario": {
         "payload_mass": 0.12,
         "com_z": 0.01,
@@ -17,7 +17,7 @@
     {
       "traj_id": 101,
       "name": "lemniscate",
-      "duration_s": 30.0,
+      "duration_s": 19.0,
       "scenario": {
         "payload_mass": 0.1,
         "com_z": 0.01,
@@ -29,7 +29,7 @@
     {
       "traj_id": 102,
       "name": "circle",
-      "duration_s": 30.0,
+      "duration_s": 15.0,
       "scenario": {
         "payload_mass": 0.14,
         "com_x": 0.01,
@@ -41,7 +41,7 @@
     {
       "traj_id": 103,
       "name": "time_optimal_30s",
-      "duration_s": 30.0,
+      "duration_s": 11.0,
       "scenario": {
         "payload_mass": 0.24,
         "com_x": 0.02,
@@ -55,7 +55,7 @@
     {
       "traj_id": 104,
       "name": "minimum_snap_50s",
-      "duration_s": 50.0,
+      "duration_s": 14.0,
       "scenario": {
         "payload_mass": 0.18,
         "com_x": 0.01,
