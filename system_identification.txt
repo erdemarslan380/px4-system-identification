@@ -94,10 +94,11 @@ The same overlay can be built for CubeOrange in the dedicated PX4 tree.
 2. Build the hardware target:
    - `cd ~/PX4-Autopilot-Identification`
    - `make cubepilot_cubeorange_default`
-   - `make cubepilot_cubeorange_default upload`
 3. The firmware artifact is:
    - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
-4. With the CubeOrange connected over USB, either upload directly with `make cubepilot_cubeorange_default upload` or flash that `.px4` file from QGroundControl.
+4. With the CubeOrange connected over USB, upload with:
+   - `python3 ~/px4-system-identification/examples/upload_cubeorange_firmware.py`
+   This helper targets `/dev/ttyACM0` and reduces the bootloader write chunk size to a value that completed reliably on the connected CubeOrange.
 5. The same `custom_pos_control` and `trajectory_reader` shell commands described in this text are then used for hardware identification sorties and later validation flights.
 6. If another board is used, replace the board file path and the build/upload target consistently for that board.
 
@@ -112,15 +113,18 @@ and creates the two hardware log roots:
 - `/fs/microsd/tracking_logs/`
 - `/fs/microsd/identification_logs/`
 
+The current CubeOrange build footprint is now much lighter than before:
+- flash use is about `74.9%`
+- each CSV is flushed and closed when a run ends, so consecutive profiles or trajectories are intended to work in the same boot session without rebooting PX4
+
 CubeOrange HIL/HITL check with jMAVSim
 --------------------------------------
 Use jMAVSim only in the HIL section of the workflow. The verified cable split on this machine is:
-- USB `ttyACM0`: jMAVSim serial link
+- USB `ttyACM0`: jMAVSim serial link and pre-HITL MAVLink access
 - QGroundControl: UDP only
-- FTDI `ttyUSB0`: optional board-side MAVLink shell link
 
 Important:
-- do not let QGroundControl, `mavlink_shell.py`, and jMAVSim open the same serial device at the same time,
+- do not let QGroundControl and jMAVSim open the same serial device at the same time,
 - the `newPosition > limit` jMAVSim exception is a corrupted serial-stream symptom, usually caused by two processes sharing one port.
 - during firmware upload, close jMAVSim, QGroundControl, and any MAVLink shell before talking to the board bootloader.
 
@@ -143,24 +147,27 @@ Start jMAVSim on USB:
 For a headless run:
 - `PX4_SYSID_HEADLESS=1 ~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600`
 
-Use QGroundControl in UDP-only mode after jMAVSim starts. If a board-side shell is also needed, use the FTDI link:
-- `python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600`
+Before jMAVSim starts, use the USB MAVLink shell for the short SD-card pre-check:
+- `python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyACM0 -b 57600`
+- then run:
+  - `ls /fs/microsd`
+  - `ls /fs/microsd/trajectories`
+  - `free`
+Use QGroundControl in UDP-only mode after jMAVSim starts.
 
 The practical HIL order is:
-1. connect CubeOrange over USB, and FTDI only if a shell is needed,
-2. start jMAVSim on `ttyACM0`,
-3. open QGroundControl with only UDP auto-connect enabled,
-4. set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`,
-5. arm and take off to about `3 m`,
-6. switch to `OFFBOARD`,
-7. set `TRJ_ACTIVE_ID` to `100..104`,
-8. set `TRJ_MODE_CMD = 1` to start the selected trajectory,
-9. set `TRJ_MODE_CMD = 0` to return to position-hold.
+1. connect CubeOrange over USB,
+2. run the short USB pre-check above,
+3. start jMAVSim on `ttyACM0`,
+4. open QGroundControl with only UDP auto-connect enabled,
+5. set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`,
+6. arm and take off to about `3 m`,
+7. switch to `OFFBOARD`,
+8. set `TRJ_ACTIVE_ID` to `100..104`,
+9. set `TRJ_MODE_CMD = 1` to start the selected trajectory,
+10. set `TRJ_MODE_CMD = 0` to return to position-hold.
 
-Before commanding a hardware trajectory, verify from the MAVLink shell that the SD card is visible:
-- `ls /fs/microsd`
-- `ls /fs/microsd/trajectories`
-- `free`
+Before commanding a hardware trajectory, verify from the USB MAVLink pre-check that the SD card is visible.
 
 If the trajectory files are missing from `/fs/microsd/trajectories/`, hardware trajectory playback will not start.
 
@@ -217,6 +224,8 @@ Two small helper scripts are now part of the repository:
   - writes the comparison package into the requested output folder.
 - `~/px4-system-identification/examples/import_sdcard_logs.sh`
   - copies `tracking_logs/*.csv` and `identification_logs/*.csv` from a mounted SD card into a versionable folder inside this repository.
+- `~/px4-system-identification/examples/pull_sdcard_logs_over_mavftp.py`
+  - pulls `tracking_logs/*.csv` and `identification_logs/*.csv` over the live FTDI/MAVLink connection without removing the SD card.
 - `~/px4-system-identification/experimental_validation/build_hitl_review_bundle.py`
   - builds a static HTML review bundle with a zoomable and pannable 3D path plot, X/Y/Z versus time plots, summary metrics, and raw CSV copies.
 

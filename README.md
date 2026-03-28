@@ -44,13 +44,19 @@ cd ~/px4-system-identification
 
 cd ~/PX4-Autopilot-Identification
 make cubepilot_cubeorange_default
-make cubepilot_cubeorange_default upload
 ```
 
 Build output:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
-With the CubeOrange connected over USB, you can either upload directly from the terminal with `make cubepilot_cubeorange_default upload` or load the `.px4` file from QGroundControl.
+With the CubeOrange connected over USB, upload from the terminal with:
+
+```bash
+cd ~/px4-system-identification
+python3 examples/upload_cubeorange_firmware.py
+```
+
+This helper targets `/dev/ttyACM0` directly and uses a smaller CubeOrange-safe bootloader write size.
 If you use a different flight controller, change both the board file path and the `make <board>_default` / `make <board>_default upload` target together.
 
 3. Prepare the SD card for HITL and real flights
@@ -267,14 +273,13 @@ Use jMAVSim only for the hardware-in-the-loop check.
 HITL cable layout for this repository:
 - USB `ttyACM0`: jMAVSim serial link
 - UDP: QGroundControl
-- FTDI `ttyUSB0`: optional MAVLink shell / telemetry side link
 
 Important:
 - start jMAVSim before opening QGroundControl,
 - in QGroundControl allow only `UDP` auto-connect during HITL,
 - do not let QGroundControl and jMAVSim fight over the same serial device,
 - close jMAVSim, QGroundControl, and any MAVLink shell before running a firmware upload,
-- if FTDI is connected during firmware upload, prefer a direct uploader command that targets the CubeOrange USB device.
+- use the repository uploader helper for CubeOrange USB flashing.
 
 Build jMAVSim once in the dedicated PX4 tree:
 
@@ -290,6 +295,7 @@ Set the board to the HIL quadrotor airframe once in QGroundControl:
 This repository was checked with:
 - `pwm_out_sim` active in HIL mode,
 - `HIL_ACT_FUNC1..4 = 101..104`,
+- CubeOrange flash use reduced to about `74.9%`,
 - CubeOrange memory still below full use during the HIL boot path.
 
 Before starting HITL, verify that the SD card already contains:
@@ -299,7 +305,13 @@ Before starting HITL, verify that the SD card already contains:
 - `/fs/microsd/trajectories/id_103.traj`
 - `/fs/microsd/trajectories/id_104.traj`
 
-From the MAVLink shell, the short pre-check is:
+From the workstation, the short pre-check is:
+
+```bash
+python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyACM0 -b 57600
+```
+
+Then run:
 
 ```bash
 ls /fs/microsd
@@ -325,14 +337,8 @@ PX4_SYSID_HEADLESS=1 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identifica
 
 Open QGroundControl after jMAVSim starts and keep QGC in UDP mode only.
 
-If you want a board-side shell while jMAVSim is using USB, open it from the FTDI link:
-
-```bash
-python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600
-```
-
 For trajectory checks in HIL, the complete order is:
-1. connect CubeOrange over USB, and FTDI only if you also want a shell,
+1. connect CubeOrange over USB,
 2. start jMAVSim on `ttyACM0`,
 3. open QGroundControl and let it connect over UDP,
 4. set the airframe once:
@@ -359,13 +365,11 @@ If you want to test identification instead of the five validation trajectories:
 - set `TRJ_MODE_CMD = 2`
 - set `TRJ_IDENT_PROF` to the desired profile index
 
-During firmware upload, keep only the CubeOrange USB link active if possible. With FTDI connected, `make cubepilot_cubeorange_default upload` may probe the wrong serial device. The reliable direct upload form is:
+During firmware upload, keep only the CubeOrange USB link active if possible. The reliable form is:
 
 ```bash
-cd ~/PX4-Autopilot-Identification
-python3 Tools/px4_uploader.py \
-  --port /dev/serial/by-id/usb-CubePilot_CubeOrange_0-if00 \
-  build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4
+cd ~/px4-system-identification
+python3 examples/upload_cubeorange_firmware.py
 ```
 
 Tracking CSV files for SITL/HITL trajectory runs are written under:
@@ -447,10 +451,19 @@ cd ~/px4-system-identification
 ./examples/import_sdcard_logs.sh /media/$USER/<sdcard_mount_name> \
   ~/px4-system-identification/hitl_runs/session_001
 
+python3 examples/pull_sdcard_logs_over_mavftp.py \
+  --port /dev/ttyACM0 \
+  --baud 57600 \
+  --destination-dir ~/px4-system-identification/hitl_runs/session_001
+
 python3 experimental_validation/build_hitl_review_bundle.py \
   --log-root ~/px4-system-identification/hitl_runs/session_001 \
   --out-dir ~/px4-system-identification/hitl_runs/session_001/review
 ```
+
+Use only one import path per session:
+- mounted SD card: `import_sdcard_logs.sh`
+- live FTDI/MAVLink pull: `pull_sdcard_logs_over_mavftp.py`
 
 Open:
 - `~/px4-system-identification/hitl_runs/session_001/review/index.html`

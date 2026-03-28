@@ -13,16 +13,11 @@ cd ~/PX4-Autopilot-Identification
 make cubepilot_cubeorange_default
 ```
 
-With FTDI disconnected, you can upload from the terminal:
-- `make cubepilot_cubeorange_default upload`
-
-If FTDI stays connected, use the targeted uploader command:
+Upload from the terminal with:
 
 ```bash
-cd ~/PX4-Autopilot-Identification
-python3 Tools/px4_uploader.py \
-  --port /dev/serial/by-id/usb-CubePilot_CubeOrange_0-if00 \
-  build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4
+cd ~/px4-system-identification
+python3 examples/upload_cubeorange_firmware.py
 ```
 
 You can also flash this file from QGroundControl with the CubeOrange connected over USB:
@@ -107,6 +102,10 @@ Logs are written to:
 - `/fs/microsd/tracking_logs/`
 
 The current overlay flushes and closes each CSV when a maneuver finishes, so the next profile can be started in the same boot session without rebooting PX4.
+
+If you want to pull those CSV files over the live FTDI link instead of removing the SD card:
+- `python3 ~/px4-system-identification/examples/pull_sdcard_logs_over_mavftp.py --port /dev/ttyACM0 --baud 57600 --destination-dir ~/px4-system-identification/hitl_runs/session_001`
+- then run `python3 ~/px4-system-identification/experimental_validation/build_hitl_review_bundle.py --log-root ~/px4-system-identification/hitl_runs/session_001 --out-dir ~/px4-system-identification/hitl_runs/session_001/review`
 
 2. Validation trajectories on the real vehicle
 ----------------------------------------------

@@ -23,20 +23,15 @@ make cubepilot_cubeorange_default
 Firmware artifact:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
-With FTDI disconnected, upload from the terminal with:
-- `make cubepilot_cubeorange_default upload`
-
-If FTDI stays connected, use the targeted uploader:
+Upload from the terminal with the repository helper:
 
 ```bash
-cd ~/PX4-Autopilot-Identification
-python3 Tools/px4_uploader.py \
-  --port /dev/serial/by-id/usb-CubePilot_CubeOrange_0-if00 \
-  build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4
+cd ~/px4-system-identification
+python3 examples/upload_cubeorange_firmware.py
 ```
 
 If another board is used, replace the board file path and the build/upload target together.
-During upload, keep jMAVSim, QGroundControl, and any MAVLink shell closed so the bootloader port is not contested.
+During upload, keep jMAVSim, QGroundControl, and any shell tooling closed so the bootloader port is not contested.
 
 Before any hardware logging or HITL trajectory playback, prepare the SD card:
 
@@ -73,13 +68,10 @@ Main outputs
 Estimate one maneuver
 ---------------------
 ```bash
-LATEST_IDENT=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/*.csv | head -n 1)
-LATEST_TRUTH=$(ls -1t ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/*.csv | head -n 1)
-
 cd ~/px4-system-identification
 python3 experimental_validation/cli.py \
-  --csv "$LATEST_IDENT" \
-  --truth-csv "$LATEST_TRUTH" \
+  --csv ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/<one_profile>.csv \
+  --truth-csv ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/<matching_truth>.csv \
   --ident-log \
   --out-dir ~/px4-system-identification/experimental_validation/outputs/session_001
 ```
@@ -156,6 +148,11 @@ Build the browser review bundle:
 
 ```bash
 cd ~/px4-system-identification
+python3 examples/pull_sdcard_logs_over_mavftp.py \
+  --port /dev/ttyACM0 \
+  --baud 57600 \
+  --destination-dir ~/px4-system-identification/hitl_runs/session_001
+
 python3 experimental_validation/build_hitl_review_bundle.py \
   --log-root ~/px4-system-identification/hitl_runs/session_001 \
   --out-dir ~/px4-system-identification/hitl_runs/session_001/review
@@ -201,8 +198,13 @@ PX4_SYSID_HEADLESS=1 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identifica
 
 After jMAVSim starts, open QGroundControl in UDP-only mode.
 
-If you want a board-side shell, use FTDI:
+Use the USB MAVLink link for short NSH checks before starting jMAVSim:
 
 ```bash
-python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600
+python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyACM0 -b 57600
 ```
+
+Then run:
+- `ls /fs/microsd`
+- `ls /fs/microsd/trajectories`
+- `free`

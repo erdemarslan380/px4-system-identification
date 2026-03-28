@@ -128,11 +128,16 @@ Outputs:
 7. HIL/HITL quick order
 -----------------------
 - upload the CubeOrange firmware first
-- keep `jMAVSim`, `QGroundControl`, and `mavlink_shell.py` closed during upload
+- keep `jMAVSim`, `QGroundControl`, and any shell tool closed during upload
 - start `jMAVSim` on USB `ttyACM0`
 - open QGroundControl in UDP-only mode
-- if a shell is needed, use FTDI `ttyUSB0`
 - check that `/fs/microsd/trajectories/id_100..104.traj` is present before commanding a trajectory
+
+Firmware upload:
+```bash
+cd ~/px4-system-identification
+python3 examples/upload_cubeorange_firmware.py
+```
 
 jMAVSim:
 ```bash
@@ -140,12 +145,12 @@ cd ~/px4-system-identification
 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
 ```
 
-Optional shell:
+Pre-check over USB MAVLink:
 ```bash
-python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600
+python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyACM0 -b 57600
 ```
 
-Quick SD card check from that shell:
+Then run:
 ```bash
 ls /fs/microsd
 ls /fs/microsd/trajectories
@@ -159,10 +164,17 @@ cd ~/px4-system-identification
 ./examples/import_sdcard_logs.sh /media/$USER/<sdcard_mount_name> \
   ~/px4-system-identification/hitl_runs/session_001
 
+python3 examples/pull_sdcard_logs_over_mavftp.py \
+  --port /dev/ttyACM0 \
+  --baud 57600 \
+  --destination-dir ~/px4-system-identification/hitl_runs/session_001
+
 python3 experimental_validation/build_hitl_review_bundle.py \
   --log-root ~/px4-system-identification/hitl_runs/session_001 \
   --out-dir ~/px4-system-identification/hitl_runs/session_001/review
 ```
+
+Use the mounted-SD script or the MAVFTP pull script for a given session, not both.
 
 Open:
 - `~/px4-system-identification/hitl_runs/session_001/review/index.html`

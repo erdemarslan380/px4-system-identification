@@ -15,6 +15,9 @@ HITL_SMOKE_RUNNER = REPO_ROOT / "examples" / "run_hitl_smoke_test.sh"
 JMAVSIM_HITL_RUNNER = REPO_ROOT / "examples" / "start_jmavsim_hitl.sh"
 PREPARE_SDCARD_SCRIPT = REPO_ROOT / "examples" / "prepare_sdcard_payload.sh"
 IMPORT_SDCARD_LOGS_SCRIPT = REPO_ROOT / "examples" / "import_sdcard_logs.sh"
+PULL_SDCARD_LOGS_OVER_MAVFTP_SCRIPT = REPO_ROOT / "examples" / "pull_sdcard_logs_over_mavftp.py"
+UPLOAD_CUBEORANGE_SCRIPT = REPO_ROOT / "examples" / "upload_cubeorange_firmware.py"
+PX4_NSH_RUNNER_SCRIPT = REPO_ROOT / "examples" / "px4_nsh_runner.py"
 LATEST_CANDIDATE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_latest_x500_candidate.py"
 HITL_REVIEW_BUNDLE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_hitl_review_bundle.py"
 TRAJECTORY_ASSET_DIR = REPO_ROOT / "assets" / "validation_trajectories"
@@ -94,6 +97,7 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertTrue(JMAVSIM_HITL_RUNNER.exists())
         self.assertTrue(PREPARE_SDCARD_SCRIPT.exists())
         self.assertTrue(IMPORT_SDCARD_LOGS_SCRIPT.exists())
+        self.assertTrue(PULL_SDCARD_LOGS_OVER_MAVFTP_SCRIPT.exists())
         self.assertTrue(LATEST_CANDIDATE_SCRIPT.exists())
         self.assertTrue(HITL_REVIEW_BUNDLE_SCRIPT.exists())
         refresh_content = REFRESH_DEMO_SCRIPT.read_text(encoding="utf-8")
@@ -127,6 +131,10 @@ class RepoCleanlinessTests(unittest.TestCase):
         import_sdcard = IMPORT_SDCARD_LOGS_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("hitl_runs", import_sdcard)
         self.assertIn("tracking_logs", import_sdcard)
+        pull_sdcard = PULL_SDCARD_LOGS_OVER_MAVFTP_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("/fs/microsd/tracking_logs", pull_sdcard)
+        self.assertIn("/fs/microsd/identification_logs", pull_sdcard)
+        self.assertIn("wait_heartbeat", pull_sdcard)
         hitl_review = HITL_REVIEW_BUNDLE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("Plotly.newPlot('plot3d'", hitl_review)
         self.assertIn("tracking_logs", hitl_review)
@@ -143,7 +151,7 @@ class RepoCleanlinessTests(unittest.TestCase):
             content = doc.read_text(encoding="utf-8")
             self.assertIn("boards/cubepilot/cubeorange/default.px4board", content, msg=f"missing CubeOrange board sync in {doc}")
             self.assertIn("make cubepilot_cubeorange_default", content, msg=f"missing CubeOrange build command in {doc}")
-            self.assertIn("make cubepilot_cubeorange_default upload", content, msg=f"missing CubeOrange upload command in {doc}")
+            self.assertIn("upload_cubeorange_firmware.py", content, msg=f"missing CubeOrange upload helper in {doc}")
 
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4", readme)
@@ -198,7 +206,7 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertNotIn("jMAVSim", before_hitl)
         self.assertIn("/dev/ttyACM0 921600", after_hitl)
         self.assertIn("QGroundControl", after_hitl)
-        self.assertIn("Tools/mavlink_shell.py /dev/ttyUSB0 -b 57600", after_hitl)
+        self.assertIn("Tools/mavlink_shell.py /dev/ttyACM0 -b 57600", after_hitl)
         self.assertIn("TRJ_ACTIVE_ID", after_hitl)
         self.assertIn("TRJ_MODE_CMD = 1", after_hitl)
 
@@ -214,6 +222,19 @@ class RepoCleanlinessTests(unittest.TestCase):
             self.assertIn("prepare_sdcard_payload.sh", content, msg=f"missing SD-card preparation flow in {doc}")
             self.assertIn("/fs/microsd/trajectories", content, msg=f"missing hardware trajectory path in {doc}")
             self.assertIn("build_hitl_review_bundle.py", content, msg=f"missing review bundle flow in {doc}")
+            self.assertIn("pull_sdcard_logs_over_mavftp.py", content, msg=f"missing MAVFTP pull flow in {doc}")
+
+    def test_hardware_helper_scripts_exist(self) -> None:
+        self.assertTrue(UPLOAD_CUBEORANGE_SCRIPT.exists())
+        self.assertTrue(PX4_NSH_RUNNER_SCRIPT.exists())
+
+        upload_content = UPLOAD_CUBEORANGE_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("PROG_MULTI_MAX = args.chunk_size", upload_content)
+        self.assertIn("/dev/ttyACM0", upload_content)
+
+        nsh_content = PX4_NSH_RUNNER_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("SERIAL_CONTROL_FLAG_EXCLUSIVE", nsh_content)
+        self.assertIn("nsh>", nsh_content)
 
 
 if __name__ == "__main__":
