@@ -85,6 +85,21 @@ Exact SITL execution flow
 5. Run one maneuver at a time and wait for completion before sending the next one.
 6. For a full truth-assisted x500 candidate, keep all nine maneuvers inside the same uninterrupted SITL session.
 
+CubeOrange hardware build
+-------------------------
+The same overlay can be built for CubeOrange in the dedicated PX4 tree.
+
+1. Sync the overlay with the CubeOrange board file:
+   - `~/px4-system-identification/sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification boards/cubepilot/cubeorange/default.px4board`
+2. Build the hardware target:
+   - `cd ~/PX4-Autopilot-Identification`
+   - `make cubepilot_cubeorange_default`
+3. The firmware artifact is:
+   - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
+4. With the CubeOrange connected over USB, flash that `.px4` file from QGroundControl.
+5. Use that same flashed firmware for the first USB-connected HIL/HITL checks.
+6. The same `custom_pos_control` and `trajectory_reader` shell commands described in this text are then used for hardware identification sorties and later validation flights.
+
 PX4 console behavior during a maneuver
 --------------------------------------
 The current implementation prints the operational state explicitly:

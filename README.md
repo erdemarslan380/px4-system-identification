@@ -31,7 +31,25 @@ cd ~/px4-system-identification
 ./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification
 ```
 
-2. Build and open Gazebo SITL
+2. Build for CubeOrange hardware
+--------------------------------
+For CubeOrange, resync once with the CubeOrange board file enabled:
+
+```bash
+cd ~/px4-system-identification
+./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification boards/cubepilot/cubeorange/default.px4board
+
+cd ~/PX4-Autopilot-Identification
+make cubepilot_cubeorange_default
+```
+
+Build output:
+- `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
+
+With the CubeOrange connected over USB, load that `.px4` file from QGroundControl when you want to flash the hardware build.
+Use this same firmware as the starting point for the first USB-connected HIL/HITL bring-up.
+
+3. Build and open Gazebo SITL
 -----------------------------
 ```bash
 cd ~/PX4-Autopilot-Identification
@@ -50,7 +68,7 @@ unset HEADLESS
 make px4_sitl gz_x500
 ```
 
-3. Generate and check the five validation trajectories
+4. Generate and check the five validation trajectories
 -----------------------------------------------------
 The repository already ships five validation trajectories. Regenerate them with:
 
@@ -80,7 +98,7 @@ All five:
 - start at `3 m` altitude,
 - return to the same logged start pose.
 
-4. Run the identification maneuvers in SITL
+5. Run the identification maneuvers in SITL
 -------------------------------------------
 In `pxh>`:
 ```bash
@@ -140,7 +158,7 @@ python3 experimental_validation/build_latest_x500_candidate.py \
   --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
 
-5. Run the five validation trajectories in SITL
+6. Run the five validation trajectories in SITL
 -----------------------------------------------
 Use the baseline PX4 controller path for the trajectory tests.
 
@@ -199,7 +217,7 @@ trajectory_reader set_mode trajectory
 Tracking CSV files for these runs are written under:
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/tracking_logs/`
 
-6. Refresh the figure package
+7. Refresh the figure package
 -----------------------------
 ```bash
 cd ~/px4-system-identification
@@ -210,8 +228,21 @@ Main outputs:
 - `~/px4-system-identification/examples/paper_assets/paper_validation_summary.json`
 - `~/px4-system-identification/examples/paper_assets/figures/`
 
-7. Real-flight use
+8. Real-flight use
 ------------------
+Before the first real-flight test on CubeOrange, build and flash the hardware firmware:
+
+```bash
+cd ~/px4-system-identification
+./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification boards/cubepilot/cubeorange/default.px4board
+
+cd ~/PX4-Autopilot-Identification
+make cubepilot_cubeorange_default
+```
+
+Flash this file from QGroundControl:
+- `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
+
 Use the same two phases on hardware.
 
 Phase A: identification
@@ -252,7 +283,7 @@ trajectory_reader set_mode trajectory
 A slightly longer sortie plan is here:
 - [real_flight_sorties.md](/home/earsub/px4-system-identification/examples/real_flight_sorties.md)
 
-8. Current shipped results and figures
+9. Current shipped results and figures
 --------------------------------------
 Current summary:
 - blended twin score: `100.00 / 100`

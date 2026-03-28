@@ -95,8 +95,8 @@ void TrajectoryReader::parametersUpdate() {
 	setParamMpcZVAutoUp(_param_mpc_z_v_auto_up.get());
 	_rc_select_enabled = _param_trj_rc_sel_en.get();
 	_rc_selector_channel = _param_trj_rc_sel_ch.get();
-	_rc_selector_max_traj_id = math::max(0, _param_trj_rc_max_id.get());
-	_ident_profile = static_cast<IdentificationProfile>(math::constrain(_param_trj_ident_prof.get(), 0, 8));
+	_rc_selector_max_traj_id = math::max<int32_t>(0, _param_trj_rc_max_id.get());
+	_ident_profile = static_cast<IdentificationProfile>(math::constrain<int32_t>(_param_trj_ident_prof.get(), 0, 8));
 }
 
 void TrajectoryReader::updateControllerTypeCache()
@@ -638,24 +638,13 @@ void TrajectoryReader::writeIdentificationLogSample(const matrix::Vector3f &curr
 		yaw = euler.psi();
 	}
 
-	char line[1536];
-	int line_len = 0;
-	const auto append = [&](const char *fmt, auto... values) -> bool {
-		if (line_len < 0 || line_len >= static_cast<int>(sizeof(line))) {
-			return false;
-		}
-		const int wrote = snprintf(line + line_len, sizeof(line) - line_len, fmt, values...);
-		if (wrote <= 0 || wrote >= static_cast<int>(sizeof(line) - line_len)) {
-			return false;
-		}
-		line_len += wrote;
-		return true;
+	const auto write_chunk = [&](const char *fmt, auto... values) -> bool {
+		return dprintf(_ident_log_fd, fmt, values...) >= 0;
 	};
 
-	if (!append(
+	if (!write_chunk(
 		"%llu,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
-		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
-		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,",
+		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,",
 		static_cast<unsigned long long>(now),
 		identProfileToString(_ident_profile),
 		static_cast<double>(_buffer[0].px),
@@ -683,7 +672,9 @@ void TrajectoryReader::writeIdentificationLogSample(const matrix::Vector3f &curr
 		static_cast<double>(yaw),
 		static_cast<double>(angular_velocity.xyz[0]),
 		static_cast<double>(angular_velocity.xyz[1]),
-		static_cast<double>(angular_velocity.xyz[2]),
+		static_cast<double>(angular_velocity.xyz[2]))
+		|| !write_chunk(
+		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,",
 		static_cast<double>(attitude_sp.q_d[0]),
 		static_cast<double>(attitude_sp.q_d[1]),
 		static_cast<double>(attitude_sp.q_d[2]),
@@ -699,10 +690,10 @@ void TrajectoryReader::writeIdentificationLogSample(const matrix::Vector3f &curr
 		static_cast<double>(rates_sp.thrust_body[2]),
 		static_cast<double>(actuator_motors.control[0]),
 		static_cast<double>(actuator_motors.control[1]),
-		static_cast<double>(actuator_motors.control[2]),
-		static_cast<double>(actuator_motors.control[3]))
-		|| !append(
-		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%s\n",
+		static_cast<double>(actuator_motors.control[2]))
+		|| !write_chunk(
+		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%s\n",
+		static_cast<double>(actuator_motors.control[3]),
 		esc_rpm[0],
 		esc_rpm[1],
 		esc_rpm[2],
@@ -717,12 +708,6 @@ void TrajectoryReader::writeIdentificationLogSample(const matrix::Vector3f &curr
 		esc_current[3],
 		static_cast<double>(hover.hover_thrust),
 		controllerTypeToString(_controller_type_cached))) {
-		PX4_ERR("Failed formatting identification log row");
-		stopIdentificationLog();
-		return;
-	}
-
-	if (write(_ident_log_fd, line, line_len) != line_len) {
 		PX4_ERR("Failed writing identification log row");
 		stopIdentificationLog();
 	}
@@ -743,7 +728,7 @@ void TrajectoryReader::updateRcSelections()
 	const float aux_value = readAuxChannel(manual_control, _rc_selector_channel);
 	const int slot_count = (_mode == Mode::IDENTIFICATION)
 		? 9
-		: math::max(1, _rc_selector_max_traj_id + 1);
+		: math::max<int32_t>(1, _rc_selector_max_traj_id + 1);
 	const int selection = quantizeAuxSelection(aux_value, slot_count);
 	if (selection < 0 || selection == _rc_selected_index) {
 		return;

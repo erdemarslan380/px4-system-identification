@@ -86,6 +86,21 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("REQUIRED_PROFILES", latest_candidate_content)
         self.assertIn("sysid_truth_logs", latest_candidate_content)
 
+    def test_primary_docs_cover_cubeorange_build_flow(self) -> None:
+        docs = [
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "system_identification.txt",
+            REPO_ROOT / "experimental_validation" / "README.md",
+            REPO_ROOT / "examples" / "real_flight_sorties.md",
+        ]
+        for doc in docs:
+            content = doc.read_text(encoding="utf-8")
+            self.assertIn("boards/cubepilot/cubeorange/default.px4board", content, msg=f"missing CubeOrange board sync in {doc}")
+            self.assertIn("make cubepilot_cubeorange_default", content, msg=f"missing CubeOrange build command in {doc}")
+
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4", readme)
+
     def test_modules_use_module_yaml_instead_of_legacy_param_sources(self) -> None:
         modules = ("custom_pos_control", "trajectory_reader")
         for module_name in modules:
@@ -102,6 +117,18 @@ class RepoCleanlinessTests(unittest.TestCase):
         content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")
         self.assertNotIn("Always reset to POSITION mode on OFFBOARD entry", content)
         self.assertIn("Preserve the selected workflow across OFFBOARD entry.", content)
+
+    def test_trajectory_reader_uses_explicit_integer_types_for_rc_selector_bounds(self) -> None:
+        content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")
+        self.assertIn("math::max<int32_t>(0, _param_trj_rc_max_id.get())", content)
+        self.assertIn("math::max<int32_t>(1, _rc_selector_max_traj_id + 1)", content)
+        self.assertIn("math::constrain<int32_t>(_param_trj_ident_prof.get(), 0, 8)", content)
+
+    def test_trajectory_reader_uses_chunked_identification_log_writes_for_nuttx(self) -> None:
+        content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")
+        self.assertIn("const auto write_chunk = [&](const char *fmt, auto... values) -> bool {", content)
+        self.assertIn("dprintf(_ident_log_fd, fmt, values...)", content)
+        self.assertNotIn("char line[1536]", content)
 
 
 if __name__ == "__main__":

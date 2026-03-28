@@ -8,6 +8,23 @@ Default workspace assumptions
 - PX4 tree: `~/PX4-Autopilot-Identification`
 - repository: `~/px4-system-identification`
 
+CubeOrange build for hardware logging
+-------------------------------------
+If you want to run the same identification flow on CubeOrange hardware, first sync the overlay with the CubeOrange board file and build the hardware target:
+
+```bash
+cd ~/px4-system-identification
+./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification boards/cubepilot/cubeorange/default.px4board
+
+cd ~/PX4-Autopilot-Identification
+make cubepilot_cubeorange_default
+```
+
+Firmware artifact:
+- `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
+
+Use this same firmware for the first USB-connected HIL/HITL check.
+
 Fastest way to refresh the shipped demo package
 -----------------------------------------------
 ```bash

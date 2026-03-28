@@ -1,6 +1,23 @@
 Real-flight trajectory and identification plan
 =============================================
 
+CubeOrange firmware build
+-------------------------
+Build the hardware firmware in the dedicated workspace before the flight day:
+
+```bash
+cd ~/px4-system-identification
+./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification boards/cubepilot/cubeorange/default.px4board
+
+cd ~/PX4-Autopilot-Identification
+make cubepilot_cubeorange_default
+```
+
+Flash this file from QGroundControl with the CubeOrange connected over USB:
+- `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
+
+Keep this same firmware on the board for the first USB-connected HIL/HITL check.
+
 Use one calm day and keep the same simple rule in every sortie:
 - manual takeoff,
 - stabilize at about `3 m`,
