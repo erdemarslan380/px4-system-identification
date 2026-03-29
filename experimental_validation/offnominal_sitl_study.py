@@ -492,6 +492,41 @@ def _trajectory_rmse(ref: np.ndarray, pos: np.ndarray) -> tuple[float, np.ndarra
     return float(np.sqrt(np.mean(sq))), np.sqrt(sq)
 
 
+def _runaway_cutoff_index(
+    ref: np.ndarray,
+    pos: np.ndarray,
+    *,
+    z_error_threshold_m: float = 6.0,
+    consecutive_samples: int = 12,
+) -> int:
+    if len(ref) == 0 or len(pos) == 0:
+        return 0
+
+    usable = min(len(ref), len(pos))
+    z_error = np.abs(pos[:usable, 2] - ref[:usable, 2])
+    run = 0
+
+    for idx, value in enumerate(z_error):
+        if value > z_error_threshold_m:
+            run += 1
+            if run >= consecutive_samples:
+                return max(1, idx - consecutive_samples + 1)
+        else:
+            run = 0
+
+    return usable
+
+
+def _trim_triplet(ref: np.ndarray, stock: np.ndarray, real: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    usable = min(len(ref), len(stock), len(real))
+    cutoff = min(
+        _runaway_cutoff_index(ref[:usable], stock[:usable]),
+        _runaway_cutoff_index(ref[:usable], real[:usable]),
+    )
+    cutoff = max(1, cutoff)
+    return ref[:cutoff], stock[:cutoff], real[:cutoff]
+
+
 def _set_axes_equal(ax: plt.Axes, points: np.ndarray) -> None:
     mins = points.min(axis=0)
     maxs = points.max(axis=0)
@@ -527,25 +562,31 @@ def build_offnominal_figures(
 
     for figure_index, cases in enumerate(PANEL_GROUPS, start=1):
         cols = len(cases)
-        fig = plt.figure(figsize=(6.2 * cols + 1.7, 6.0), layout="constrained")
-        axes = [fig.add_subplot(1, cols, idx + 1, projection="3d") for idx in range(cols)]
+        width_ratios = [1.0] * cols + [0.24, 0.07]
+        fig = plt.figure(figsize=(5.8 * cols + 2.6, 6.2), layout="constrained")
+        gs = fig.add_gridspec(1, cols + 2, width_ratios=width_ratios)
+        axes = [fig.add_subplot(gs[0, idx], projection="3d") for idx in range(cols)]
+        legend_ax = fig.add_subplot(gs[0, cols])
+        cax = fig.add_subplot(gs[0, cols + 1])
+        legend_ax.axis("off")
 
         global_max_error = 1e-6
         loaded = {}
         for case in cases:
             stock_ref, stock_pos = _load_tracking(stock_root / "tracking_logs" / f"{case}.csv")
             real_ref, real_pos = _load_tracking(offnominal_root / "tracking_logs" / f"{case}.csv")
-            rmse_real, err_real = _trajectory_rmse(real_ref, real_pos)
-            rmse_stock, _ = _trajectory_rmse(stock_ref, stock_pos)
+            ref, stock_pos, real_pos = _trim_triplet(stock_ref, stock_pos, real_pos)
+            rmse_real, err_real = _trajectory_rmse(ref, real_pos)
+            rmse_stock, _ = _trajectory_rmse(ref, stock_pos)
             global_max_error = max(global_max_error, float(np.max(err_real)))
             loaded[case] = {
-                "stock_ref": stock_ref,
+                "stock_ref": ref,
                 "stock_pos": stock_pos,
-                "real_ref": real_ref,
                 "real_pos": real_pos,
                 "rmse_stock": rmse_stock,
                 "rmse_real": rmse_real,
                 "err_real": err_real,
+                "samples": len(ref),
             }
 
         norm = mpl.colors.Normalize(vmin=0.0, vmax=global_max_error)
@@ -565,7 +606,7 @@ def build_offnominal_figures(
                 linestyle="--",
                 linewidth=2.2,
                 color="#304c89",
-                label="Reference trajectory",
+                label="Reference",
             )
             ax.plot(
                 stock[:, 0],
@@ -586,7 +627,9 @@ def build_offnominal_figures(
 
             all_points = np.vstack([ref, stock, real])
             _set_axes_equal(ax, all_points)
-            ax.set_title(f"{case}\nRMSE SITL={payload['rmse_stock']:.3f} m | Real proxy={payload['rmse_real']:.3f} m")
+            ax.set_title(
+                f"{case}\nRMSE SITL={payload['rmse_stock']:.3f} m | Real proxy={payload['rmse_real']:.3f} m"
+            )
             ax.set_xlabel("X [m]")
             ax.set_ylabel("Y [m]")
             ax.set_zlabel("Z (up) [m]")
@@ -597,9 +640,9 @@ def build_offnominal_figures(
             mpl.lines.Line2D([0], [0], color="#2a9d8f", linestyle="-", linewidth=2.6, label="SITL"),
             mpl.lines.Line2D([0], [0], color="#d1495b", linestyle="-", linewidth=3.0, label="Real flight results"),
         ]
-        fig.legend(handles=legend_handles, loc="center left", bbox_to_anchor=(0.86, 0.80), frameon=True)
+        legend_ax.legend(handles=legend_handles, loc="upper left", frameon=True)
         scalar = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
-        cbar = fig.colorbar(scalar, ax=axes, shrink=0.78, pad=0.08, fraction=0.03)
+        cbar = fig.colorbar(scalar, cax=cax)
         cbar.set_label("Instantaneous position error [m]")
 
         name = "group_1_circle_hairpin_lemniscate" if figure_index == 1 else "group_2_time_optimal_minimum_snap"

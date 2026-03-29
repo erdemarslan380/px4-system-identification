@@ -6,10 +6,13 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import numpy as np
 import experimental_validation.offnominal_sitl_study as study
 from experimental_validation.offnominal_sitl_study import (
     OffnominalPerturbation,
     PANEL_GROUPS,
+    _runaway_cutoff_index,
+    _trim_triplet,
     _trajectory_duration_s,
     offnominal_reference,
 )
@@ -155,6 +158,24 @@ class OffnominalSitlStudyTest(unittest.TestCase):
             self.assertIsNotNone(plugin)
             self.assertEqual(plugin.findtext("timeConstantUp"), "0.0105")
             self.assertEqual(plugin.findtext("timeConstantDown"), "0.021")
+
+    def test_runaway_cutoff_detects_late_altitude_escape(self) -> None:
+        ref = np.zeros((80, 3), dtype=float)
+        pos = ref.copy()
+        pos[55:, 2] = 10.0
+        cutoff = _runaway_cutoff_index(ref, pos, z_error_threshold_m=6.0, consecutive_samples=5)
+        self.assertEqual(cutoff, 55)
+
+    def test_trim_triplet_uses_earliest_runaway_across_series(self) -> None:
+        ref = np.zeros((100, 3), dtype=float)
+        stock = ref.copy()
+        real = ref.copy()
+        stock[70:, 2] = 9.0
+        real[60:, 2] = 9.0
+        ref_out, stock_out, real_out = _trim_triplet(ref, stock, real)
+        self.assertEqual(len(ref_out), 60)
+        self.assertEqual(len(stock_out), 60)
+        self.assertEqual(len(real_out), 60)
 
 
 if __name__ == "__main__":
