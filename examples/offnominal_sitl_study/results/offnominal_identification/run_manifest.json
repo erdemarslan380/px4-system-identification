@@ -1,0 +1,80 @@
+{
+  "label": "offnominal_identification",
+  "model_name": "x500_offnominal",
+  "truth_csvs": [
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/01_mass_vertical/gazebo_truth_traces/eval_00000.csv",
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/02_hover_thrust/gazebo_truth_traces/eval_00000.csv",
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/03_roll_sweep/gazebo_truth_traces/eval_00000.csv",
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/04_pitch_sweep/gazebo_truth_traces/eval_00000.csv",
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/05_yaw_sweep/gazebo_truth_traces/eval_00000.csv",
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/06_drag_x/gazebo_truth_traces/eval_00000.csv",
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/07_drag_y/gazebo_truth_traces/eval_00000.csv",
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/08_drag_z/gazebo_truth_traces/eval_00000.csv",
+    "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/09_motor_step/gazebo_truth_traces/eval_00000.csv"
+  ],
+  "results": [
+    {
+      "profile": "mass_vertical",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/01_mass_vertical/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/01_mass_vertical/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/01_mass_vertical/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/01_mass_vertical/rootfs/px4_console.log"
+    },
+    {
+      "profile": "hover_thrust",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/02_hover_thrust/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/02_hover_thrust/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/02_hover_thrust/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/02_hover_thrust/rootfs/px4_console.log"
+    },
+    {
+      "profile": "roll_sweep",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/03_roll_sweep/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/03_roll_sweep/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/03_roll_sweep/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/03_roll_sweep/rootfs/px4_console.log"
+    },
+    {
+      "profile": "pitch_sweep",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/04_pitch_sweep/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/04_pitch_sweep/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/04_pitch_sweep/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/04_pitch_sweep/rootfs/px4_console.log"
+    },
+    {
+      "profile": "yaw_sweep",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/05_yaw_sweep/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/05_yaw_sweep/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/05_yaw_sweep/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/05_yaw_sweep/rootfs/px4_console.log"
+    },
+    {
+      "profile": "drag_x",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/06_drag_x/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/06_drag_x/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/06_drag_x/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/06_drag_x/rootfs/px4_console.log"
+    },
+    {
+      "profile": "drag_y",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/07_drag_y/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/07_drag_y/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/07_drag_y/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/07_drag_y/rootfs/px4_console.log"
+    },
+    {
+      "profile": "drag_z",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/08_drag_z/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/08_drag_z/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/08_drag_z/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/08_drag_z/rootfs/px4_console.log"
+    },
+    {
+      "profile": "motor_step",
+      "identification_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/09_motor_step/identification_traces/eval_00000.csv",
+      "tracking_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/09_motor_step/tracking_logs/run_00000.csv",
+      "truth_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification/09_motor_step/gazebo_truth_traces/eval_00000.csv",
+      "console_log": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/runtime/offnominal_identification/09_motor_step/rootfs/px4_console.log"
+    }
+  ]
+}

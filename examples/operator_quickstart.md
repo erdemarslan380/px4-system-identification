@@ -22,6 +22,7 @@ cd ~/px4-system-identification
 ```
 
 This installs `id_100..104.traj` and creates `tracking_logs/` and `identification_logs/` on the card.
+On hardware the trajectory binaries must end up under `/fs/microsd/trajectories/`.
 
 3. Start SITL
 -------------

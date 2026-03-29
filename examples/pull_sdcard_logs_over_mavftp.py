@@ -50,13 +50,17 @@ def exclusive_port_lock(port: str):
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def wait_for_heartbeat(master, timeout: float):
+def wait_heartbeat(master, timeout: float):
     deadline = time.time() + timeout
     while time.time() < deadline:
         heartbeat = master.recv_match(type="HEARTBEAT", blocking=True, timeout=0.5)
         if heartbeat is not None:
             return heartbeat
     return None
+
+
+def wait_for_heartbeat(master, timeout: float):
+    return wait_heartbeat(master, timeout)
 
 
 def connect_mavftp(port: str, baud: int, heartbeat_timeout: float) -> tuple[object, MAVFTP]:

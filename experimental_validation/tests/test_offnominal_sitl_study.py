@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import inspect
+import tempfile
 import unittest
+import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import experimental_validation.offnominal_sitl_study as study
 from experimental_validation.offnominal_sitl_study import (
@@ -73,6 +76,85 @@ class OffnominalSitlStudyTest(unittest.TestCase):
             source.index('match_track = session.expect(TRACKING_LOG_START_RE, timeout_s=20)'),
             source.index('match_ident = session.expect(IDENT_LOG_START_RE, timeout_s=5)'),
         )
+
+    def test_light_breeze_world_is_derived_from_default_world(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            px4_root = Path(tmp)
+            worlds = px4_root / "Tools" / "simulation" / "gz" / "worlds"
+            worlds.mkdir(parents=True)
+            (worlds / "default.sdf").write_text(
+                '<sdf version="1.9"><world name="default"><physics type="ode"/></world></sdf>',
+                encoding="utf-8",
+            )
+            out = study.create_light_breeze_world(px4_root=px4_root, asset_root=px4_root, world_name="test_breeze")
+            root = ET.parse(out).getroot()
+            world = root.find("world")
+            self.assertIsNotNone(world)
+            self.assertEqual(world.attrib["name"], "test_breeze")
+            self.assertEqual(world.findtext("wind/linear_velocity"), "0.6 0.2 0.0")
+
+    def test_offnominal_model_keeps_motor_perturbations_after_truth_logger_injection(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            px4_root = Path(tmp)
+            models = px4_root / "Tools" / "simulation" / "gz" / "models"
+            stock_model = models / "x500"
+            stock_base = models / "x500_base"
+            stock_model.mkdir(parents=True)
+            stock_base.mkdir(parents=True)
+            (stock_base / "model.sdf").write_text(
+                """
+<sdf version="1.9">
+  <model name="x500_base">
+    <link name="base_link">
+      <inertial>
+        <mass>2.0</mass>
+        <inertia>
+          <ixx>0.02</ixx>
+          <iyy>0.03</iyy>
+          <izz>0.04</izz>
+        </inertia>
+      </inertial>
+    </link>
+  </model>
+</sdf>
+""".strip(),
+                encoding="utf-8",
+            )
+            (stock_base / "model.config").write_text("<model><name>x500_base</name></model>", encoding="utf-8")
+            (stock_model / "model.sdf").write_text(
+                """
+<sdf version="1.9">
+  <model name="x500">
+    <include merge="true">
+      <uri>model://x500_base</uri>
+    </include>
+    <plugin filename="gz-sim-multicopter-motor-model-system" name="gz::sim::systems::MulticopterMotorModel">
+      <timeConstantUp>0.01</timeConstantUp>
+      <timeConstantDown>0.02</timeConstantDown>
+      <maxRotVelocity>900</maxRotVelocity>
+      <motorConstant>8e-06</motorConstant>
+      <momentConstant>0.015</momentConstant>
+      <rotorDragCoefficient>9e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+    </plugin>
+  </model>
+</sdf>
+""".strip(),
+                encoding="utf-8",
+            )
+            (stock_model / "model.config").write_text("<model><name>x500</name></model>", encoding="utf-8")
+            metadata = study.create_offnominal_model_assets(
+                px4_root=px4_root,
+                asset_root=px4_root / "assets",
+                model_name="x500_offnominal",
+                perturbation=study.OffnominalPerturbation(),
+            )
+            root = ET.parse(metadata["reference_model_sdf"]).getroot()
+            plugin = root.find(".//plugin[@name='gz::sim::systems::MulticopterMotorModel']")
+            self.assertIsNotNone(plugin)
+            self.assertEqual(plugin.findtext("timeConstantUp"), "0.0105")
+            self.assertEqual(plugin.findtext("timeConstantDown"), "0.021")
 
 
 if __name__ == "__main__":

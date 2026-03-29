@@ -357,7 +357,9 @@ Key HIL parameters:
 - `TRJ_ANCHOR_Y = 0`
 - `TRJ_ANCHOR_Z = -3`
 - `TRJ_ACTIVE_ID = 100..104`
-- `TRJ_MODE_CMD = 0` for position hold, `1` for trajectory, `2` for identification
+- `TRJ_MODE_CMD = 0` for position hold
+- `TRJ_MODE_CMD = 1` starts the selected trajectory
+- `TRJ_MODE_CMD = 2` starts the selected identification profile
 
 If you want to test identification instead of the five validation trajectories:
 - set `CST_POS_CTRL_TYP = 6`
@@ -401,7 +403,59 @@ Main outputs:
 - `~/px4-system-identification/examples/paper_assets/paper_validation_summary.json`
 - `~/px4-system-identification/examples/paper_assets/figures/`
 
-10. Real-flight use
+10. Off-Nominal SITL Check
+--------------------------
+This repository also ships a pre-HITL SITL methodology check that uses the five shipped trajectories exactly as provided:
+- stock `x500` with baseline PX4 PID (`px4_default`),
+- an off-nominal `x500_offnominal` with about `5%` mass and inertia reduction,
+- slower motor dynamics and slightly altered motor coefficients,
+- a light breeze world (`0.6 0.2 0.0 m/s`),
+- the full nine identification maneuvers on the off-nominal model,
+- re-identification against the perturbed SDF,
+- a second five-trajectory pass in the windy off-nominal world.
+
+Run it with:
+
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/offnominal_sitl_study.py \
+  --px4-root ~/PX4-Autopilot-Identification \
+  --out-dir ~/px4-system-identification/examples/offnominal_sitl_study
+```
+
+Main outputs:
+- `~/px4-system-identification/examples/offnominal_sitl_study/offnominal_study_summary.json`
+- `~/px4-system-identification/examples/offnominal_sitl_study/candidate_offnominal_recovered/sdf_comparison.json`
+- `~/px4-system-identification/examples/offnominal_sitl_study/figures/group_1_circle_hairpin_lemniscate.png`
+- `~/px4-system-identification/examples/offnominal_sitl_study/figures/group_2_time_optimal_minimum_snap.png`
+
+Current off-nominal identification result:
+- recovered blended twin score: `100.00 / 100`
+- recovered `mass`, `inertia`, `time constants`, `max rotor velocity`, and `motor constant` match the perturbed SDF in the current truth-assisted SITL check
+
+Current trajectory RMSE summary:
+- `circle`: stock `52.745 m`, off-nominal windy `55.425 m`
+- `hairpin`: stock `109.208 m`, off-nominal windy `115.545 m`
+- `lemniscate`: stock `84.210 m`, off-nominal windy `89.361 m`
+- `time_optimal_30s`: stock `38.151 m`, off-nominal windy `39.947 m`
+- `minimum_snap_50s`: stock `53.216 m`, off-nominal windy `55.833 m`
+
+The requested legend naming is used in these figures:
+- `Reference`
+- `SITL`
+- `Real flight results`
+
+In this README section, `Real flight results` is only a label for the off-nominal windy SITL proxy so the visual style matches the planned real-flight comparison layout.
+
+Three-trajectory panel:
+
+![Off-Nominal Group 1](examples/offnominal_sitl_study/figures/group_1_circle_hairpin_lemniscate.png)
+
+Two-trajectory panel:
+
+![Off-Nominal Group 2](examples/offnominal_sitl_study/figures/group_2_time_optimal_minimum_snap.png)
+
+11. Real-flight use
 -------------------
 Before the first real-flight test on CubeOrange, build and flash the hardware firmware:
 
@@ -456,7 +510,7 @@ trajectory_reader set_mode trajectory
 A slightly longer sortie plan is here:
 - [real_flight_sorties.md](/home/earsub/px4-system-identification/examples/real_flight_sorties.md)
 
-11. Review SD-card logs in an interactive 3D browser UI
+12. Review SD-card logs in an interactive 3D browser UI
 -------------------------------------------------------
 After a HITL or real-flight session, copy the SD-card logs into the repository and build the review bundle:
 
@@ -516,7 +570,7 @@ To keep the inspection package in GitHub, commit both the imported CSV folders a
 The repository also ships a demo review bundle generated from the current SITL tracking logs:
 - [HITL Review Demo](/home/earsub/px4-system-identification/examples/hitl_review_demo/index.html)
 
-12. Current shipped results and figures
+13. Current shipped results and figures
 ---------------------------------------
 Current summary:
 - blended twin score: `100.00 / 100`

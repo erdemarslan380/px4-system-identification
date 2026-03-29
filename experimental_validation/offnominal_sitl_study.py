@@ -194,11 +194,9 @@ def create_offnominal_model_assets(
         _set_text(plugin, "rotorDragCoefficient", offnominal["rotor_drag_coefficient"])
         _set_text(plugin, "rollingMomentCoefficient", offnominal["rolling_moment_coefficient"])
         _set_text(plugin, "rotorVelocitySlowdownSim", offnominal["rotor_velocity_slowdown_sim"])
-    _inject_truth_logger_plugin(target_model / "model.sdf")
-    model_tree = ET.parse(target_model / "model.sdf")
-    model_root = model_tree.getroot()
     _indent(model_root)
     model_tree.write(target_model / "model.sdf", encoding="utf-8", xml_declaration=True)
+    _inject_truth_logger_plugin(target_model / "model.sdf")
 
     model_config = ET.parse(target_model / "model.config")
     model_config_root = model_config.getroot()
@@ -220,16 +218,20 @@ def create_offnominal_model_assets(
 
 
 def create_light_breeze_world(*, px4_root: Path, asset_root: Path, world_name: str) -> Path:
-    source = px4_root / "Tools" / "simulation" / "gz" / "worlds" / "windy.sdf"
+    source = px4_root / "Tools" / "simulation" / "gz" / "worlds" / "default.sdf"
     target = px4_root / "Tools" / "simulation" / "gz" / "worlds" / f"{world_name}.sdf"
     tree = ET.parse(source)
     root = tree.getroot()
     world = root.find("world")
     if world is not None:
         world.set("name", world_name)
-    wind_node = root.find(".//wind/linear_velocity")
-    if wind_node is not None:
-        wind_node.text = "1.2 0.5 0.0"
+        wind = world.find("wind")
+        if wind is None:
+            wind = ET.SubElement(world, "wind")
+        wind_node = wind.find("linear_velocity")
+        if wind_node is None:
+            wind_node = ET.SubElement(wind, "linear_velocity")
+        wind_node.text = "0.6 0.2 0.0"
     _indent(root)
     tree.write(target, encoding="utf-8", xml_declaration=True)
     return target
