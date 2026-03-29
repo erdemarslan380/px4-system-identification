@@ -210,8 +210,8 @@ class OffnominalSitlStudyTest(unittest.TestCase):
         source = inspect.getsource(study.build_offnominal_figures)
         self.assertIn('cmap_stock = plt.get_cmap("viridis")', source)
         self.assertIn('cmap_real = plt.get_cmap("turbo")', source)
-        self.assertIn('SITL instantaneous position error [m]', source)
-        self.assertIn('Real flight results instantaneous position error [m]', source)
+        self.assertIn('SITL error [m]', source)
+        self.assertIn('Real flight results error [m]', source)
 
 
 if __name__ == "__main__":

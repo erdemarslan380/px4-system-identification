@@ -1,0 +1,86 @@
+{
+  "comparable_metrics": {
+    "mass_kg": {
+      "identified": 1.0,
+      "reference": 1.9,
+      "abs_error": -0.8999999999999999,
+      "pct_error": -47.368421052631575
+    },
+    "ixx_kgm2": {
+      "identified": -3.0283233886922853,
+      "reference": 0.0205833333333,
+      "abs_error": -3.048906722025585,
+      "pct_error": -14812.502293265698
+    },
+    "iyy_kgm2": {
+      "identified": 1.7741546095595198,
+      "reference": 0.0205833333333,
+      "abs_error": 1.7535712762262197,
+      "pct_error": 8519.374621355755
+    },
+    "izz_kgm2": {
+      "identified": -82.36695089372483,
+      "reference": 0.038,
+      "abs_error": -82.40495089372483,
+      "pct_error": -216855.13393085485
+    },
+    "time_constant_up_s": {
+      "identified": 0.0005021860367951566,
+      "reference": 0.013125,
+      "abs_error": -0.012622813963204842,
+      "pct_error": -96.1738206720369
+    },
+    "time_constant_down_s": {
+      "identified": 0.7017226127620325,
+      "reference": 0.02625,
+      "abs_error": 0.6754726127620325,
+      "pct_error": 2573.2290009982194
+    },
+    "max_rot_velocity_radps": {
+      "identified": 0.0,
+      "reference": 970.0,
+      "abs_error": -970.0,
+      "pct_error": -100.0
+    },
+    "motor_constant": {
+      "identified": 0.0,
+      "reference": 8.8050374e-06,
+      "abs_error": -8.8050374e-06,
+      "pct_error": -100.0
+    },
+    "moment_constant": {
+      "identified": 0.0,
+      "reference": 0.01552,
+      "abs_error": -0.01552,
+      "pct_error": -100.0
+    },
+    "rotor_drag_coefficient": {
+      "identified": 0.0,
+      "reference": 8.467494e-05,
+      "abs_error": -8.467494e-05,
+      "pct_error": -100.0
+    },
+    "rolling_moment_coefficient": {
+      "identified": 0.0,
+      "reference": 1.05e-06,
+      "abs_error": -1.05e-06,
+      "pct_error": -100.0
+    },
+    "rotor_velocity_slowdown_sim": {
+      "identified": 0.0,
+      "reference": 10.0,
+      "abs_error": -10.0,
+      "pct_error": -100.0
+    }
+  },
+  "non_comparable_metrics": {
+    "identified_only": [
+      "thrust_scale_n_per_cmd",
+      "drag_x",
+      "drag_y",
+      "drag_z"
+    ],
+    "sdf_only": [],
+    "note": "Mass, inertia, and Gazebo motor-model terms are compared directly. Generic body drag and thrust-scale terms remain identification-only summaries."
+  }
+}

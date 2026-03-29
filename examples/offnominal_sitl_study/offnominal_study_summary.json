@@ -1,0 +1,37 @@
+{
+  "stock_root": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/stock_baseline_pid",
+  "offnominal_root": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_windy_pid",
+  "identification_root": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/results/offnominal_identification",
+  "candidate_comparison": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/candidate_offnominal_recovered/sdf_comparison.json",
+  "figures": {
+    "group_1_circle_hairpin_lemniscate": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/figures/group_1_circle_hairpin_lemniscate.png",
+    "group_2_time_optimal_minimum_snap": "/home/earsub/px4-system-identification/examples/offnominal_sitl_study/figures/group_2_time_optimal_minimum_snap.png"
+  },
+  "rmse_summary_m": {
+    "circle": {
+      "stock_sitl": 0.5789424714560855,
+      "real_flight_results_proxy": 0.5588909857580343,
+      "samples": 710
+    },
+    "hairpin": {
+      "stock_sitl": 0.603336118294338,
+      "real_flight_results_proxy": 0.5683517746130119,
+      "samples": 1091
+    },
+    "lemniscate": {
+      "stock_sitl": 0.6166438206907169,
+      "real_flight_results_proxy": 0.6101835461748527,
+      "samples": 910
+    },
+    "time_optimal_30s": {
+      "stock_sitl": 0.32106971550327534,
+      "real_flight_results_proxy": 0.31717475986277577,
+      "samples": 528
+    },
+    "minimum_snap_50s": {
+      "stock_sitl": 0.4047047336131289,
+      "real_flight_results_proxy": 0.4289518792283497,
+      "samples": 657
+    }
+  }
+}

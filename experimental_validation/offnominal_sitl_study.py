@@ -585,14 +585,14 @@ def build_offnominal_figures(
     mpl.rcParams.update(
         {
             "figure.dpi": 150,
-            "savefig.dpi": 300,
+            "savefig.dpi": 450,
             "font.family": "DejaVu Serif",
-            "font.size": 15,
-            "axes.titlesize": 18,
-            "axes.labelsize": 16,
-            "legend.fontsize": 15,
-            "xtick.labelsize": 13,
-            "ytick.labelsize": 13,
+            "font.size": 24,
+            "axes.titlesize": 28,
+            "axes.labelsize": 25,
+            "legend.fontsize": 23,
+            "xtick.labelsize": 20,
+            "ytick.labelsize": 20,
         }
     )
     plt.style.use("seaborn-v0_8-whitegrid")
@@ -602,14 +602,24 @@ def build_offnominal_figures(
 
     for figure_index, cases in enumerate(PANEL_GROUPS, start=1):
         cols = len(cases)
-        width_ratios = [1.0] * cols + [0.26, 0.07, 0.07]
-        fig = plt.figure(figsize=(6.6 * cols + 3.0, 7.4), layout="constrained")
-        gs = fig.add_gridspec(1, cols + 3, width_ratios=width_ratios)
+        width_ratios = [1.0] * cols + [0.66]
+        fig = plt.figure(figsize=(12.2 * cols + 9.8, 13.2), layout="constrained")
+        gs = fig.add_gridspec(1, cols + 1, width_ratios=width_ratios)
         axes = [fig.add_subplot(gs[0, idx], projection="3d") for idx in range(cols)]
-        legend_ax = fig.add_subplot(gs[0, cols])
-        cax_stock = fig.add_subplot(gs[0, cols + 1])
-        cax_real = fig.add_subplot(gs[0, cols + 2])
+        side = gs[0, cols].subgridspec(
+            2,
+            3,
+            height_ratios=[0.36, 0.64],
+            width_ratios=[0.62, 0.19, 0.19],
+            hspace=0.08,
+            wspace=0.55,
+        )
+        legend_ax = fig.add_subplot(side[0, :])
+        spacer_ax = fig.add_subplot(side[1, 0])
+        cax_stock = fig.add_subplot(side[1, 1])
+        cax_real = fig.add_subplot(side[1, 2])
         legend_ax.axis("off")
+        spacer_ax.axis("off")
 
         global_max_stock_error = 1e-6
         global_max_real_error = 1e-6
@@ -677,25 +687,34 @@ def build_offnominal_figures(
             ax.set_title(
                 f"{case}\nRMSE SITL={payload['rmse_stock']:.3f} m | Real proxy={payload['rmse_real']:.3f} m"
             )
-            ax.set_xlabel("X [m]")
-            ax.set_ylabel("Y [m]")
-            ax.set_zlabel("Z (up) [m]")
+            ax.set_xlabel("X [m]", labelpad=18)
+            ax.set_ylabel("Y [m]", labelpad=18)
+            ax.set_zlabel("Z (up) [m]", labelpad=18)
             ax.view_init(elev=22, azim=-60)
+            ax.tick_params(axis="both", which="major", labelsize=20)
 
         legend_handles = [
             mpl.lines.Line2D([0], [0], color="#304c89", linestyle="--", linewidth=2.2, label="Reference"),
             mpl.lines.Line2D([0], [0], color=cmap_stock(0.72), linestyle="-", linewidth=2.8, label="SITL"),
             mpl.lines.Line2D([0], [0], color="#d1495b", linestyle="-", linewidth=3.0, label="Real flight results"),
         ]
-        legend_ax.legend(handles=legend_handles, loc="upper left", frameon=True, borderpad=1.0, labelspacing=1.0)
+        legend_ax.legend(
+            handles=legend_handles,
+            loc="upper left",
+            frameon=True,
+            borderpad=1.0,
+            labelspacing=1.0,
+            title="Curves",
+            title_fontsize=23,
+        )
         scalar_stock = mpl.cm.ScalarMappable(norm=norm_stock, cmap=cmap_stock)
         scalar_real = mpl.cm.ScalarMappable(norm=norm_real, cmap=cmap_real)
         cbar_stock = fig.colorbar(scalar_stock, cax=cax_stock)
         cbar_real = fig.colorbar(scalar_real, cax=cax_real)
-        cbar_stock.set_label("SITL instantaneous position error [m]")
-        cbar_real.set_label("Real flight results instantaneous position error [m]")
-        cbar_stock.ax.tick_params(labelsize=13)
-        cbar_real.ax.tick_params(labelsize=13)
+        cbar_stock.set_label("SITL error [m]", fontsize=22, labelpad=12)
+        cbar_real.set_label("Real flight results error [m]", fontsize=22, labelpad=12)
+        cbar_stock.ax.tick_params(labelsize=20)
+        cbar_real.ax.tick_params(labelsize=20)
 
         name = "group_1_circle_hairpin_lemniscate" if figure_index == 1 else "group_2_time_optimal_minimum_snap"
         out_path = out_dir / f"{name}.png"
