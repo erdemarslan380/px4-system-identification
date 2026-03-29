@@ -318,11 +318,59 @@ path.write_text(text, encoding='utf-8')
 PY
 }
 
+patch_gz_bridge_gimbal() {
+  local header_path="$1"
+  local source_path="$2"
+  [ -f "$header_path" ] || return 0
+  [ -f "$source_path" ] || return 0
+  python3 - "$header_path" "$source_path" <<'PY'
+from pathlib import Path
+import sys
+
+header_path = Path(sys.argv[1])
+source_path = Path(sys.argv[2])
+
+header = header_path.read_text(encoding='utf-8')
+if 'bool _gimbal_enabled{false};' not in header:
+    header = header.replace(
+        'GZGimbal _gimbal{_node};\n',
+        'GZGimbal _gimbal{_node};\n\tbool _gimbal_enabled{false};\n',
+        1,
+    )
+    header_path.write_text(header, encoding='utf-8')
+
+source = source_path.read_text(encoding='utf-8')
+old_init = (
+    '\t// Gimbal mixing interface\n'
+    '\tif (!_gimbal.init(_world_name, _model_name)) {\n'
+    '\t\tPX4_ERR("failed to init gimbal");\n'
+    '\t\treturn PX4_ERROR;\n'
+    '\t}\n'
+)
+new_init = (
+    '\t// Gimbal mixing interface\n'
+    '\t_gimbal_enabled = _gimbal.init(_world_name, _model_name);\n'
+    '\tif (!_gimbal_enabled) {\n'
+    '\t\tPX4_WARN("failed to init gimbal, continuing without simulated gimbal");\n'
+    '\t}\n'
+)
+if old_init in source:
+    source = source.replace(old_init, new_init, 1)
+
+source = source.replace('\t\t_gimbal.stop();\n', '\t\tif (_gimbal_enabled) {\n\t\t\t_gimbal.stop();\n\t\t}\n', 1)
+source = source.replace('\t\t_gimbal.updateParams();\n', '\t\tif (_gimbal_enabled) {\n\t\t\t_gimbal.updateParams();\n\t\t}\n', 1)
+source_path.write_text(source, encoding='utf-8')
+PY
+}
+
 patch_board_file "$px4_root/$board_rel"
 patch_gz_plugins_cmake "$px4_root/src/modules/simulation/gz_plugins/CMakeLists.txt"
 patch_simulation_gazebo_script "$px4_root/Tools/simulation/gz/simulation-gazebo"
 patch_x500_model_sdf "$px4_root/Tools/simulation/gz/models/x500/model.sdf"
 patch_msg_cmake "$px4_root/msg/CMakeLists.txt"
+patch_gz_bridge_gimbal \
+  "$px4_root/src/modules/simulation/gz_bridge/GZBridge.hpp" \
+  "$px4_root/src/modules/simulation/gz_bridge/GZBridge.cpp"
 patch_local_position_estimator_params "$px4_root/src/modules/local_position_estimator/params.yaml"
 cleanup_legacy_param_sources "$px4_root/src/modules/custom_pos_control"
 cleanup_legacy_param_sources "$px4_root/src/modules/trajectory_reader"
@@ -333,6 +381,7 @@ echo "Gazebo plugin CMake patched for SystemIdentificationLoggerPlugin"
 echo "Gazebo launcher patched for GZ_SIM_SYSTEM_PLUGIN_PATH"
 echo "x500 model.sdf patched for SystemIdentificationLoggerPlugin"
 echo "uORB message list patched for MultiTrajectorySetpoint.msg"
+echo "gz_bridge patched to tolerate missing simulated gimbal topics"
 echo "local_position_estimator params.yaml patched for LTEST_MODE compatibility"
 echo "Legacy params.c overlays removed in favor of module.yaml"
 echo "Next step: build SITL with 'make px4_sitl gz_x500' or your target board build."
