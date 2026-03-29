@@ -88,6 +88,9 @@ PANEL_GROUPS: tuple[tuple[str, ...], ...] = (
     ("time_optimal_30s", "minimum_snap_50s"),
 )
 
+SITL_ESC_MIN = 0
+SITL_ESC_MAX = 55
+
 
 def _trajectory_duration_s(entry) -> float:
     value = getattr(entry, "nominal_duration_s", None)
@@ -273,12 +276,18 @@ def _build_env_with_world(
     return env
 
 
-def _staged_hover_target(ground_state: dict[str, float], altitude_m: float = 3.0) -> tuple[float, float, float]:
+def _takeoff_hover_target(ground_state: dict[str, float], altitude_m: float = 5.0) -> tuple[float, float, float]:
     return (
         float(ground_state["x"]),
         float(ground_state["y"]),
         float(ground_state["z"]) - float(altitude_m),
     )
+
+
+def _apply_x500_esc_scaling(session: Px4SitlSession, *, min_value: int = SITL_ESC_MIN, max_value: int = SITL_ESC_MAX) -> None:
+    for motor_idx in range(1, 5):
+        session.send(f"param set SIM_GZ_EC_MIN{motor_idx} {min_value}")
+        session.send(f"param set SIM_GZ_EC_MAX{motor_idx} {max_value}")
 
 
 def run_validation_with_assets(
@@ -289,6 +298,7 @@ def run_validation_with_assets(
     display_name: str,
     source_model_dir: Path,
     model_name: str,
+    entries: Iterable = VALIDATION_CASES,
     world_name: str = "default",
     override_worlds_root: Path | None = None,
     headless: bool = True,
@@ -299,7 +309,7 @@ def run_validation_with_assets(
     result_root = out_root / label
     results: list[dict] = []
     export_manifest = None
-    for entry in VALIDATION_CASES:
+    for entry in entries:
         case_runtime_root = runtime_root / entry.name
         run_rootfs = case_runtime_root / "rootfs"
         override_models_root = case_runtime_root / "override_models"
@@ -322,7 +332,8 @@ def run_validation_with_assets(
         session = Px4SitlSession(px4_root, run_rootfs, env)
         try:
             session.start()
-            session.send("param set MIS_TAKEOFF_ALT 3.0")
+            _apply_x500_esc_scaling(session)
+            session.send("param set MIS_TAKEOFF_ALT 5.0")
             session.send("custom_pos_control start")
             session.send("trajectory_reader start")
             session.send("custom_pos_control set px4_default")
@@ -339,16 +350,15 @@ def run_validation_with_assets(
             session.arm()
             time.sleep(1.0)
             session.send_no_wait("commander takeoff")
-            anchor_state = session.wait_until_hover_stable()
+            hover_target = _takeoff_hover_target(ground_state, altitude_m=5.0)
+            session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)
             session.sync_prompt(timeout_s=10.0)
-            common_anchor = (
-                float(anchor_state["x"]),
-                float(anchor_state["y"]),
-                float(anchor_state["z"]),
-            )
+            common_anchor = hover_target
             session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
             session.send_no_wait("commander mode offboard")
             session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=20.0)
+            time.sleep(2.0)
+            session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=10.0)
             session.sync_prompt(timeout_s=10.0)
             session.send(f"trajectory_reader set_traj_anchor {common_anchor[0]} {common_anchor[1]} {common_anchor[2]}")
             session.send(f"trajectory_reader set_traj_id {entry.traj_id}")
@@ -372,6 +382,9 @@ def run_validation_with_assets(
                     "console_log": str((run_rootfs / "px4_console.log").resolve()),
                 }
             )
+            session.send_no_wait("commander mode auto:land")
+            session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)
+            session.sync_prompt(timeout_s=10.0)
         finally:
             session.shutdown()
             _cleanup_stale_sitl_processes()
@@ -425,7 +438,8 @@ def run_identification_with_assets(
         session = Px4SitlSession(px4_root, run_rootfs, env)
         try:
             session.start()
-            session.send("param set MIS_TAKEOFF_ALT 3.0")
+            _apply_x500_esc_scaling(session)
+            session.send("param set MIS_TAKEOFF_ALT 5.0")
             session.send("custom_pos_control start")
             session.send("trajectory_reader start")
             session.send("custom_pos_control enable")
@@ -442,16 +456,15 @@ def run_identification_with_assets(
             session.arm()
             time.sleep(1.0)
             session.send_no_wait("commander takeoff")
-            anchor_state = session.wait_until_hover_stable()
+            hover_target = _takeoff_hover_target(ground, altitude_m=5.0)
+            session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)
             session.sync_prompt(timeout_s=10.0)
-            common_anchor = (
-                float(anchor_state["x"]),
-                float(anchor_state["y"]),
-                float(anchor_state["z"]),
-            )
+            common_anchor = hover_target
             session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
             session.send_no_wait("commander mode offboard")
             session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=20.0)
+            time.sleep(2.0)
+            session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=10.0)
             session.sync_prompt(timeout_s=10.0)
             session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
             session.send(f"trajectory_reader set_ident_profile {profile}")
@@ -484,6 +497,9 @@ def run_identification_with_assets(
                     "console_log": str((run_rootfs / "px4_console.log").resolve()),
                 }
             )
+            session.send_no_wait("commander mode auto:land")
+            session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)
+            session.sync_prompt(timeout_s=10.0)
         finally:
             session.shutdown()
             _cleanup_stale_sitl_processes()

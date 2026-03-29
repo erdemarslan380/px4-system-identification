@@ -325,6 +325,17 @@ class Px4SitlSession:
         assert self._child is not None
         self._child.expect_exact(PX4_PROMPT, timeout=self._timeout_s)
 
+    def _drain_local_position(self) -> dict[str, float] | None:
+        assert self._mav is not None
+        latest = None
+        while True:
+            msg = self._mav.recv_match(type="LOCAL_POSITION_NED", blocking=False)
+            if msg is None:
+                break
+            speed = math.sqrt(float(msg.vx) ** 2 + float(msg.vy) ** 2 + float(msg.vz) ** 2)
+            latest = {"x": float(msg.x), "y": float(msg.y), "z": float(msg.z), "speed_mps": speed}
+        return latest
+
     def send(self, command: str, *, timeout_s: float | None = None) -> str:
         assert self._child is not None
         self._child.sendline(command)
@@ -373,7 +384,7 @@ class Px4SitlSession:
     def wait_until_position(self, target_xyz: tuple[float, float, float], *, xy_tol_m: float = 0.22, z_tol_m: float = 0.18, timeout_s: float = 35.0) -> dict[str, float]:
         assert self._mav is not None
         deadline = time.time() + timeout_s
-        best: dict[str, float] | None = None
+        best: dict[str, float] | None = self._drain_local_position()
         streak = 0
         while time.time() < deadline:
             msg = self._mav.recv_match(type="LOCAL_POSITION_NED", blocking=True, timeout=2)
@@ -393,6 +404,9 @@ class Px4SitlSession:
 
     def sample_local_position(self, *, timeout_s: float = 10.0) -> dict[str, float]:
         assert self._mav is not None
+        latest = self._drain_local_position()
+        if latest is not None:
+            return latest
         deadline = time.time() + timeout_s
         while time.time() < deadline:
             msg = self._mav.recv_match(type="LOCAL_POSITION_NED", blocking=True, timeout=1.0)
@@ -405,7 +419,7 @@ class Px4SitlSession:
     def wait_until_hover_stable(self, *, min_altitude_m: float = 2.7, speed_tol_mps: float = 0.35, timeout_s: float = 35.0) -> dict[str, float]:
         assert self._mav is not None
         deadline = time.time() + timeout_s
-        best: dict[str, float] | None = None
+        best: dict[str, float] | None = self._drain_local_position()
         streak = 0
         while time.time() < deadline:
             msg = self._mav.recv_match(type="LOCAL_POSITION_NED", blocking=True, timeout=2)
@@ -420,6 +434,32 @@ class Px4SitlSession:
             else:
                 streak = 0
         raise RuntimeError(f"vehicle did not reach a stable takeoff hover in {timeout_s:.1f}s (last={best})")
+
+    def wait_until_landed(
+        self,
+        *,
+        ground_z_m: float,
+        z_tol_m: float = 0.18,
+        speed_tol_mps: float = 0.3,
+        timeout_s: float = 45.0,
+    ) -> dict[str, float]:
+        assert self._mav is not None
+        deadline = time.time() + timeout_s
+        best: dict[str, float] | None = self._drain_local_position()
+        streak = 0
+        while time.time() < deadline:
+            msg = self._mav.recv_match(type="LOCAL_POSITION_NED", blocking=True, timeout=2.0)
+            if msg is None:
+                continue
+            speed = math.sqrt(float(msg.vx) ** 2 + float(msg.vy) ** 2 + float(msg.vz) ** 2)
+            best = {"x": float(msg.x), "y": float(msg.y), "z": float(msg.z), "speed_mps": speed}
+            if abs(float(msg.z) - ground_z_m) <= z_tol_m and speed <= speed_tol_mps:
+                streak += 1
+                if streak >= 10:
+                    return best
+            else:
+                streak = 0
+        raise RuntimeError(f"vehicle did not land in {timeout_s:.1f}s (last={best})")
 
     def shutdown(self) -> None:
         self._gcs_stop.set()

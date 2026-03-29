@@ -1,0 +1,110 @@
+{
+  "common_logged_start": {
+    "x_m": 0.0,
+    "y_m": 0.0,
+    "z_m": -3.0
+  },
+  "source_mode": "shipped_binary_trajectories",
+  "entries": [
+    {
+      "traj_id": 100,
+      "name": "hairpin",
+      "duration_s": 23.0,
+      "sample_dt_s": 0.020758,
+      "num_samples": 1109,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": 0.17242112755775452,
+        "y_m": -0.35076630115509033,
+        "z_m": -3.0244905948638916
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_100.traj",
+      "path": "/home/earsub/px4-system-identification/examples/debug_simple_takeoff_run_v4_max45/runtime/stock_simple/circle/rootfs/trajectories/id_100.traj",
+      "sha256": "d9672d70378b6a52bca05c72cf38040a70b48b096595811dec15df5e3f53ba96"
+    },
+    {
+      "traj_id": 101,
+      "name": "lemniscate",
+      "duration_s": 19.0,
+      "sample_dt_s": 0.020496,
+      "num_samples": 928,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": -0.1394369900226593,
+        "y_m": -0.4041249454021454,
+        "z_m": -3.047140121459961
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_101.traj",
+      "path": "/home/earsub/px4-system-identification/examples/debug_simple_takeoff_run_v4_max45/runtime/stock_simple/circle/rootfs/trajectories/id_101.traj",
+      "sha256": "2e935deade8098f39342ce731d21ef34eff4987ecdc43cfc8b310c55f075d692"
+    },
+    {
+      "traj_id": 102,
+      "name": "circle",
+      "duration_s": 15.0,
+      "sample_dt_s": 0.020633,
+      "num_samples": 728,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": -0.4370052218437195,
+        "y_m": 0.1456737220287323,
+        "z_m": -3.013955593109131
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_102.traj",
+      "path": "/home/earsub/px4-system-identification/examples/debug_simple_takeoff_run_v4_max45/runtime/stock_simple/circle/rootfs/trajectories/id_102.traj",
+      "sha256": "d3c13f1b51dc152ba039f747b3786f2c0a34761d0b54b3715a7afc520d5e5fac"
+    },
+    {
+      "traj_id": 103,
+      "name": "time_optimal_30s",
+      "duration_s": 11.0,
+      "sample_dt_s": 0.020183,
+      "num_samples": 546,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": 6.999992370605469,
+        "y_m": 2.000053882598877,
+        "z_m": -1.0000009536743164
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_103.traj",
+      "path": "/home/earsub/px4-system-identification/examples/debug_simple_takeoff_run_v4_max45/runtime/stock_simple/circle/rootfs/trajectories/id_103.traj",
+      "sha256": "76f3a938d86ed299923c218b87456b49632c6bb43b111d579f5e95493067cd64"
+    },
+    {
+      "traj_id": 104,
+      "name": "minimum_snap_50s",
+      "duration_s": 14.0,
+      "sample_dt_s": 0.020772,
+      "num_samples": 675,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": -8.0,
+        "y_m": 2.853273173286652e-14,
+        "z_m": -3.0
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_104.traj",
+      "path": "/home/earsub/px4-system-identification/examples/debug_simple_takeoff_run_v4_max45/runtime/stock_simple/circle/rootfs/trajectories/id_104.traj",
+      "sha256": "98cddb9de293a2afddfd951f73b2624e3fef54c39b37df8803c6601227f0537b"
+    }
+  ]
+}

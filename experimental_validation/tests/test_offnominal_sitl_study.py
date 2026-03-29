@@ -11,6 +11,9 @@ import experimental_validation.offnominal_sitl_study as study
 from experimental_validation.offnominal_sitl_study import (
     OffnominalPerturbation,
     PANEL_GROUPS,
+    SITL_ESC_MAX,
+    SITL_ESC_MIN,
+    _takeoff_hover_target,
     _runaway_cutoff_index,
     _trim_triplet,
     _trajectory_duration_s,
@@ -55,6 +58,14 @@ class OffnominalSitlStudyTest(unittest.TestCase):
     def test_duration_helper_reads_shipped_metadata(self) -> None:
         self.assertEqual(_trajectory_duration_s(DEFAULT_VALIDATION_TRAJECTORIES[0]), 23.0)
         self.assertEqual(_trajectory_duration_s(DEFAULT_VALIDATION_TRAJECTORIES[1]), 19.0)
+
+    def test_takeoff_hover_target_uses_fixed_5m_step(self) -> None:
+        target = _takeoff_hover_target({"x": 1.0, "y": -2.0, "z": -0.3})
+        self.assertEqual(target, (1.0, -2.0, -5.3))
+
+    def test_sitl_esc_scaling_defaults_match_tuned_values(self) -> None:
+        self.assertEqual(SITL_ESC_MIN, 0)
+        self.assertEqual(SITL_ESC_MAX, 55)
 
     def test_panel_groups_cover_all_five_cases(self) -> None:
         flattened = [name for group in PANEL_GROUPS for name in group]
@@ -181,13 +192,19 @@ class OffnominalSitlStudyTest(unittest.TestCase):
         source = inspect.getsource(study.run_validation_with_assets)
         self.assertLess(source.index('session.send_no_wait("commander takeoff")'),
                         source.index('session.send_no_wait("commander mode offboard")'))
-        self.assertIn('session.wait_until_hover_stable()', source)
+        self.assertIn('session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)', source)
+        self.assertIn('session.send_no_wait("commander mode auto:land")', source)
+        self.assertIn('session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)', source)
+        self.assertIn('_apply_x500_esc_scaling(session)', source)
 
     def test_identification_uses_takeoff_then_offboard_flow(self) -> None:
         source = inspect.getsource(study.run_identification_with_assets)
         self.assertLess(source.index('session.send_no_wait("commander takeoff")'),
                         source.index('session.send_no_wait("commander mode offboard")'))
-        self.assertIn('session.wait_until_hover_stable()', source)
+        self.assertIn('session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)', source)
+        self.assertIn('session.send_no_wait("commander mode auto:land")', source)
+        self.assertIn('session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)', source)
+        self.assertIn('_apply_x500_esc_scaling(session)', source)
 
     def test_figure_builder_uses_error_colormaps_for_both_series(self) -> None:
         source = inspect.getsource(study.build_offnominal_figures)
