@@ -225,7 +225,9 @@ Two small helper scripts are now part of the repository:
 - `~/px4-system-identification/examples/import_sdcard_logs.sh`
   - copies `tracking_logs/*.csv` and `identification_logs/*.csv` from a mounted SD card into a versionable folder inside this repository.
 - `~/px4-system-identification/examples/pull_sdcard_logs_over_mavftp.py`
-  - pulls `tracking_logs/*.csv` and `identification_logs/*.csv` over the live FTDI/MAVLink connection without removing the SD card.
+  - pulls `tracking_logs/*.csv` and `identification_logs/*.csv` over the live USB CDC / MAVFTP connection without removing the SD card,
+  - enforces single-process access to `/dev/ttyACM0`,
+  - skips locally complete files and writes a `pull_report.json` summary.
 - `~/px4-system-identification/experimental_validation/build_hitl_review_bundle.py`
   - builds a static HTML review bundle with a zoomable and pannable 3D path plot, X/Y/Z versus time plots, summary metrics, and raw CSV copies.
 

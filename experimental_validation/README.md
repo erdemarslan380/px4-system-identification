@@ -158,6 +158,9 @@ python3 experimental_validation/build_hitl_review_bundle.py \
   --out-dir ~/px4-system-identification/hitl_runs/session_001/review
 ```
 
+Before the live pull, close `jMAVSim`, `QGroundControl`, and any `mavlink_shell.py` process on `/dev/ttyACM0`.
+The MAVFTP helper now enforces single-process CDC access, skips locally complete files, and writes a `pull_report.json` summary next to the imported session.
+
 Then open:
 - `~/px4-system-identification/hitl_runs/session_001/review/index.html`
 

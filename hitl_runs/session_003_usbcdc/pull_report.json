@@ -2,16 +2,13 @@
   "failed": {
     "ulog_2026_03_28": [
       {
-        "error": "Download failed for /fs/microsd/log/2026-03-28/14_55_56.ulg: return_code=73",
+        "error": "Download failed for /fs/microsd/log/2026-03-28/14_55_56.ulg: return_code=73 (RemoteReplyTimeout)",
         "file": "14_55_56.ulg"
       }
     ]
   },
   "pulled": {
-    "ulog_2026_03_28": [
-      "16_15_26.ulg",
-      "16_20_26.ulg"
-    ]
+    "ulog_2026_03_28": []
   },
   "skipped": {
     "ulog_2026_03_28": [
@@ -23,7 +20,9 @@
       "11_06_40.ulg",
       "14_48_22.ulg",
       "14_52_54.ulg",
-      "14_54_58.ulg"
+      "14_54_58.ulg",
+      "16_15_26.ulg",
+      "16_20_26.ulg"
     ]
   }
 }

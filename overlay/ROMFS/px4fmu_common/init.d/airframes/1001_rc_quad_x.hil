@@ -56,3 +56,7 @@ param set-default TRJ_ANCHOR_Z -3.0
 
 custom_pos_control start
 trajectory_reader start
+custom_pos_control enable
+custom_pos_control set px4_default
+trajectory_reader abs_ref 0 0 -3 0
+trajectory_reader set_mode position

@@ -16,6 +16,7 @@ cleanup_known_holders = MODULE.cleanup_known_holders
 download_logs = MODULE.download_logs
 download_file_with_retries = MODULE.download_file_with_retries
 expected_size_from_entry = MODULE.expected_size_from_entry
+ftp_error_label = MODULE.ftp_error_label
 local_file_matches = MODULE.local_file_matches
 list_remote_matching_files = MODULE.list_remote_matching_files
 list_port_holders = MODULE.list_port_holders
@@ -185,6 +186,9 @@ class PullSdcardLogsOverMavftpTests(unittest.TestCase):
     def test_expected_size_from_entry_handles_missing_size(self) -> None:
         self.assertEqual(expected_size_from_entry(_Entry("a.csv", size_b=12)), 12)
         self.assertIsNone(expected_size_from_entry(_Entry("a.csv")))
+
+    def test_ftp_error_label_maps_known_code(self) -> None:
+        self.assertEqual(ftp_error_label(73), "RemoteReplyTimeout")
 
     def test_local_file_matches_uses_expected_size_when_available(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -180,6 +180,13 @@ def expected_size_from_entry(entry: object) -> int | None:
     return None
 
 
+def ftp_error_label(return_code: int) -> str:
+    for name, value in FtpError.__dict__.items():
+        if isinstance(value, int) and value == return_code:
+            return name
+    return f"code_{return_code}"
+
+
 def download_file_with_retries(
     ftp: MAVFTP,
     remote_path: str,
@@ -211,7 +218,8 @@ def download_file_with_retries(
             )
         else:
             last_error = RuntimeError(
-                f"Download failed for {remote_path}: return_code={result.return_code}"
+                f"Download failed for {remote_path}: "
+                f"return_code={result.return_code} ({ftp_error_label(result.return_code)})"
             )
 
         if local_path.exists():
@@ -279,7 +287,8 @@ def download_file_via_port(
                 )
             else:
                 last_error = RuntimeError(
-                    f"Download failed for {remote_path}: return_code={result.return_code}"
+                    f"Download failed for {remote_path}: "
+                    f"return_code={result.return_code} ({ftp_error_label(result.return_code)})"
                 )
         except Exception as exc:  # pragma: no cover - exercised on hardware
             last_error = exc

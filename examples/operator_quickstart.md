@@ -131,7 +131,8 @@ Outputs:
 - keep `jMAVSim`, `QGroundControl`, and any shell tool closed during upload
 - start `jMAVSim` on USB `ttyACM0`
 - open QGroundControl in UDP-only mode
-- check that `/fs/microsd/trajectories/id_100..104.traj` is present before commanding a trajectory
+- do not open a MAVLink shell on `ttyACM0` after `jMAVSim` starts
+- the HIL airframe now starts the modules automatically and stages a `0 0 -3 0` hover reference at boot
 
 Firmware upload:
 ```bash
@@ -145,16 +146,22 @@ cd ~/px4-system-identification
 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
 ```
 
-Pre-check over USB MAVLink:
+Run one identification profile over UDP only:
 ```bash
-python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyACM0 -b 57600
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --kind ident \
+  --name hover_thrust
 ```
 
-Then run:
+Run one validation trajectory over UDP only:
 ```bash
-ls /fs/microsd
-ls /fs/microsd/trajectories
-free
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --kind trajectory \
+  --traj-id 100
 ```
 
 8. Pull SD-card logs into the repo and review them
@@ -174,7 +181,9 @@ python3 experimental_validation/build_hitl_review_bundle.py \
   --out-dir ~/px4-system-identification/hitl_runs/session_001/review
 ```
 
-Use the mounted-SD script or the MAVFTP pull script for a given session, not both.
+Use the mounted-SD script or the USB CDC MAVFTP pull script for a given session, not both.
+Before the live pull, close `jMAVSim`, `QGroundControl`, and any USB MAVLink shell on `/dev/ttyACM0`.
+The MAVFTP pull helper writes `pull_report.json`, skips already complete files, and only retries the missing ones on the next run.
 
 Open:
 - `~/px4-system-identification/hitl_runs/session_001/review/index.html`
@@ -183,3 +192,5 @@ HIL trajectory control:
 - `TRJ_ACTIVE_ID = 100..104`
 - `TRJ_MODE_CMD = 1` starts the selected trajectory
 - `TRJ_MODE_CMD = 0` returns to position hold
+- `TRJ_IDENT_PROF = 0..8` selects the identification profile
+- `CST_POS_CTRL_TYP = 4` keeps the PX4 baseline, `6` switches to the identification path

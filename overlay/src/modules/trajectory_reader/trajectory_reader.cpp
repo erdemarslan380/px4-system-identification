@@ -7,6 +7,7 @@
 
 
 #include "trajectory_reader.hpp"
+#include "trajectory_reader_offboard_transition.hpp"
 #include <parameters/param.h>
 #include <drivers/drv_hrt.h>
 #include <cerrno>
@@ -1191,10 +1192,10 @@ void TrajectoryReader::Run()
 		// Preserve the selected workflow across OFFBOARD entry.
 		// We only reset the state that must be recaptured at the mode boundary.
 		if (_mode == Mode::POSITION) {
-			_need_pos_offset = true;
-			_pos_offset_valid = false;
-			_pos_ref_absolute = false;
-			_pos_target = {};
+			const auto reset = position_mode_offboard_entry_reset(_pos_ref_absolute);
+			_need_pos_offset = reset.need_pos_offset;
+			_pos_offset_valid = reset.pos_offset_valid;
+			_pos_ref_absolute = reset.preserve_absolute_reference;
 
 		} else if (_mode == Mode::TRAJECTORY) {
 			stopTrajectoryTrackingLog();

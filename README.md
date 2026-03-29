@@ -345,11 +345,10 @@ For trajectory checks in HIL, the complete order is:
    - `SYS_AUTOSTART = 1001`
    - `SYS_HITL = 1`
 5. the HIL airframe starts `custom_pos_control` and `trajectory_reader` automatically,
-6. in QGroundControl, arm and take off to about `3 m`,
-7. switch to `OFFBOARD`,
-8. choose the active trajectory with `TRJ_ACTIVE_ID`,
-9. set `TRJ_MODE_CMD = 1` to start the trajectory,
-10. set `TRJ_MODE_CMD = 0` to return to position-hold.
+6. the HIL airframe also stages an absolute hover reference at `0 0 -3 0`,
+7. do not open a MAVLink shell on `ttyACM0` after `jMAVSim` starts,
+8. in QGroundControl, arm and switch to `OFFBOARD`,
+9. trigger the run over UDP only.
 
 Key HIL parameters:
 - `CST_POS_CTRL_EN = 1`
@@ -364,6 +363,21 @@ If you want to test identification instead of the five validation trajectories:
 - set `CST_POS_CTRL_TYP = 6`
 - set `TRJ_MODE_CMD = 2`
 - set `TRJ_IDENT_PROF` to the desired profile index
+
+Minimal HIL commands from the workstation:
+
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --kind ident \
+  --name hover_thrust
+
+python3 examples/run_hitl_udp_sequence.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --kind trajectory \
+  --traj-id 100
+```
 
 During firmware upload, keep only the CubeOrange USB link active if possible. The reliable form is:
 
@@ -463,7 +477,29 @@ python3 experimental_validation/build_hitl_review_bundle.py \
 
 Use only one import path per session:
 - mounted SD card: `import_sdcard_logs.sh`
-- live FTDI/MAVLink pull: `pull_sdcard_logs_over_mavftp.py`
+- live USB CDC / MAVFTP pull: `pull_sdcard_logs_over_mavftp.py`
+
+Before the live USB CDC pull:
+- close `jMAVSim`,
+- close `QGroundControl`,
+- close any `mavlink_shell.py` session on `/dev/ttyACM0`.
+
+`pull_sdcard_logs_over_mavftp.py` now:
+- enforces single-process access to `/dev/ttyACM0`,
+- skips files that are already complete locally,
+- retries missing files on the next run,
+- writes a transfer summary to `pull_report.json`.
+
+To pull `.ulg` files from the PX4 log folder instead of the custom CSV folders:
+```bash
+cd ~/px4-system-identification
+python3 examples/pull_sdcard_logs_over_mavftp.py \
+  --port /dev/ttyACM0 \
+  --baud 57600 \
+  --destination-dir ~/px4-system-identification/hitl_runs/session_001 \
+  --remote-group ulog_2026_03_28=/fs/microsd/log/2026-03-28 \
+  --suffix .ulg
+```
 
 Open:
 - `~/px4-system-identification/hitl_runs/session_001/review/index.html`
