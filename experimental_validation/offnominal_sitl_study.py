@@ -330,15 +330,26 @@ def run_validation_with_assets(
             session.send("trajectory_reader set_mode position")
             session.expect("Ready for takeoff!", timeout_s=30)
             ground_state = session.sample_local_position()
-            hover_target = _staged_hover_target(ground_state, altitude_m=3.0)
-            session.send(f"trajectory_reader abs_ref {hover_target[0]} {hover_target[1]} {hover_target[2]} 0")
+            ground_anchor = (
+                float(ground_state["x"]),
+                float(ground_state["y"]),
+                float(ground_state["z"]),
+            )
+            session.send(f"trajectory_reader abs_ref {ground_anchor[0]} {ground_anchor[1]} {ground_anchor[2]} 0")
             session.arm()
             time.sleep(1.0)
-            session.send_no_wait("commander mode offboard")
-            session.wait_until_position(hover_target, xy_tol_m=0.35, z_tol_m=0.35, timeout_s=35.0)
+            session.send_no_wait("commander takeoff")
+            anchor_state = session.wait_until_hover_stable()
             session.sync_prompt(timeout_s=10.0)
-            anchor_state = session.sample_local_position()
-            common_anchor = (float(anchor_state["x"]), float(anchor_state["y"]), float(anchor_state["z"]))
+            common_anchor = (
+                float(anchor_state["x"]),
+                float(anchor_state["y"]),
+                float(anchor_state["z"]),
+            )
+            session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
+            session.send_no_wait("commander mode offboard")
+            session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=20.0)
+            session.sync_prompt(timeout_s=10.0)
             session.send(f"trajectory_reader set_traj_anchor {common_anchor[0]} {common_anchor[1]} {common_anchor[2]}")
             session.send(f"trajectory_reader set_traj_id {entry.traj_id}")
             session.send("trajectory_reader set_mode trajectory")
@@ -422,15 +433,26 @@ def run_identification_with_assets(
             session.send("trajectory_reader set_mode position")
             session.expect("Ready for takeoff!", timeout_s=30)
             ground = session.sample_local_position()
-            hover_target = _staged_hover_target(ground, altitude_m=3.0)
-            session.send(f"trajectory_reader abs_ref {hover_target[0]} {hover_target[1]} {hover_target[2]} 0")
+            ground_anchor = (
+                float(ground["x"]),
+                float(ground["y"]),
+                float(ground["z"]),
+            )
+            session.send(f"trajectory_reader abs_ref {ground_anchor[0]} {ground_anchor[1]} {ground_anchor[2]} 0")
             session.arm()
             time.sleep(1.0)
-            session.send_no_wait("commander mode offboard")
-            session.wait_until_position(hover_target, xy_tol_m=0.35, z_tol_m=0.35, timeout_s=35.0)
+            session.send_no_wait("commander takeoff")
+            anchor_state = session.wait_until_hover_stable()
             session.sync_prompt(timeout_s=10.0)
-            hover = session.sample_local_position()
-            common_anchor = (float(hover["x"]), float(hover["y"]), float(hover["z"]))
+            common_anchor = (
+                float(anchor_state["x"]),
+                float(anchor_state["y"]),
+                float(anchor_state["z"]),
+            )
+            session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
+            session.send_no_wait("commander mode offboard")
+            session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=20.0)
+            session.sync_prompt(timeout_s=10.0)
             session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
             session.send(f"trajectory_reader set_ident_profile {profile}")
             session.send("trajectory_reader set_mode identification")
@@ -549,10 +571,12 @@ def build_offnominal_figures(
             "figure.dpi": 150,
             "savefig.dpi": 300,
             "font.family": "DejaVu Serif",
-            "font.size": 10,
-            "axes.titlesize": 12,
-            "axes.labelsize": 11,
-            "legend.fontsize": 10,
+            "font.size": 15,
+            "axes.titlesize": 18,
+            "axes.labelsize": 16,
+            "legend.fontsize": 15,
+            "xtick.labelsize": 13,
+            "ytick.labelsize": 13,
         }
     )
     plt.style.use("seaborn-v0_8-whitegrid")
@@ -562,41 +586,48 @@ def build_offnominal_figures(
 
     for figure_index, cases in enumerate(PANEL_GROUPS, start=1):
         cols = len(cases)
-        width_ratios = [1.0] * cols + [0.24, 0.07]
-        fig = plt.figure(figsize=(5.8 * cols + 2.6, 6.2), layout="constrained")
-        gs = fig.add_gridspec(1, cols + 2, width_ratios=width_ratios)
+        width_ratios = [1.0] * cols + [0.26, 0.07, 0.07]
+        fig = plt.figure(figsize=(6.6 * cols + 3.0, 7.4), layout="constrained")
+        gs = fig.add_gridspec(1, cols + 3, width_ratios=width_ratios)
         axes = [fig.add_subplot(gs[0, idx], projection="3d") for idx in range(cols)]
         legend_ax = fig.add_subplot(gs[0, cols])
-        cax = fig.add_subplot(gs[0, cols + 1])
+        cax_stock = fig.add_subplot(gs[0, cols + 1])
+        cax_real = fig.add_subplot(gs[0, cols + 2])
         legend_ax.axis("off")
 
-        global_max_error = 1e-6
+        global_max_stock_error = 1e-6
+        global_max_real_error = 1e-6
         loaded = {}
         for case in cases:
             stock_ref, stock_pos = _load_tracking(stock_root / "tracking_logs" / f"{case}.csv")
             real_ref, real_pos = _load_tracking(offnominal_root / "tracking_logs" / f"{case}.csv")
             ref, stock_pos, real_pos = _trim_triplet(stock_ref, stock_pos, real_pos)
             rmse_real, err_real = _trajectory_rmse(ref, real_pos)
-            rmse_stock, _ = _trajectory_rmse(ref, stock_pos)
-            global_max_error = max(global_max_error, float(np.max(err_real)))
+            rmse_stock, err_stock = _trajectory_rmse(ref, stock_pos)
+            global_max_stock_error = max(global_max_stock_error, float(np.max(err_stock)))
+            global_max_real_error = max(global_max_real_error, float(np.max(err_real)))
             loaded[case] = {
                 "stock_ref": ref,
                 "stock_pos": stock_pos,
                 "real_pos": real_pos,
                 "rmse_stock": rmse_stock,
                 "rmse_real": rmse_real,
+                "err_stock": err_stock,
                 "err_real": err_real,
                 "samples": len(ref),
             }
 
-        norm = mpl.colors.Normalize(vmin=0.0, vmax=global_max_error)
-        cmap = plt.get_cmap("turbo")
+        norm_stock = mpl.colors.Normalize(vmin=0.0, vmax=global_max_stock_error)
+        norm_real = mpl.colors.Normalize(vmin=0.0, vmax=global_max_real_error)
+        cmap_stock = plt.get_cmap("viridis")
+        cmap_real = plt.get_cmap("turbo")
 
         for ax, case in zip(axes, cases):
             payload = loaded[case]
             ref = payload["stock_ref"]
             stock = payload["stock_pos"]
             real = payload["real_pos"]
+            err_stock = payload["err_stock"]
             err_real = payload["err_real"]
 
             ax.plot(
@@ -608,22 +639,22 @@ def build_offnominal_figures(
                 color="#304c89",
                 label="Reference",
             )
-            ax.plot(
-                stock[:, 0],
-                stock[:, 1],
-                stock[:, 2],
-                linewidth=2.6,
-                color="#2a9d8f",
-                label="SITL",
-            )
+            if len(stock) >= 2:
+                stock_segments = np.stack([stock[:-1], stock[1:]], axis=1)
+                stock_segment_error = 0.5 * (err_stock[:-1] + err_stock[1:])
+                stock_lc = Line3DCollection(stock_segments, cmap=cmap_stock, norm=norm_stock, linewidth=2.8)
+                stock_lc.set_array(stock_segment_error)
+                ax.add_collection3d(stock_lc)
+            else:
+                ax.scatter(stock[:, 0], stock[:, 1], stock[:, 2], c=[cmap_stock(norm_stock(float(err_stock[0])))], s=25)
             if len(real) >= 2:
                 segments = np.stack([real[:-1], real[1:]], axis=1)
                 segment_error = 0.5 * (err_real[:-1] + err_real[1:])
-                lc = Line3DCollection(segments, cmap=cmap, norm=norm, linewidth=3.0)
+                lc = Line3DCollection(segments, cmap=cmap_real, norm=norm_real, linewidth=3.0)
                 lc.set_array(segment_error)
                 ax.add_collection3d(lc)
             else:
-                ax.scatter(real[:, 0], real[:, 1], real[:, 2], c=[cmap(norm(float(err_real[0])))], s=25)
+                ax.scatter(real[:, 0], real[:, 1], real[:, 2], c=[cmap_real(norm_real(float(err_real[0])))], s=25)
 
             all_points = np.vstack([ref, stock, real])
             _set_axes_equal(ax, all_points)
@@ -637,13 +668,18 @@ def build_offnominal_figures(
 
         legend_handles = [
             mpl.lines.Line2D([0], [0], color="#304c89", linestyle="--", linewidth=2.2, label="Reference"),
-            mpl.lines.Line2D([0], [0], color="#2a9d8f", linestyle="-", linewidth=2.6, label="SITL"),
+            mpl.lines.Line2D([0], [0], color=cmap_stock(0.72), linestyle="-", linewidth=2.8, label="SITL"),
             mpl.lines.Line2D([0], [0], color="#d1495b", linestyle="-", linewidth=3.0, label="Real flight results"),
         ]
-        legend_ax.legend(handles=legend_handles, loc="upper left", frameon=True)
-        scalar = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
-        cbar = fig.colorbar(scalar, cax=cax)
-        cbar.set_label("Instantaneous position error [m]")
+        legend_ax.legend(handles=legend_handles, loc="upper left", frameon=True, borderpad=1.0, labelspacing=1.0)
+        scalar_stock = mpl.cm.ScalarMappable(norm=norm_stock, cmap=cmap_stock)
+        scalar_real = mpl.cm.ScalarMappable(norm=norm_real, cmap=cmap_real)
+        cbar_stock = fig.colorbar(scalar_stock, cax=cax_stock)
+        cbar_real = fig.colorbar(scalar_real, cax=cax_real)
+        cbar_stock.set_label("SITL instantaneous position error [m]")
+        cbar_real.set_label("Real flight results instantaneous position error [m]")
+        cbar_stock.ax.tick_params(labelsize=13)
+        cbar_real.ax.tick_params(labelsize=13)
 
         name = "group_1_circle_hairpin_lemniscate" if figure_index == 1 else "group_2_time_optimal_minimum_snap"
         out_path = out_dir / f"{name}.png"

@@ -177,6 +177,25 @@ class OffnominalSitlStudyTest(unittest.TestCase):
         self.assertEqual(len(stock_out), 60)
         self.assertEqual(len(real_out), 60)
 
+    def test_validation_uses_takeoff_then_offboard_flow(self) -> None:
+        source = inspect.getsource(study.run_validation_with_assets)
+        self.assertLess(source.index('session.send_no_wait("commander takeoff")'),
+                        source.index('session.send_no_wait("commander mode offboard")'))
+        self.assertIn('session.wait_until_hover_stable()', source)
+
+    def test_identification_uses_takeoff_then_offboard_flow(self) -> None:
+        source = inspect.getsource(study.run_identification_with_assets)
+        self.assertLess(source.index('session.send_no_wait("commander takeoff")'),
+                        source.index('session.send_no_wait("commander mode offboard")'))
+        self.assertIn('session.wait_until_hover_stable()', source)
+
+    def test_figure_builder_uses_error_colormaps_for_both_series(self) -> None:
+        source = inspect.getsource(study.build_offnominal_figures)
+        self.assertIn('cmap_stock = plt.get_cmap("viridis")', source)
+        self.assertIn('cmap_real = plt.get_cmap("turbo")', source)
+        self.assertIn('SITL instantaneous position error [m]', source)
+        self.assertIn('Real flight results instantaneous position error [m]', source)
+
 
 if __name__ == "__main__":
     unittest.main()
