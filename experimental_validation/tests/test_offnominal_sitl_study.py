@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import inspect
 import unittest
 
+import experimental_validation.offnominal_sitl_study as study
 from experimental_validation.offnominal_sitl_study import (
     OffnominalPerturbation,
     PANEL_GROUPS,
@@ -57,6 +59,20 @@ class OffnominalSitlStudyTest(unittest.TestCase):
             "time_optimal_30s",
             "minimum_snap_50s",
         ])
+
+    def test_ident_profile_is_set_before_identification_mode(self) -> None:
+        source = inspect.getsource(study.run_identification_with_assets)
+        self.assertLess(
+            source.index('session.send(f"trajectory_reader set_ident_profile {profile}")'),
+            source.index('session.send("trajectory_reader set_mode identification")'),
+        )
+
+    def test_tracking_log_is_waited_before_ident_log(self) -> None:
+        source = inspect.getsource(study.run_identification_with_assets)
+        self.assertLess(
+            source.index('match_track = session.expect(TRACKING_LOG_START_RE, timeout_s=20)'),
+            source.index('match_ident = session.expect(IDENT_LOG_START_RE, timeout_s=5)'),
+        )
 
 
 if __name__ == "__main__":

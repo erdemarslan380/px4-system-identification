@@ -143,8 +143,8 @@ def create_offnominal_model_assets(
     models_root = px4_root / "Tools" / "simulation" / "gz" / "models"
     stock_model = models_root / "x500"
     stock_base = models_root / "x500_base"
-    target_model = asset_root / "models" / model_name
-    target_base = asset_root / "models" / f"{model_name}_base"
+    target_model = models_root / model_name
+    target_base = models_root / f"{model_name}_base"
 
     if target_model.exists():
         shutil.rmtree(target_model)
@@ -214,13 +214,14 @@ def create_offnominal_model_assets(
         "model_name": model_name,
         "offnominal_truth": offnominal,
         "perturbation": asdict(perturbation),
+        "installed_model_dir": str(target_model.resolve()),
+        "installed_base_model_dir": str(target_base.resolve()),
     }
 
 
 def create_light_breeze_world(*, px4_root: Path, asset_root: Path, world_name: str) -> Path:
     source = px4_root / "Tools" / "simulation" / "gz" / "worlds" / "windy.sdf"
-    target = asset_root / "worlds" / f"{world_name}.sdf"
-    target.parent.mkdir(parents=True, exist_ok=True)
+    target = px4_root / "Tools" / "simulation" / "gz" / "worlds" / f"{world_name}.sdf"
     tree = ET.parse(source)
     root = tree.getroot()
     world = root.find("world")
@@ -232,6 +233,12 @@ def create_light_breeze_world(*, px4_root: Path, asset_root: Path, world_name: s
     _indent(root)
     tree.write(target, encoding="utf-8", xml_declaration=True)
     return target
+
+
+def _load_existing_manifest(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _prepare_model_override_from_dir(source_model_dir: Path, target_model_name: str, override_models_root: Path) -> None:
@@ -287,51 +294,49 @@ def run_validation_with_assets(
     build_dir = px4_root / "build" / "px4_sitl_default"
     base_rootfs = build_dir / "rootfs"
     runtime_root = out_root / "runtime" / label
-    run_rootfs = runtime_root / "rootfs"
-    override_models_root = runtime_root / "override_models"
     result_root = out_root / label
+    results: list[dict] = []
+    export_manifest = None
+    for entry in VALIDATION_CASES:
+        case_runtime_root = runtime_root / entry.name
+        run_rootfs = case_runtime_root / "rootfs"
+        override_models_root = case_runtime_root / "override_models"
 
-    _prepare_run_rootfs(base_rootfs, run_rootfs)
-    export_manifest = export_validation_trajectories(run_rootfs / "trajectories")
-    _prepare_model_override_from_dir(source_model_dir, model_name, override_models_root)
-    env = _build_env_with_world(
-        px4_root=px4_root,
-        build_dir=build_dir,
-        run_rootfs=run_rootfs,
-        override_models_root=override_models_root,
-        model_name=model_name,
-        world_name=world_name,
-        override_worlds_root=override_worlds_root,
-        headless=headless,
-    )
+        _prepare_run_rootfs(base_rootfs, run_rootfs)
+        export_manifest = export_validation_trajectories(run_rootfs / "trajectories")
+        _prepare_model_override_from_dir(source_model_dir, model_name, override_models_root)
+        env = _build_env_with_world(
+            px4_root=px4_root,
+            build_dir=build_dir,
+            run_rootfs=run_rootfs,
+            override_models_root=override_models_root,
+            model_name=model_name,
+            world_name=world_name,
+            override_worlds_root=override_worlds_root,
+            headless=headless,
+        )
 
-    _cleanup_stale_sitl_processes()
-    session = Px4SitlSession(px4_root, run_rootfs, env)
-    try:
-        session.start()
-        session.send("param set MIS_TAKEOFF_ALT 3.0")
-        session.send("custom_pos_control start")
-        session.send("trajectory_reader start")
-        session.send("custom_pos_control set px4_default")
-        session.send("custom_pos_control enable")
-        session.send("trajectory_reader set_mode position")
-        session.expect("Ready for takeoff!", timeout_s=30)
-        ground_state = session.sample_local_position()
-        hover_target = _staged_hover_target(ground_state, altitude_m=3.0)
-        session.send(f"trajectory_reader abs_ref {hover_target[0]} {hover_target[1]} {hover_target[2]} 0")
-        session.arm()
-        time.sleep(1.0)
-        session.send_no_wait("commander mode offboard")
-        session.wait_until_position(hover_target, xy_tol_m=0.35, z_tol_m=0.35, timeout_s=35.0)
-        session.sync_prompt(timeout_s=10.0)
-        anchor_state = session.sample_local_position()
-        common_anchor = (float(anchor_state["x"]), float(anchor_state["y"]), float(anchor_state["z"]))
-
-        results: list[dict] = []
-        for entry in VALIDATION_CASES:
+        _cleanup_stale_sitl_processes()
+        session = Px4SitlSession(px4_root, run_rootfs, env)
+        try:
+            session.start()
+            session.send("param set MIS_TAKEOFF_ALT 3.0")
+            session.send("custom_pos_control start")
+            session.send("trajectory_reader start")
+            session.send("custom_pos_control set px4_default")
+            session.send("custom_pos_control enable")
             session.send("trajectory_reader set_mode position")
-            session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
-            session.wait_until_position(common_anchor, xy_tol_m=0.35, z_tol_m=0.35, timeout_s=20.0)
+            session.expect("Ready for takeoff!", timeout_s=30)
+            ground_state = session.sample_local_position()
+            hover_target = _staged_hover_target(ground_state, altitude_m=3.0)
+            session.send(f"trajectory_reader abs_ref {hover_target[0]} {hover_target[1]} {hover_target[2]} 0")
+            session.arm()
+            time.sleep(1.0)
+            session.send_no_wait("commander mode offboard")
+            session.wait_until_position(hover_target, xy_tol_m=0.35, z_tol_m=0.35, timeout_s=35.0)
+            session.sync_prompt(timeout_s=10.0)
+            anchor_state = session.sample_local_position()
+            common_anchor = (float(anchor_state["x"]), float(anchor_state["y"]), float(anchor_state["z"]))
             session.send(f"trajectory_reader set_traj_anchor {common_anchor[0]} {common_anchor[1]} {common_anchor[2]}")
             session.send(f"trajectory_reader set_traj_id {entry.traj_id}")
             session.send("trajectory_reader set_mode trajectory")
@@ -341,25 +346,22 @@ def run_validation_with_assets(
                 timeout_s=max(40.0, _trajectory_duration_s(entry) + 15.0),
             )
             assert match is not None
-            copied = _copy_log(_find_tracking_log(run_rootfs, match.group(1)), result_root / "tracking_logs" / f"{entry.name}.csv")
+            copied = _copy_log(
+                _find_tracking_log(run_rootfs, match.group(1)),
+                result_root / "tracking_logs" / f"{entry.name}.csv",
+            )
             results.append(
                 {
                     "traj_id": entry.traj_id,
                     "name": entry.name,
                     "duration_s": _trajectory_duration_s(entry),
                     "tracking_log": copied,
+                    "console_log": str((run_rootfs / "px4_console.log").resolve()),
                 }
             )
-            session.send("trajectory_reader set_mode position")
-            session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
-            session.wait_until_position(common_anchor, xy_tol_m=0.4, z_tol_m=0.4, timeout_s=22.0)
-
-        session.send_no_wait("commander mode auto:land")
-        time.sleep(5.0)
-        session.sync_prompt(timeout_s=10.0)
-    finally:
-        session.shutdown()
-        _cleanup_stale_sitl_processes()
+        finally:
+            session.shutdown()
+            _cleanup_stale_sitl_processes()
 
     payload = {
         "label": label,
@@ -368,7 +370,6 @@ def run_validation_with_assets(
         "world_name": world_name,
         "export_manifest": export_manifest,
         "results": results,
-        "console_log": str((run_rootfs / "px4_console.log").resolve()),
     }
     result_root.mkdir(parents=True, exist_ok=True)
     (result_root / "run_manifest.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -387,50 +388,52 @@ def run_identification_with_assets(
     build_dir = px4_root / "build" / "px4_sitl_default"
     base_rootfs = build_dir / "rootfs"
     runtime_root = out_root / "runtime" / label
-    run_rootfs = runtime_root / "rootfs"
-    override_models_root = runtime_root / "override_models"
     result_root = out_root / label
+    results: list[dict] = []
+    truth_csvs: list[str] = []
+    for idx, profile in enumerate(IDENT_PROFILES, start=1):
+        profile_runtime_root = runtime_root / f"{idx:02d}_{profile}"
+        run_rootfs = profile_runtime_root / "rootfs"
+        override_models_root = profile_runtime_root / "override_models"
+        _prepare_run_rootfs(base_rootfs, run_rootfs)
+        _prepare_model_override_from_dir(source_model_dir, model_name, override_models_root)
+        env = _build_env_with_world(
+            px4_root=px4_root,
+            build_dir=build_dir,
+            run_rootfs=run_rootfs,
+            override_models_root=override_models_root,
+            model_name=model_name,
+            world_name="default",
+            override_worlds_root=None,
+            headless=headless,
+        )
 
-    _prepare_run_rootfs(base_rootfs, run_rootfs)
-    _prepare_model_override_from_dir(source_model_dir, model_name, override_models_root)
-    env = _build_env_with_world(
-        px4_root=px4_root,
-        build_dir=build_dir,
-        run_rootfs=run_rootfs,
-        override_models_root=override_models_root,
-        model_name=model_name,
-        world_name="default",
-        override_worlds_root=None,
-        headless=headless,
-    )
-
-    _cleanup_stale_sitl_processes()
-    session = Px4SitlSession(px4_root, run_rootfs, env)
-    try:
-        session.start()
-        session.send("param set MIS_TAKEOFF_ALT 3.0")
-        session.send("custom_pos_control start")
-        session.send("trajectory_reader start")
-        session.send("custom_pos_control enable")
-        session.send("custom_pos_control set sysid")
-        session.send("trajectory_reader set_mode identification")
-        session.expect("Ready for takeoff!", timeout_s=30)
-        ground = session.sample_local_position()
-        hover_target = _staged_hover_target(ground, altitude_m=3.0)
-        session.send(f"trajectory_reader abs_ref {hover_target[0]} {hover_target[1]} {hover_target[2]} 0")
-        session.arm()
-        time.sleep(1.0)
-        session.send_no_wait("commander mode offboard")
-        session.wait_until_position(hover_target, xy_tol_m=0.35, z_tol_m=0.35, timeout_s=35.0)
-        session.sync_prompt(timeout_s=10.0)
-        hover = session.sample_local_position()
-        common_anchor = (float(hover["x"]), float(hover["y"]), float(hover["z"]))
-
-        results: list[dict] = []
-        for idx, profile in enumerate(IDENT_PROFILES, start=1):
+        _cleanup_stale_sitl_processes()
+        session = Px4SitlSession(px4_root, run_rootfs, env)
+        try:
+            session.start()
+            session.send("param set MIS_TAKEOFF_ALT 3.0")
+            session.send("custom_pos_control start")
+            session.send("trajectory_reader start")
+            session.send("custom_pos_control enable")
+            session.send("custom_pos_control set sysid")
+            session.send("trajectory_reader set_mode position")
+            session.expect("Ready for takeoff!", timeout_s=30)
+            ground = session.sample_local_position()
+            hover_target = _staged_hover_target(ground, altitude_m=3.0)
+            session.send(f"trajectory_reader abs_ref {hover_target[0]} {hover_target[1]} {hover_target[2]} 0")
+            session.arm()
+            time.sleep(1.0)
+            session.send_no_wait("commander mode offboard")
+            session.wait_until_position(hover_target, xy_tol_m=0.35, z_tol_m=0.35, timeout_s=35.0)
+            session.sync_prompt(timeout_s=10.0)
+            hover = session.sample_local_position()
+            common_anchor = (float(hover["x"]), float(hover["y"]), float(hover["z"]))
+            session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
             session.send(f"trajectory_reader set_ident_profile {profile}")
-            match_ident = session.expect(IDENT_LOG_START_RE, timeout_s=20)
-            match_track = session.expect(TRACKING_LOG_START_RE, timeout_s=5)
+            session.send("trajectory_reader set_mode identification")
+            match_track = session.expect(TRACKING_LOG_START_RE, timeout_s=20)
+            match_ident = session.expect(IDENT_LOG_START_RE, timeout_s=5)
             session.expect(f"Identification maneuver completed: {profile}", timeout_s=70.0)
             session.expect(f"Identification log completed: {profile}", timeout_s=20.0)
             session.expect(f"Tracking log completed: {profile}", timeout_s=20.0)
@@ -440,37 +443,32 @@ def run_identification_with_assets(
             track_path = sortie_root / "tracking_logs" / "run_00000.csv"
             _copy_log(_find_tracking_log(run_rootfs, match_ident.group(1)), eval_path)
             _copy_log(_find_tracking_log(run_rootfs, match_track.group(1)), track_path)
+            truth_logs = sorted((run_rootfs / "sysid_truth_logs").glob("*.csv"))
+            if not truth_logs:
+                raise RuntimeError(f"No sysid truth CSV produced for {profile}")
+            truth_csv = truth_logs[-1]
+            dst = sortie_root / "gazebo_truth_traces" / "eval_00000.csv"
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(truth_csv, dst)
+            truth_csvs.append(str(dst.resolve()))
             results.append(
                 {
                     "profile": profile,
                     "identification_log": str(eval_path.resolve()),
                     "tracking_log": str(track_path.resolve()),
+                    "truth_log": str(dst.resolve()),
+                    "console_log": str((run_rootfs / "px4_console.log").resolve()),
                 }
             )
-
-        session.send_no_wait("commander mode auto:land")
-        time.sleep(5.0)
-        session.sync_prompt(timeout_s=10.0)
-    finally:
-        session.shutdown()
-        _cleanup_stale_sitl_processes()
-
-    truth_logs = sorted((run_rootfs / "sysid_truth_logs").glob("*.csv"))
-    if not truth_logs:
-        raise RuntimeError("No sysid truth CSV produced during off-nominal identification run")
-    truth_csv = truth_logs[-1]
-    for idx, profile in enumerate(IDENT_PROFILES, start=1):
-        sortie_root = result_root / f"{idx:02d}_{profile}"
-        dst = sortie_root / "gazebo_truth_traces" / "eval_00000.csv"
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(truth_csv, dst)
+        finally:
+            session.shutdown()
+            _cleanup_stale_sitl_processes()
 
     payload = {
         "label": label,
         "model_name": model_name,
-        "truth_csv": str(truth_csv.resolve()),
+        "truth_csvs": truth_csvs,
         "results": results,
-        "console_log": str((run_rootfs / "px4_console.log").resolve()),
     }
     result_root.mkdir(parents=True, exist_ok=True)
     (result_root / "run_manifest.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -632,25 +630,34 @@ def run_offnominal_study(
     )
     breeze_world = create_light_breeze_world(px4_root=px4_root, asset_root=asset_root, world_name=world_name)
 
-    stock_manifest = run_validation_with_assets(
-        px4_root=px4_root,
-        out_root=out_dir / "results",
-        label="stock_baseline_pid",
-        display_name="Stock x500 baseline PID",
-        source_model_dir=stock_model_dir,
-        model_name="x500",
-        world_name="default",
-        headless=headless,
-    )
+    results_root = out_dir / "results"
+    stock_manifest_path = results_root / "stock_baseline_pid" / "run_manifest.json"
+    ident_manifest_path = results_root / "offnominal_identification" / "run_manifest.json"
+    offnominal_manifest_path = results_root / "offnominal_windy_pid" / "run_manifest.json"
 
-    ident_manifest = run_identification_with_assets(
-        px4_root=px4_root,
-        out_root=out_dir / "results",
-        label="offnominal_identification",
-        source_model_dir=asset_root / "models" / model_name,
-        model_name=model_name,
-        headless=headless,
-    )
+    stock_manifest = _load_existing_manifest(stock_manifest_path)
+    if stock_manifest is None:
+        stock_manifest = run_validation_with_assets(
+            px4_root=px4_root,
+            out_root=results_root,
+            label="stock_baseline_pid",
+            display_name="Stock x500 baseline PID",
+            source_model_dir=stock_model_dir,
+            model_name="x500",
+            world_name="default",
+            headless=headless,
+        )
+
+    ident_manifest = _load_existing_manifest(ident_manifest_path)
+    if ident_manifest is None:
+        ident_manifest = run_identification_with_assets(
+            px4_root=px4_root,
+            out_root=results_root,
+            label="offnominal_identification",
+            source_model_dir=px4_root / "Tools" / "simulation" / "gz" / "models" / model_name,
+            model_name=model_name,
+            headless=headless,
+        )
 
     candidate_dir = out_dir / "candidate_offnominal_recovered"
     compare_cmd = [
@@ -672,17 +679,19 @@ def run_offnominal_study(
         raise RuntimeError(f"compare_with_sdf failed\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}")
     compare_summary = json.loads(proc.stdout)
 
-    offnominal_manifest = run_validation_with_assets(
-        px4_root=px4_root,
-        out_root=out_dir / "results",
-        label="offnominal_windy_pid",
-        display_name="Off-nominal x500 with light wind",
-        source_model_dir=asset_root / "models" / model_name,
-        model_name=model_name,
-        world_name=world_name,
-        override_worlds_root=asset_root / "worlds",
-        headless=headless,
-    )
+    offnominal_manifest = _load_existing_manifest(offnominal_manifest_path)
+    if offnominal_manifest is None:
+        offnominal_manifest = run_validation_with_assets(
+            px4_root=px4_root,
+            out_root=results_root,
+            label="offnominal_windy_pid",
+            display_name="Off-nominal x500 with light wind",
+            source_model_dir=px4_root / "Tools" / "simulation" / "gz" / "models" / model_name,
+            model_name=model_name,
+            world_name=world_name,
+            override_worlds_root=None,
+            headless=headless,
+        )
 
     figures = build_offnominal_figures(
         stock_root=out_dir / "results" / "stock_baseline_pid",
