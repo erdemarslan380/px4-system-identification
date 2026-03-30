@@ -299,6 +299,17 @@ Trigger button behavior:
 - press `H` with workflow slot `2`: start the selected trajectory
 - press `H` with workflow slot `3`, `4`, or `5`: start the selected built-in campaign
 
+QGroundControl calibration and mapping:
+- in `Vehicle Setup > Radio`, finish the normal radio calibration first,
+- move the spare knobs or switches you want to use and note which `AUX 1..6` entries move,
+- `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` use those `AUX 1..6` slot numbers, which map to `manual_control_setpoint.aux1..aux6`,
+- `TRJ_RC_START_BTN` is a one-based index into `manual_control_setpoint.buttons`; if your `H` trigger comes through QGroundControl joystick/manual-control input, set it in `Vehicle Setup > Joystick`,
+- before the first flight, verify the mapping on the vehicle with `listener manual_control_setpoint`: the chosen pots must move the expected `auxN` field and the `H` trigger must toggle the `buttons` bitfield.
+
+Important:
+- if the `H` trigger does not change `manual_control_setpoint.buttons`, the RC start trigger will not fire,
+- in that case keep the pot-based selection, but start maneuvers and campaigns from the helper script or shell commands.
+
 8. HIL/HITL on CubeOrange with jMAVSim
 -------------------------------------
 Use HIL only as a pre-flight smoke test:

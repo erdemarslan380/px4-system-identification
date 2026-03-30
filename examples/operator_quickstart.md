@@ -155,6 +155,14 @@ Workflow pot slots:
 
 Press the `H` button to apply the currently selected workflow.
 
+QGroundControl mapping check:
+- in `Vehicle Setup > Radio`, complete the normal radio calibration and note which spare controls appear as `AUX 1..6`,
+- set `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` from those `AUX` slot numbers,
+- if the `H` trigger comes through QGroundControl manual-control or joystick input, set it in `Vehicle Setup > Joystick` and use that one-based button index for `TRJ_RC_START_BTN`,
+- verify the final mapping with `listener manual_control_setpoint`: the pots should move the expected `auxN` field and the `H` trigger must toggle `buttons`.
+
+If the `H` trigger does not affect `manual_control_setpoint.buttons`, keep using the helper script or shell command to start the selected maneuver or campaign.
+
 5. Refresh the shipped figures
 ------------------------------
 ```bash
