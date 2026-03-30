@@ -1,0 +1,87 @@
+{
+  "hil_runs": [
+    {
+      "source": "/home/earsub/px4-system-identification/hitl_runs/live_check_001_ulog/ulg/05_54_37.ulg",
+      "cpu_load": {
+        "samples": 1,
+        "min_pct": 27.632933855056763,
+        "mean_pct": 27.632933855056763,
+        "max_pct": 27.632933855056763
+      },
+      "ram_usage": {
+        "samples": 1,
+        "min_pct": 28.291454911231995,
+        "mean_pct": 28.291454911231995,
+        "max_pct": 28.291454911231995,
+        "status": "valid",
+        "valid_samples": 1,
+        "valid_min_pct": 28.291454911231995,
+        "valid_mean_pct": 28.291454911231995,
+        "valid_max_pct": 28.291454911231995
+      },
+      "issue_counts": {
+        "ram_usage_too_high": 0,
+        "low_on_stack": 0,
+        "parameter_verify_failed": 0,
+        "baro_stale": 0,
+        "failsafe_activated": 1
+      },
+      "logged_messages_sample": [
+        "[failsafe] Failsafe activated\t",
+        "[logger] [logger] /fs/microsd/log/2026-03-30/05_54_37.ulg\t",
+        "[logger] Opened full log file: /fs/microsd/log/2026-03-30/05_54_37.ulg",
+        "[commander] Takeoff detected\t"
+      ]
+    },
+    {
+      "source": "/home/earsub/px4-system-identification/hitl_runs/live_check_001_ulog/ulg/05_59_44.ulg",
+      "cpu_load": {
+        "samples": 113,
+        "min_pct": 16.52439832687378,
+        "mean_pct": 17.138746407179706,
+        "max_pct": 36.1263632774353
+      },
+      "ram_usage": {
+        "samples": 113,
+        "min_pct": 24.92142617702484,
+        "mean_pct": 95802.52713236661,
+        "max_pct": 96657.68432617188,
+        "status": "invalid_spike_detected",
+        "valid_samples": 1,
+        "valid_min_pct": 24.92142617702484,
+        "valid_mean_pct": 24.92142617702484,
+        "valid_max_pct": 24.92142617702484
+      },
+      "issue_counts": {
+        "ram_usage_too_high": 2,
+        "low_on_stack": 1,
+        "parameter_verify_failed": 1,
+        "baro_stale": 1,
+        "failsafe_activated": 1
+      },
+      "logged_messages_sample": [
+        "[logger] Start file log (type: full)",
+        "[logger] [logger] /fs/microsd/log/2026-03-30/05_59_44.ulg\t",
+        "[logger] Opened full log file: /fs/microsd/log/2026-03-30/05_59_44.ulg",
+        "[commander] Takeoff detected\t",
+        "[vehicle_air_data] BARO #0 failed:  STALE!\t",
+        "[tinybson] node name overflow, type:0x45, name:RROR [vehicle_air_data] BARO #0 ",
+        "[tinybson] killed: node name overflow",
+        "[parameters] verify: failed (-1)",
+        "[health_and_arming_checks] Preflight Fail: RAM usage too high: 96657.7%",
+        "[health_and_arming_checks] Preflight Fail: RAM usage too high: 96657.7%",
+        "[health_and_arming_checks] Preflight Fail: Imbalanced propeller detected",
+        "[failsafe] Failsafe activated\t"
+      ]
+    }
+  ],
+  "host_process": {
+    "pid": 120606,
+    "elapsed": "04:20:45",
+    "cpu_pct": 29.3,
+    "mem_pct": 5.1,
+    "rss_kib": 827228,
+    "vsz_kib": 9928816,
+    "command": "java --add-exports java.base/java.lang=ALL-UNNAMED --add-exports java.desktop/sun.awt=ALL-UNNAMED --add-exports java.desktop/sun.java2d=ALL-UNNAMED -XX:GCTimeRatio=20 -Djava.ext.dirs= -jar jmavsim_run.jar -serial /dev/ttyACM1 921600 -qgc -sdk -r 250"
+  }
+}

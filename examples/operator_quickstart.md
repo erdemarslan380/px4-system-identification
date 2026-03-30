@@ -310,6 +310,23 @@ Acceptance check on the SD card:
 - `9` files in `identification_logs/`
 - `14` files in `tracking_logs/`
 
+HIL RAM/CPU report after the run:
+```bash
+cd ~/px4-system-identification
+python3 examples/pull_sdcard_logs_over_mavftp.py \
+  --port <usb_cdc_device> \
+  --baud 57600 \
+  --destination-dir ~/px4-system-identification/hitl_runs/session_001
+
+python3 experimental_validation/report_hil_resources.py \
+  --ulg ~/px4-system-identification/hitl_runs/session_001/ulg/<latest>.ulg \
+  --out ~/px4-system-identification/hitl_runs/session_001/hil_resource_summary.json
+```
+
+Current checked repo example:
+- [live_check_001_summary.json](/home/earsub/px4-system-identification/examples/hil_resource_report/live_check_001_summary.json)
+- current verdict: not signed off yet, because one checked HIL run logged `RAM usage too high`, `low on stack`, and `parameters verify: failed`.
+
 7. Pull SD-card logs into the repo and review them
 --------------------------------------------------
 ```bash

@@ -13,6 +13,7 @@ Main folders
 - `experimental_validation/`: estimation, comparison, figures
 - `examples/`: short operator guides
 - `system_identification.txt`: longer technical text for papers and reports
+- `paper_chatgpt_prompt.md`: ready-to-paste workflow prompt for paper writing with ChatGPT
 
 Fastest operator checklist:
 - [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
@@ -637,6 +638,53 @@ Use the same campaign choices on hardware:
 
 The short command set for those variants is kept in:
 - [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
+
+Verified HIL resource reporting:
+1. finish the HIL run,
+2. close `jMAVSim`, QGroundControl, and any MAVLink shell on the same USB CDC device,
+3. pull the newest ULog from `/fs/microsd/log/...`,
+4. summarize board RAM/CPU from that ULog.
+
+Example pull and report commands:
+```bash
+cd ~/px4-system-identification
+python3 examples/pull_sdcard_logs_over_mavftp.py \
+  --port <usb_cdc_device> \
+  --baud 57600 \
+  --destination-dir ~/px4-system-identification/hitl_runs/session_001
+
+python3 experimental_validation/report_hil_resources.py \
+  --ulg ~/px4-system-identification/hitl_runs/session_001/ulg/<latest>.ulg \
+  --out ~/px4-system-identification/hitl_runs/session_001/hil_resource_summary.json
+```
+
+Current checked HIL resource report for this repo:
+- JSON: [live_check_001_summary.json](/home/earsub/px4-system-identification/examples/hil_resource_report/live_check_001_summary.json)
+- board source logs:
+  - [05_54_37.ulg](/home/earsub/px4-system-identification/hitl_runs/live_check_001_ulog/ulg/05_54_37.ulg)
+  - [05_59_44.ulg](/home/earsub/px4-system-identification/hitl_runs/live_check_001_ulog/ulg/05_59_44.ulg)
+
+Current measured HIL resource snapshots:
+
+| Run | Source | Board CPU load | Board RAM usage | Result |
+| --- | --- | --- | --- | --- |
+| HIL live check A | `05_54_37.ulg` | `27.6%` single logged sample | `28.3%` single logged sample | clean but too short to sign off alone |
+| HIL live check B | `05_59_44.ulg` | `16.5% min`, `17.1% mean`, `36.1% max` | first valid sample `24.9%`, then invalid spikes to `96657.7%` | failed |
+
+Current host-side simulator snapshot during the same HIL window:
+
+| Process | CPU | Memory | RSS |
+| --- | --- | --- | --- |
+| `jmavsim_run.jar` | `29.3%` | `5.1%` | `827228 KiB` |
+
+Current HIL acceptance verdict:
+- not signed off yet,
+- the healthy snapshot proves the board can boot and start logging,
+- the failed snapshot proves this HIL path still has a real issue:
+  - `RAM usage too high: 96657.7%`
+  - `wq:nav_and_controllers low on stack! (0 bytes left)`
+  - `parameters verify: failed (-1)`
+- keep using the same reporting command above after every HIL session until the verdict is clean.
 
 ### 11.2 HIL-identified SITL comparison
 This block is reserved for the pipeline:

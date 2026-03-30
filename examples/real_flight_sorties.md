@@ -176,13 +176,15 @@ trajectory_reader set_mode trajectory
      - open `http://127.0.0.1:8765/`
 3. build the interactive review bundle:
    - `python3 experimental_validation/build_hitl_review_bundle.py --log-root ~/px4-system-identification/flight_runs/session_001 --out-dir ~/px4-system-identification/flight_runs/session_001/review`
-4. open:
+4. if you also pulled the PX4 `.ulg` files, summarize board RAM/CPU with:
+   - `python3 experimental_validation/report_hil_resources.py --ulg ~/px4-system-identification/flight_runs/session_001/ulg/<latest>.ulg --out ~/px4-system-identification/flight_runs/session_001/hil_resource_summary.json`
+5. open:
    - `~/px4-system-identification/flight_runs/session_001/review/index.html`
-5. estimate the identified model,
-6. write the candidate into the Gazebo SDF,
-7. run the same five validation trajectories in SITL,
-8. overlay the real-flight traces and the digital-twin traces,
-9. regenerate the same figures.
+6. estimate the identified model,
+7. write the candidate into the Gazebo SDF,
+8. run the same five validation trajectories in SITL,
+9. overlay the real-flight traces and the digital-twin traces,
+10. regenerate the same figures.
 
 Before the live USB CDC pull or the browser flow:
 - close `jMAVSim`,

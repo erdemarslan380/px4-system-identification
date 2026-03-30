@@ -20,6 +20,7 @@ UPLOAD_CUBEORANGE_SCRIPT = REPO_ROOT / "examples" / "upload_cubeorange_firmware.
 PX4_NSH_RUNNER_SCRIPT = REPO_ROOT / "examples" / "px4_nsh_runner.py"
 LATEST_CANDIDATE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_latest_x500_candidate.py"
 HITL_REVIEW_BUNDLE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_hitl_review_bundle.py"
+HIL_RESOURCE_REPORT_SCRIPT = REPO_ROOT / "experimental_validation" / "report_hil_resources.py"
 TRAJECTORY_ASSET_DIR = REPO_ROOT / "assets" / "validation_trajectories"
 
 
@@ -100,6 +101,7 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertTrue(PULL_SDCARD_LOGS_OVER_MAVFTP_SCRIPT.exists())
         self.assertTrue(LATEST_CANDIDATE_SCRIPT.exists())
         self.assertTrue(HITL_REVIEW_BUNDLE_SCRIPT.exists())
+        self.assertTrue(HIL_RESOURCE_REPORT_SCRIPT.exists())
         refresh_content = REFRESH_DEMO_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("validation_trajectories.py", refresh_content)
         self.assertIn("generate_sitl_validation_bundle.py", refresh_content)
@@ -139,6 +141,9 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("Plotly.newPlot('plot3d'", hitl_review)
         self.assertIn("tracking_logs", hitl_review)
         self.assertIn("identification_logs", hitl_review)
+        hil_resource_report = HIL_RESOURCE_REPORT_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("cpuload", hil_resource_report)
+        self.assertIn("RAM usage too high", hil_resource_report)
 
     def test_primary_docs_cover_cubeorange_build_flow(self) -> None:
         docs = [
@@ -245,6 +250,7 @@ class RepoCleanlinessTests(unittest.TestCase):
             self.assertIn("/fs/microsd/trajectories", content, msg=f"missing hardware trajectory path in {doc}")
             self.assertIn("build_hitl_review_bundle.py", content, msg=f"missing review bundle flow in {doc}")
             self.assertIn("pull_sdcard_logs_over_mavftp.py", content, msg=f"missing MAVFTP pull flow in {doc}")
+            self.assertIn("report_hil_resources.py", content, msg=f"missing HIL resource report flow in {doc}")
 
     def test_hardware_helper_scripts_exist(self) -> None:
         self.assertTrue(UPLOAD_CUBEORANGE_SCRIPT.exists())

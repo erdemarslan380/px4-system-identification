@@ -256,6 +256,16 @@ Supported HIL command shapes now mirror SITL:
 - one trajectory:
   - `python3 ~/px4-system-identification/examples/run_hitl_udp_sequence.py --endpoint udpin:127.0.0.1:14550 --kind trajectory --traj-id 100 --allow-missing-local-position --blind-hover-seconds 12`
 
+After each HIL run, report board RAM/CPU from the pulled ULog instead of guessing from the live console:
+- `python3 ~/px4-system-identification/examples/pull_sdcard_logs_over_mavftp.py --port <usb_cdc_device> --baud 57600 --destination-dir ~/px4-system-identification/hitl_runs/session_001`
+- `python3 ~/px4-system-identification/experimental_validation/report_hil_resources.py --ulg ~/px4-system-identification/hitl_runs/session_001/ulg/<latest>.ulg --out ~/px4-system-identification/hitl_runs/session_001/hil_resource_summary.json`
+
+Current checked repository example:
+- `/home/earsub/px4-system-identification/examples/hil_resource_report/live_check_001_summary.json`
+- one short HIL boot snapshot was healthy at roughly `27.6%` CPU and `28.3%` RAM,
+- one longer HIL session failed with `RAM usage too high: 96657.7%`, `wq:nav_and_controllers low on stack! (0 bytes left)`, and `parameters verify: failed (-1)`,
+- therefore HIL is still treated as not signed off.
+
 PX4 console behavior during a maneuver
 --------------------------------------
 The current implementation prints the operational state explicitly:

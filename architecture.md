@@ -13,6 +13,8 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
   Main setup and usage guide.
 - `system_identification.txt`
   Long-form method description for papers, reports, and prompt-based writing workflows.
+- `paper_chatgpt_prompt.md`
+  Ready-to-paste prompt text for turning the repository workflow into a paper-ready narrative with ChatGPT while preserving the verified/pending distinction.
 - `overlay/`
   PX4/Gazebo source overlay copied into a PX4 workspace before build.
 - `experimental_validation/`
@@ -49,6 +51,8 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
   Produces overlay plots, sensitivity plots, and summary files for documentation and papers.
 - `experimental_validation/trajectory_comparison_figures.py`
   Produces the grouped 3D comparison figures used in the README for stock SITL vs another dataset such as off-nominal SITL, imported real-flight baseline PID traces, or a future HIL-identified / real-flight-identified SITL candidate.
+- `experimental_validation/report_hil_resources.py`
+  Reads PX4 HIL ULogs, summarizes the `cpuload` topic, and turns HIL RAM/CPU checks into a JSON report that can be embedded in the docs.
 - `experimental_validation/generate_pending_comparison_figures.py`
   Produces honest placeholder figures for README comparison blocks whose data has not been collected yet.
 - `experimental_validation/reference_models.py`
@@ -66,6 +70,7 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
 7. `compare_with_sdf.py` compares recovered parameters against the known SDF reference.
 8. `prepare_identified_model.py` and `run_sitl_validation.py` turn that candidate into a new Gazebo SITL validation run.
 9. `trajectory_comparison_figures.py` turns those runs into the grouped README comparison figures.
+10. `report_hil_resources.py` turns pulled HIL ULogs into a reproducible RAM/CPU summary instead of relying on ad-hoc shell screenshots.
 
 ## Validation Modes
 - `px4_only`
