@@ -556,13 +556,20 @@ This block is reserved for the pipeline:
 4. run the 5 validation trajectories in SITL with that candidate,
 5. compare that SITL result against the stock SITL baseline and the imported real-flight baseline traces.
 
-Current README placeholders for that block:
+Current status:
+- the latest live USB CDC pull is:
+  - [pull_report.json](/home/earsub/px4-system-identification/hitl_runs/live_probe/pull_report.json)
+- that pull reached the card successfully,
+- but `/fs/microsd/identification_logs/` still had no CSV files,
+- so this block cannot be filled honestly yet.
+
+Current pending figures for that block:
 
 ![HIL Identified Group 1](examples/hitl_identified_sitl/figures/group_1_circle_hairpin_lemniscate.png)
 
 ![HIL Identified Group 2](examples/hitl_identified_sitl/figures/group_2_time_optimal_minimum_snap.png)
 
-When the first complete HIL identification session exists under:
+Fill this block only after a complete HIL identification session exists under:
 - `~/px4-system-identification/hitl_runs/session_001/identification_logs/`
 
 run:
@@ -774,7 +781,18 @@ Those figures are stored here:
 - `~/px4-system-identification/examples/real_flight_baseline_pid/figures/group_2_time_optimal_minimum_snap.png`
 - `~/px4-system-identification/examples/real_flight_baseline_pid/figures/comparison_summary.json`
 
-The curves are aligned by each run's own reference start point so the shapes are directly comparable, while each contour error is still computed against that run's own reference CSV.
+Plotting rules for this block:
+- the curves are aligned by each run's own reference start point,
+- each contour error is still computed against that run's own reference CSV,
+- each run is trimmed to the official trajectory duration,
+- extra hold or return-to-anchor legs are not drawn.
+
+Current imported file mapping:
+- `circle <- t3r6_15891fec.csv`
+- `hairpin <- t4r5_13e6b622.csv`
+- `lemniscate <- t5r3_111ced1a.csv`
+- `time_optimal_30s <- t103r1_c7ba798.csv`
+- `minimum_snap_50s <- t104r2_e4f13fa.csv`
 
 ![Real Flight Baseline Group 1](examples/real_flight_baseline_pid/figures/group_1_circle_hairpin_lemniscate.png)
 
@@ -871,22 +889,3 @@ Current summary:
   - `circle`: stock `0.438 m`, twin `0.111 m`
   - `time_optimal_30s`: stock `0.644 m`, twin `0.450 m`
   - `minimum_snap_50s`: stock `0.597 m`, twin `0.341 m`
-
-Summary figure:
-
-![Trajectory RMSE Summary](examples/paper_assets/figures/trajectory_rmse_summary.png)
-
-Parameter summary:
-
-![Parameter Error Bars](examples/paper_assets/figures/parameter_error_bars.png)
-
-Trajectory overlays:
-
-![Hairpin Overlay](examples/paper_assets/figures/hairpin_overlay.png)
-![Lemniscate Overlay](examples/paper_assets/figures/lemniscate_overlay.png)
-![Circle Overlay](examples/paper_assets/figures/circle_overlay.png)
-![Time Optimal Overlay](examples/paper_assets/figures/time_optimal_30s_overlay.png)
-![Minimum Snap Overlay](examples/paper_assets/figures/minimum_snap_50s_overlay.png)
-
-More figures and the full summary JSON are in:
-- `~/px4-system-identification/examples/paper_assets/`

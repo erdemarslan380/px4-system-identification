@@ -1,7 +1,7 @@
 {
   "status": "pending_data",
   "compare_label": "HIL-identified SITL",
-  "pending_reason": "Awaiting the first complete HIL identification_logs pull with all 9 profiles.",
+  "pending_reason": "Latest USB CDC pull found no\nHIL identification CSV files yet.",
   "figures": {
     "group_1_circle_hairpin_lemniscate": "/home/earsub/px4-system-identification/examples/hitl_identified_sitl/figures/group_1_circle_hairpin_lemniscate.png",
     "group_2_time_optimal_minimum_snap": "/home/earsub/px4-system-identification/examples/hitl_identified_sitl/figures/group_2_time_optimal_minimum_snap.png"

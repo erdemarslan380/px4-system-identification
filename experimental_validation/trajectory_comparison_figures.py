@@ -5,7 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -13,19 +18,24 @@ import numpy as np
 import pandas as pd
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
+from experimental_validation.trajectory_catalog import validation_trajectory_case_map
+
 PANEL_GROUPS: tuple[tuple[str, ...], ...] = (
     ("circle", "hairpin", "lemniscate"),
     ("time_optimal_30s", "minimum_snap_50s"),
 )
 
+CASE_MAP = validation_trajectory_case_map()
 
-def _load_tracking(csv_path: Path) -> tuple[np.ndarray, np.ndarray]:
+
+def _load_tracking(csv_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     df = pd.read_csv(csv_path)
+    timestamps_s = (df["timestamp_us"].to_numpy(dtype=float) - float(df["timestamp_us"].iloc[0])) / 1e6
     ref = df[["ref_x", "ref_y", "ref_z"]].to_numpy(dtype=float)
     pos = df[["pos_x", "pos_y", "pos_z"]].to_numpy(dtype=float)
     ref[:, 2] *= -1.0
     pos[:, 2] *= -1.0
-    return ref, pos
+    return timestamps_s, ref, pos
 
 
 def _trajectory_rmse(ref: np.ndarray, pos: np.ndarray) -> tuple[float, np.ndarray]:
@@ -62,8 +72,23 @@ def _runaway_cutoff_index(
     return usable
 
 
-def _trim_dataset(ref: np.ndarray, pos: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    cutoff = max(1, _runaway_cutoff_index(ref, pos))
+def _trim_dataset(case_name: str, timestamps_s: np.ndarray, ref: np.ndarray, pos: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    usable = min(len(timestamps_s), len(ref), len(pos))
+    if usable == 0:
+        return ref[:0], pos[:0]
+
+    cutoff = usable
+    case = CASE_MAP.get(case_name)
+
+    if case is not None:
+        # Keep only the official trajectory window. This drops any extra hold or
+        # return-to-anchor segment that may have been logged after the planned run.
+        nominal_limit_s = case.nominal_duration_s + 0.35
+        duration_cutoff = int(np.searchsorted(timestamps_s[:usable], nominal_limit_s, side="right"))
+        if duration_cutoff > 0:
+            cutoff = min(cutoff, duration_cutoff)
+
+    cutoff = min(cutoff, max(1, _runaway_cutoff_index(ref[:cutoff], pos[:cutoff])))
     return ref[:cutoff], pos[:cutoff]
 
 
@@ -172,11 +197,11 @@ def build_comparison_figures(
         loaded: dict[str, dict[str, object]] = {}
 
         for case in cases:
-            stock_ref_raw, stock_pos_raw = _load_tracking(stock_root / "tracking_logs" / f"{case}.csv")
-            compare_ref_raw, compare_pos_raw = _load_tracking(compare_root / "tracking_logs" / f"{case}.csv")
+            stock_t_raw, stock_ref_raw, stock_pos_raw = _load_tracking(stock_root / "tracking_logs" / f"{case}.csv")
+            compare_t_raw, compare_ref_raw, compare_pos_raw = _load_tracking(compare_root / "tracking_logs" / f"{case}.csv")
 
-            stock_ref_trimmed, stock_pos_trimmed = _trim_dataset(stock_ref_raw, stock_pos_raw)
-            compare_ref_trimmed, compare_pos_trimmed = _trim_dataset(compare_ref_raw, compare_pos_raw)
+            stock_ref_trimmed, stock_pos_trimmed = _trim_dataset(case, stock_t_raw, stock_ref_raw, stock_pos_raw)
+            compare_ref_trimmed, compare_pos_trimmed = _trim_dataset(case, compare_t_raw, compare_ref_raw, compare_pos_raw)
 
             rmse_stock, err_stock = _trajectory_rmse(stock_ref_trimmed, stock_pos_trimmed)
             rmse_compare, err_compare = _trajectory_rmse(compare_ref_trimmed, compare_pos_trimmed)
@@ -209,8 +234,8 @@ def build_comparison_figures(
             }
 
             if has_compare_2:
-                compare_2_ref_raw, compare_2_pos_raw = _load_tracking(compare_root_2 / "tracking_logs" / f"{case}.csv")
-                compare_2_ref_trimmed, compare_2_pos_trimmed = _trim_dataset(compare_2_ref_raw, compare_2_pos_raw)
+                compare_2_t_raw, compare_2_ref_raw, compare_2_pos_raw = _load_tracking(compare_root_2 / "tracking_logs" / f"{case}.csv")
+                compare_2_ref_trimmed, compare_2_pos_trimmed = _trim_dataset(case, compare_2_t_raw, compare_2_ref_raw, compare_2_pos_raw)
                 rmse_compare_2, err_compare_2 = _trajectory_rmse(compare_2_ref_trimmed, compare_2_pos_trimmed)
                 _, compare_2_pos_plot = _align_to_reference_start(compare_2_ref_trimmed, compare_2_pos_trimmed)
 

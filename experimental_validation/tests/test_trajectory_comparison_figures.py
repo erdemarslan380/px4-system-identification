@@ -37,6 +37,31 @@ def _write_tracking_csv(path: Path, *, offset_x: float, offset_y: float, error_s
     pd.DataFrame(rows).to_csv(path, index=False)
 
 
+def _write_tracking_csv_with_tail(path: Path, *, total_rows: int, total_duration_s: float) -> None:
+    rows = []
+    for idx in range(total_rows):
+        t = float(idx) / max(total_rows - 1, 1)
+        ref_x = 5.0 * t
+        ref_y = -2.0 * t
+        ref_z = -3.0 - 0.2 * t
+        pos_x = ref_x + 0.05
+        pos_y = ref_y - 0.03
+        pos_z = ref_z + 0.02
+        rows.append(
+            {
+                "timestamp_us": int(t * total_duration_s * 1_000_000.0),
+                "ref_x": ref_x,
+                "ref_y": ref_y,
+                "ref_z": ref_z,
+                "pos_x": pos_x,
+                "pos_y": pos_y,
+                "pos_z": pos_z,
+                "controller": "px4_default",
+            }
+        )
+    pd.DataFrame(rows).to_csv(path, index=False)
+
+
 class TrajectoryComparisonFiguresTests(unittest.TestCase):
     def test_build_comparison_figures_writes_grouped_outputs_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -119,6 +144,38 @@ class TrajectoryComparisonFiguresTests(unittest.TestCase):
             self.assertEqual(summary["compare_label"], "Identified SITL")
             self.assertEqual(summary["compare_label_2"], "Real flight results")
             self.assertIn("rmse_compare_2_m", summary["cases"]["circle"])
+
+    def test_build_comparison_figures_trims_samples_to_nominal_trajectory_duration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stock_root = root / "stock"
+            compare_root = root / "compare"
+            out_dir = root / "out"
+            (stock_root / "tracking_logs").mkdir(parents=True)
+            (compare_root / "tracking_logs").mkdir(parents=True)
+
+            for case in CASES:
+                total_duration_s = 30.0 if case == "circle" else 10.0
+                _write_tracking_csv_with_tail(
+                    stock_root / "tracking_logs" / f"{case}.csv",
+                    total_rows=40,
+                    total_duration_s=total_duration_s,
+                )
+                _write_tracking_csv_with_tail(
+                    compare_root / "tracking_logs" / f"{case}.csv",
+                    total_rows=40,
+                    total_duration_s=total_duration_s,
+                )
+
+            summary = build_comparison_figures(
+                stock_root=stock_root,
+                compare_root=compare_root,
+                compare_label="Real flight baseline PID",
+                out_dir=out_dir,
+            )
+
+            self.assertLess(summary["cases"]["circle"]["stock_samples"], 40)
+            self.assertLess(summary["cases"]["circle"]["compare_samples"], 40)
 
 
 if __name__ == "__main__":

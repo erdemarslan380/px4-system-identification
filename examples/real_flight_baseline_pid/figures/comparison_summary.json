@@ -11,8 +11,8 @@
       "stock_samples": 710,
       "compare_samples": 600,
       "compare_label_2": "Real flight results",
-      "rmse_compare_2_m": 0.489398640942069,
-      "compare_2_samples": 1091
+      "rmse_compare_2_m": 0.3849692670088386,
+      "compare_2_samples": 710
     },
     "hairpin": {
       "stock_label": "Stock x500 SITL",
@@ -22,8 +22,8 @@
       "stock_samples": 1091,
       "compare_samples": 600,
       "compare_label_2": "Real flight results",
-      "rmse_compare_2_m": 0.3849692670088386,
-      "compare_2_samples": 710
+      "rmse_compare_2_m": 0.489398640942069,
+      "compare_2_samples": 1091
     },
     "lemniscate": {
       "stock_label": "Stock x500 SITL",

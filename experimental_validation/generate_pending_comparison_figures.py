@@ -19,46 +19,46 @@ def build_pending_group_figures(*, out_dir: Path, compare_label: str, pending_re
     figures: dict[str, str] = {}
 
     for group_index, cases in enumerate(PANEL_GROUPS, start=1):
-        fig, axes = plt.subplots(1, len(cases), figsize=(8.0 * len(cases), 6.5))
+        fig, axes = plt.subplots(1, len(cases), figsize=(7.8 * len(cases), 7.0))
         axes = np.atleast_1d(axes).ravel().tolist()
 
         for ax, case in zip(axes, cases):
             ax.axis("off")
             ax.set_title(case, fontsize=22, pad=18)
+            ax.add_patch(plt.Rectangle((0.12, 0.16), 0.76, 0.68, fill=False, linewidth=2.0, transform=ax.transAxes))
             ax.text(
                 0.5,
-                0.62,
+                0.64,
                 "Pending comparison",
                 ha="center",
                 va="center",
-                fontsize=24,
+                fontsize=22,
                 fontweight="bold",
                 transform=ax.transAxes,
             )
             ax.text(
                 0.5,
-                0.44,
+                0.48,
                 "Reference vs SITL vs "
                 f"{compare_label}",
                 ha="center",
                 va="center",
-                fontsize=18,
+                fontsize=16,
                 transform=ax.transAxes,
             )
             ax.text(
                 0.5,
-                0.22,
+                0.28,
                 pending_reason,
                 ha="center",
                 va="center",
-                fontsize=15,
+                fontsize=13,
                 wrap=True,
                 transform=ax.transAxes,
             )
-            ax.add_patch(plt.Rectangle((0.05, 0.08), 0.90, 0.80, fill=False, linewidth=2.0, transform=ax.transAxes))
 
         fig.suptitle(f"SITL vs {compare_label}", fontsize=26)
-        fig.tight_layout()
+        fig.subplots_adjust(top=0.82, bottom=0.08, wspace=0.26)
         name = "group_1_circle_hairpin_lemniscate" if group_index == 1 else "group_2_time_optimal_minimum_snap"
         out_path = out_dir / f"{name}.png"
         fig.savefig(out_path, bbox_inches="tight", dpi=300)
