@@ -7,59 +7,30 @@ This repository is for one workflow:
 3. run five validation trajectories,
 4. compare the digital twin with the reference traces.
 
-Who this documentation is for
------------------------------
-This repo is written for PX4 users and robotics researchers who:
-- can already fly and calibrate a drone,
-- do not want to fight with unnecessary Linux details,
-- want copy-paste commands and a reproducible workflow.
-
-Which document to open first
-----------------------------
-- If you want the shortest operator path:
-  - [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
-- If you want the full command-by-command reference:
-  - [README.md](/home/earsub/px4-system-identification/README.md)
-- If you want the long technical explanation for a report, thesis, or paper:
-  - [system_identification.txt](/home/earsub/px4-system-identification/system_identification.txt)
-- If you want a ready-to-paste ChatGPT prompt for paper writing:
-  - [paper_chatgpt_prompt.md](/home/earsub/px4-system-identification/paper_chatgpt_prompt.md)
-
-Main folders
-------------
-- `overlay/`: PX4 and Gazebo additions
-- `experimental_validation/`: estimation, comparison, figures
-- `examples/`: short operator guides
-- `system_identification.txt`: longer technical text for papers and reports
-- `paper_chatgpt_prompt.md`: ready-to-paste workflow prompt for paper writing with ChatGPT
-
-Fastest operator checklist:
+Short path:
 - [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
 
-Practical rule before you start
--------------------------------
-Treat the workflow as three stages:
-1. `SITL`: prove the methodology and scripts work.
-2. `HIL`: prove the real board can run the campaign and write logs.
-3. `Real flight`: collect the final data.
+Long technical reference:
+- [system_identification.txt](/home/earsub/px4-system-identification/system_identification.txt)
 
-Do not jump to the next stage until the previous one is clean.
+Use this order
+--------------
+1. Prepare the PX4 workspace.
+2. Run the full workflow in `SITL`.
+3. If `SITL` is clean, run the `HIL` smoke test.
+4. If `HIL` is clean, collect `real-flight` logs.
+5. Build the identified model and regenerate the comparison figures.
 
-Results at a glance
--------------------
-If you only want the main comparison plots, read these blocks in order:
-1. `10. Off-Nominal SITL Check`
-2. `11.2 HIL-identified SITL comparison`
-3. `11.4 Real-flight-identified SITL comparison`
-4. `11.5 Current imported real-flight baseline PID comparison`
-
-Keep this README for the exact commands and use:
-- [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
-for the shortest operator path.
+Programs used in this workflow
+------------------------------
+- `Terminal`: all build, run, and log-processing commands
+- `Gazebo`: `SITL`
+- `QGroundControl`: parameter setup, optional viewer, parameter export
+- hardware simulator: `HIL` only
 
 1. Create the dedicated PX4 workspace
 ------------------------------------
-Use only this PX4 tree for this repository:
+Use only this PX4 tree with this repository:
 - `~/PX4-Autopilot-Identification`
 
 ```bash
@@ -76,7 +47,7 @@ cd ~/px4-system-identification
 
 2. Build for CubeOrange hardware
 --------------------------------
-For CubeOrange, resync once with the CubeOrange board file enabled:
+Sync once with the CubeOrange board file, then build:
 
 ```bash
 cd ~/px4-system-identification
@@ -86,22 +57,21 @@ cd ~/PX4-Autopilot-Identification
 make cubepilot_cubeorange_default
 ```
 
-Build output:
+Expected firmware:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
-With the CubeOrange connected over USB, upload from the terminal with:
+Upload with:
 
 ```bash
 cd ~/px4-system-identification
 python3 examples/upload_cubeorange_firmware.py
 ```
 
-This helper targets `/dev/ttyACM0` directly and uses a smaller CubeOrange-safe bootloader write size.
 If you use a different flight controller, change both the board file path and the `make <board>_default` / `make <board>_default upload` target together.
 
 3. Prepare the SD card for HITL and real flights
 ------------------------------------------------
-For hardware runs, the trajectory files must be present on the SD card under `/fs/microsd/trajectories/`.
+The SD card must contain `/fs/microsd/trajectories`, `/fs/microsd/tracking_logs`, and `/fs/microsd/identification_logs`.
 
 With the SD card mounted on the workstation:
 
@@ -110,33 +80,29 @@ cd ~/px4-system-identification
 ./examples/prepare_sdcard_payload.sh /media/$USER/<sdcard_mount_name>
 ```
 
-This creates these directories on the card:
-- `trajectories/`
-- `tracking_logs/`
-- `identification_logs/`
-
-and copies the five shipped trajectory binaries:
+This copies these shipped files:
 - `id_100.traj`
 - `id_101.traj`
 - `id_102.traj`
 - `id_103.traj`
 - `id_104.traj`
 
-Once the SD card is back on the CubeOrange, hardware logs are written to:
-- `/fs/microsd/tracking_logs/`
-- `/fs/microsd/identification_logs/`
-
-The current overlay closes and flushes each CSV at the end of every run, so you can execute multiple identification profiles or trajectory runs in one boot session without rebooting PX4 between them.
-
 4. Build and open Gazebo SITL
 -----------------------------
+Open a new terminal and keep it open.
+
 ```bash
 cd ~/PX4-Autopilot-Identification
 unset HEADLESS
 make px4_sitl gz_x500
 ```
 
-If this dedicated tree was created before the latest sync script update and the build stops with a missing `LTEST_MODE` parameter in `local_position_estimator`, resync once and rebuild from a clean SITL build directory:
+Expected result:
+- Gazebo opens
+- PX4 finishes boot
+- the same terminal shows `pxh>`
+
+If Gazebo does not open:
 
 ```bash
 cd ~/px4-system-identification
@@ -148,7 +114,8 @@ unset HEADLESS
 make px4_sitl gz_x500
 ```
 
-If an older run is still open:
+If an older SITL run is still open:
+
 ```bash
 shutdown
 pkill -f '/PX4-Autopilot-Identification/build/px4_sitl_default/bin/px4' || true
@@ -159,55 +126,38 @@ unset HEADLESS
 make px4_sitl gz_x500
 ```
 
-5. Install and check the five shipped validation trajectories
--------------------------------------------------------------
-This repository now uses only the shipped binary trajectory set under:
-- `~/px4-system-identification/assets/validation_trajectories/`
-
-Install those exact files into the PX4 workspace with:
+5. Install the five shipped validation trajectories
+---------------------------------------------------
+Install the fixed binary set into the SITL rootfs:
 
 ```bash
 cd ~/px4-system-identification
-python3 experimental_validation/validation_trajectories.py \
-  --trajectories-dir ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories
+python3 experimental_validation/validation_trajectories.py   --trajectories-dir ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories
 ```
 
-Files installed:
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories/id_100.traj`
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories/id_101.traj`
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories/id_102.traj`
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories/id_103.traj`
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories/id_104.traj`
-- `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/trajectories/validation_manifest.json`
+Installed files:
+- `id_100.traj`: `hairpin`, `23 s`
+- `id_101.traj`: `lemniscate`, `19 s`
+- `id_102.traj`: `circle`, `15 s`
+- `id_103.traj`: `time_optimal_30s`, `11 s`
+- `id_104.traj`: `minimum_snap_50s`, `14 s`
 
-Trajectory map:
-- `100`: `hairpin`, `23 s`
-- `101`: `lemniscate`, `19 s`
-- `102`: `circle`, `15 s`
-- `103`: `time_optimal_30s`, `11 s`
-- `104`: `minimum_snap_50s`, `14 s`
-
-The `.traj` binaries are used as-is. No new validation trajectories are generated by this repository.
-All five trajectories start from the same anchored hover pose at `(0, 0, -3)` in local NED. They do not all end at the same point, so return to hover before launching the next one.
+All five start from `(0, 0, -3)`. They do not all end at the same point.
 
 6. Run campaigns in SITL
 ------------------------
-Built-in campaigns:
+Available campaigns:
 - `identification_only`: 9 identification maneuvers
 - `trajectory_only`: 5 validation trajectories
 - `full_stack`: 9 identification maneuvers, then 5 validation trajectories
 
-Return-to-anchor legs are handled inside `trajectory_reader` and are not logged.
-
-If you want to watch SITL in QGroundControl, open QGC only after Gazebo is already running. In SITL, QGC is optional and may stay open as a passive viewer. Do not arm, disarm, or change modes from QGC while a scripted campaign is running.
-
-SITL operator order:
-1. start Gazebo SITL,
-2. optionally open QGroundControl only as a viewer,
-3. run the campaign helper from a second terminal,
-4. close QGroundControl fully before moving on to HIL.
+Optional viewer rule:
+- `QGroundControl` may stay open in SITL as a passive viewer
+- do not arm, disarm, or change modes from QGroundControl during a scripted campaign
+- close QGroundControl fully before moving to HIL
 
 In `pxh>`:
+
 ```bash
 custom_pos_control start
 trajectory_reader start
@@ -217,99 +167,56 @@ param set COM_DISARM_PRFLT 60
 trajectory_reader ref 0 0 -3 0
 ```
 
-From a second terminal, one full campaign:
+Run one full campaign from a second terminal:
+
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --campaign full_stack \
-  --prepare-hover \
-  --heartbeat-warmup 5 \
-  --arm-attempts 10 \
-  --timeout 520
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign full_stack   --prepare-hover   --heartbeat-warmup 5   --arm-attempts 10   --timeout 520
 ```
 
-Verified behavior in Gazebo SITL:
-- the script climbs to the common `0 0 -3` hover point,
-- `trajectory_reader` starts the campaign from a second terminal,
-- `hover_thrust` opened one tracking CSV and one identification CSV,
-- `mass_vertical` opened one additional tracking CSV and one additional identification CSV,
-- the return leg between them did not create extra CSV files.
+Other common runs:
 
-The full-stack campaign order is:
-1. `hover_thrust`
-2. `mass_vertical`
-3. `roll_sweep`
-4. `pitch_sweep`
-5. `yaw_sweep`
-6. `drag_x`
-7. `drag_y`
-8. `drag_z`
-9. `motor_step`
-10. trajectory `100` hairpin
-11. trajectory `101` lemniscate
-12. trajectory `102` circle
-13. trajectory `103` time_optimal_30s
-14. trajectory `104` minimum_snap_50s
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign identification_only   --prepare-hover   --heartbeat-warmup 5   --arm-attempts 10   --timeout 420
+```
 
-Logs appear in:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign trajectory_only   --prepare-hover   --heartbeat-warmup 5   --arm-attempts 10   --timeout 220
+```
+
+One identification maneuver:
+
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py   --endpoint udpin:127.0.0.1:14550   --kind ident   --name hover_thrust
+```
+
+One trajectory:
+
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py   --endpoint udpin:127.0.0.1:14550   --kind trajectory   --traj-id 100
+```
+
+Expected SITL outputs:
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/identification_logs/`
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/tracking_logs/`
 - `~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs/sysid_truth_logs/`
 
-For identification-only runs:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --campaign identification_only \
-  --prepare-hover \
-  --heartbeat-warmup 5 \
-  --arm-attempts 10 \
-  --timeout 420
-```
-
-For trajectory-only runs:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --campaign trajectory_only \
-  --prepare-hover \
-  --heartbeat-warmup 5 \
-  --arm-attempts 10 \
-  --timeout 220
-```
-
-For one identification maneuver:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_hitl_udp_sequence.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --kind ident \
-  --name hover_thrust
-```
-
-For one trajectory:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_hitl_udp_sequence.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --kind trajectory \
-  --traj-id 100
-```
-
 Build the candidate after the identification part finishes:
+
 ```bash
 cd ~/px4-system-identification
-python3 experimental_validation/build_latest_x500_candidate.py \
-  --rootfs ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs \
-  --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
+python3 experimental_validation/build_latest_x500_candidate.py   --rootfs ~/PX4-Autopilot-Identification/build/px4_sitl_default/rootfs   --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
 
 7. RC-assisted workflow selection
 ---------------------------------
-For operator-driven HIL or real-flight use, the modules can be driven from RC pots plus one trigger button:
+Use RC only after normal radio calibration is complete.
+
+Required parameters:
 - `CST_RC_SEL_EN = 1`
 - `CST_RC_CTRL_CH = <controller_pot>`
 - `TRJ_RC_MODE_EN = 1`
@@ -321,7 +228,7 @@ For operator-driven HIL or real-flight use, the modules can be driven from RC po
 - `TRJ_RC_START_EN = 1`
 - `TRJ_RC_START_BTN = <H_button_index>`
 
-Workflow pot slots:
+workflow pot slots:
 - `0`: hold position
 - `1`: one identification maneuver
 - `2`: one trajectory
@@ -329,147 +236,127 @@ Workflow pot slots:
 - `4`: `trajectory_only`
 - `5`: `full_stack`
 
-Item pot behavior:
-- in workflow slot `1`, the item pot selects one of the `9` identification profiles
-- in workflow slot `2`, the item pot selects one trajectory id in `TRJ_RC_MIN_ID..TRJ_RC_MAX_ID`, with the default shipped range `100..104`
+Item pot:
+- workflow `1`: select one of the 9 identification profiles
+- workflow `2`: select one trajectory id in `100..104`
 
-Trigger button behavior:
-- press `H` with workflow slot `0`: return to hold
-- press `H` with workflow slot `1`: start the selected identification profile
-- press `H` with workflow slot `2`: start the selected trajectory
-- press `H` with workflow slot `3`, `4`, or `5`: start the selected built-in campaign
+Trigger button:
+- press `H` in slot `0`: return to hold
+- press `H` in slot `1`: start the selected identification profile
+- press `H` in slot `2`: start the selected trajectory
+- press `H` in slot `3`, `4`, or `5`: start the selected campaign
 
-QGroundControl calibration and mapping:
-- in `Vehicle Setup > Radio`, finish the normal radio calibration first,
-- move the spare knobs or switches you want to use and note which `AUX 1..6` entries move,
-- `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` use those `AUX 1..6` slot numbers, which map to `manual_control_setpoint.aux1..aux6`,
-- `TRJ_RC_START_BTN` is a one-based index into `manual_control_setpoint.buttons`; if your `H` trigger comes through QGroundControl joystick/manual-control input, set it in `Vehicle Setup > Joystick`,
-- before the first flight, verify the mapping on the vehicle with `listener manual_control_setpoint`: the chosen pots must move the expected `auxN` field and the `H` trigger must toggle the `buttons` bitfield.
+QGroundControl mapping:
+- in `Vehicle Setup > Radio`, finish normal calibration first
+- note which spare controls move `AUX 1..6`
+- `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` use those `AUX 1..6` slots and map to `manual_control_setpoint.aux1..aux6`
+- `TRJ_RC_START_BTN` is a one-based index in `manual_control_setpoint.buttons`
+- verify the final mapping on the vehicle with `listener manual_control_setpoint`
 
-Keep the two RC paths separate:
-- the normal PX4 flight-mode switch in `Vehicle Setup > Flight Modes` controls `Position`, `Offboard`, and the usual PX4 nav states,
-- the repository-specific pots plus `H` trigger select and start identification profiles, trajectories, or campaigns once the vehicle is already in the intended mode.
+Keep these paths separate:
+- `Vehicle Setup > Flight Modes`: normal PX4 mode switch such as `Position` and `Offboard`
+- RC pots plus `H`: this repository's maneuver, trajectory, and campaign selection
 
-RC receiver during HIL:
-- yes, a physical receiver can stay electrically connected during HIL while the simulator is running,
-- the simulator owns the USB CDC link, but it does not replace or block the board's RC input path,
-- wire the receiver exactly as you would for real flight on CubeOrange RC input hardware,
-- use this to test radio calibration, arming, failsafe behavior, and `Position <-> Offboard` switch transitions before going to the field.
-
-Important:
-- if the `H` trigger does not change `manual_control_setpoint.buttons`, the RC start trigger will not fire,
-- in that case keep the pot-based selection, but start maneuvers and campaigns from the helper script or shell commands.
+If the `H` trigger does not change `manual_control_setpoint.buttons`, keep pot-based selection and start the run from the helper script instead.
 
 8. HIL/HITL on CubeOrange with jMAVSim
 -------------------------------------
-Use HIL only as a pre-flight smoke test:
-- does one long campaign stay stable in one boot,
-- do RAM and CPU stay healthy,
-- does the SD card receive one CSV per maneuver and trajectory.
+Use HIL only as a smoke test:
+- one uninterrupted campaign in one boot
+- RAM and CPU remain healthy
+- one CSV per maneuver or trajectory is written to the SD card
 
-Keep the split simple:
-- current USB CDC device, for example `/dev/ttyACM0` or `/dev/ttyACM1`: `jMAVSim`
+Keep the transport split simple:
+- USB CDC device, for example `/dev/ttyACM0`: `jMAVSim`
 - `QGroundControl`: UDP only after `jMAVSim` is already running
-- optional FTDI telemetry: do not use it for routine operator control in this workflow
 
-Before HIL, fully close the SITL QGroundControl window. If QGC still has the USB CDC device open, `start_jmavsim_hitl.sh` will stop with `Serial device ... is already open`.
+Order:
+1. finish SITL and close the SITL `QGroundControl` window
+2. connect CubeOrange over USB
+3. open `QGroundControl` once over USB and set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`
+4. reboot the board and close `QGroundControl` fully
+5. start `jMAVSim` on the current USB CDC device
+6. optionally reopen `QGroundControl` in UDP-only mode
+7. run the HIL helper from a second terminal
 
-HIL operator order:
-1. finish SITL and close the SITL QGroundControl window completely,
-2. connect CubeOrange over USB,
-3. open QGroundControl once over USB only to set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`,
-4. reboot the board and close QGroundControl fully,
-5. start `jMAVSim` on the current USB CDC device,
-6. only after `jMAVSim` is already running, optionally reopen QGroundControl in UDP-only mode as a passive viewer,
-7. run the HIL campaign helper from a second terminal.
+Find the current device:
 
-List the current live serial devices:
 ```bash
 ls /dev/ttyACM* /dev/ttyUSB*
 ```
 
-Use the current USB CDC device path from that list below as `<usb_cdc_device>`.
+Upload firmware only while `jMAVSim` and `QGroundControl` are closed:
 
-During upload, close jMAVSim and QGroundControl:
 ```bash
 cd ~/px4-system-identification
 python3 examples/upload_cubeorange_firmware.py
 ```
 
-Build jMAVSim once:
+Build `jMAVSim` once:
+
 ```bash
 cd ~/PX4-Autopilot-Identification/Tools/simulation/jmavsim/jMAVSim
 ant create_run_jar copy_res
 ```
 
-Set the HIL airframe once in QGroundControl with the board connected over USB and `jMAVSim` still closed:
-- `SYS_AUTOSTART = 1001`
-- `SYS_HITL = 1`
+Start `jMAVSim`:
 
-If you want to test a real RC receiver during HIL:
-- connect the receiver before boot,
-- finish `Vehicle Setup > Radio` calibration,
-- in `Vehicle Setup > Flight Modes`, assign at least one switch position to `Position` and one to `Offboard`,
-- set `COM_RC_IN_MODE = 0` for receiver-only manual input during that smoke test.
-
-Reboot the board, then close QGroundControl fully before continuing.
-
-Start `jMAVSim` on the current USB CDC device:
 ```bash
 cd ~/px4-system-identification
 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600
 ```
 
-On this workstation the most common case is still:
+Common case:
+
 ```bash
 cd ~/px4-system-identification
 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
 ```
 
-Only after `jMAVSim` is up, open QGroundControl again in UDP-only mode if you want a live viewer. Do not let QGC auto-connect back to the USB serial port.
+Short USB MAVLink shell check before starting `jMAVSim`:
 
-If you need a short USB MAVLink shell check before starting `jMAVSim`, use:
 ```bash
 python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyACM0 -b 57600
 ```
 
-One full HIL campaign:
+Full HIL campaign:
+
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --campaign full_stack \
-  --prepare-hover \
-  --manual-control-mode 4 \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12 \
-  --timeout 520
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign full_stack   --prepare-hover   --manual-control-mode 4   --allow-missing-local-position   --blind-hover-seconds 12   --timeout 520
 ```
 
-`--manual-control-mode 4` is the default automation setting. It disables manual-control inputs during the scripted hover and campaign start so accidental stick motion cannot interfere.
+Keep the receiver active during HIL by changing only one flag:
 
-If you want the physical receiver to stay active during HIL while the helper is running, switch that one flag:
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --campaign full_stack \
-  --prepare-hover \
-  --manual-control-mode 0 \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12 \
-  --timeout 520
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign full_stack   --prepare-hover   --manual-control-mode 0   --allow-missing-local-position   --blind-hover-seconds 12   --timeout 520
 ```
 
-For a pure RC mode-switch smoke test, do not start a campaign yet. Instead:
-1. start `jMAVSim`,
-2. reopen QGroundControl in UDP-only mode,
-3. start the two modules and hold reference,
-4. arm in `Position`,
-5. use the transmitter flight-mode switch to move `Position -> Offboard -> Position`,
-6. only after that start a campaign if you want.
+Other HIL runs:
 
-Minimal shell state for that RC smoke test:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign identification_only   --prepare-hover   --allow-missing-local-position   --blind-hover-seconds 12   --timeout 420
+```
+
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign trajectory_only   --prepare-hover   --allow-missing-local-position   --blind-hover-seconds 12   --timeout 220
+```
+
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py   --endpoint udpin:127.0.0.1:14550   --kind ident   --name hover_thrust   --allow-missing-local-position   --blind-hover-seconds 12
+```
+
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py   --endpoint udpin:127.0.0.1:14550   --kind trajectory   --traj-id 100   --allow-missing-local-position   --blind-hover-seconds 12
+```
+
+Minimal RC smoke test in HIL:
+
 ```bash
 custom_pos_control start
 trajectory_reader start
@@ -478,72 +365,20 @@ custom_pos_control enable
 trajectory_reader ref 0 0 -3 0
 ```
 
-Why this works:
-- `custom_pos_control` and `trajectory_reader` keep a hold setpoint stream alive,
-- that gives PX4 a valid offboard setpoint source,
-- then the receiver flight-mode switch can be used to test `OFFBOARD` entry and exit electrically in HIL.
+Then arm in `Position`, switch `Position -> Offboard -> Position`, and only start a campaign after that check passes.
 
-Identification-only HIL campaign:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --campaign identification_only \
-  --prepare-hover \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12 \
-  --timeout 420
-```
-
-Trajectory-only HIL campaign:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --campaign trajectory_only \
-  --prepare-hover \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12 \
-  --timeout 220
-```
-
-One identification maneuver in HIL:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_hitl_udp_sequence.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --kind ident \
-  --name hover_thrust \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12
-```
-
-One trajectory in HIL:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_hitl_udp_sequence.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --kind trajectory \
-  --traj-id 100 \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12
-```
-
-The underlying HIL selectors are:
+Important selectors:
 - `TRJ_ACTIVE_ID = 100..104`
 - `TRJ_IDENT_PROF = 0..8`
 - `TRJ_MODE_CMD = 0 position, 1 trajectory, 2 identification`
-- `TRJ_MODE_CMD = 0` returns to position hold
 - `TRJ_MODE_CMD = 1` starts the selected trajectory
 - `TRJ_MODE_CMD = 2` starts the selected identification profile
 - `TRJ_CAMPAIGN = 1 identification_only, 2 full_stack, 3 trajectory_only`
 - `TRJ_CAMPAIGN_STA = 0 idle, 1 active, 2 completed, 3 aborted`
 
-After a successful full-stack HIL smoke run, the SD-card acceptance check is:
-- `9` identification CSV files under `/fs/microsd/identification_logs/`
-- `14` tracking CSV files under `/fs/microsd/tracking_logs/`
-
-That is the only HIL acceptance target for this repository. The five validation trajectory figures are produced from SITL and later real-flight logs, not from HIL.
+HIL acceptance target after `full_stack`:
+- `9` files in `/fs/microsd/identification_logs/`
+- `14` files in `/fs/microsd/tracking_logs/`
 
 9. Refresh the figure package
 -----------------------------

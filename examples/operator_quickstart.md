@@ -38,11 +38,21 @@ On hardware the trajectory binaries must end up under `/fs/microsd/trajectories/
 
 3. Start SITL
 -------------
+Open one fresh terminal and leave it open.
+
 ```bash
 cd ~/PX4-Autopilot-Identification
 unset HEADLESS
 make px4_sitl gz_x500
 ```
+
+Expected result:
+- Gazebo opens,
+- PX4 finishes startup,
+- the same terminal ends at:
+  - `pxh>`
+
+Keep that first terminal open. The next SITL steps assume Gazebo is still running there.
 
 If you see a missing `LTEST_MODE` parameter error in `local_position_estimator`, run:
 ```bash
