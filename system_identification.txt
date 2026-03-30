@@ -191,6 +191,30 @@ The practical SITL order is:
 3. leave QGroundControl passive while the helper drives the campaign,
 4. close QGroundControl fully before moving on to HIL.
 
+RC-assisted operator workflow
+-----------------------------
+For HIL or real-flight operation, the RC path can select controller, workflow, and item independently:
+- `CST_RC_SEL_EN = 1`
+- `CST_RC_CTRL_CH = <controller_pot>`
+- `TRJ_RC_MODE_EN = 1`
+- `TRJ_RC_MODE_CH = <workflow_pot>`
+- `TRJ_RC_SEL_EN = 1`
+- `TRJ_RC_SEL_CH = <item_pot>`
+- `TRJ_RC_MIN_ID = 100`
+- `TRJ_RC_MAX_ID = 104`
+- `TRJ_RC_START_EN = 1`
+- `TRJ_RC_START_BTN = <H_button_index>`
+
+Workflow slots:
+- `0`: hold position
+- `1`: one identification maneuver
+- `2`: one trajectory
+- `3`: `identification_only`
+- `4`: `trajectory_only`
+- `5`: `full_stack`
+
+The `H` button applies the currently selected workflow. In single-identification mode the item pot selects one of the `9` identification profiles. In single-trajectory mode the item pot selects one trajectory id in `100..104` by default.
+
 Supported HIL command shapes now mirror SITL:
 - full campaign:
   - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign full_stack --prepare-hover --allow-missing-local-position --blind-hover-seconds 12 --timeout 520`

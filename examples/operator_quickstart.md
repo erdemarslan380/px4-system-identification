@@ -131,6 +131,30 @@ python3 experimental_validation/build_latest_x500_candidate.py \
   --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
 
+RC workflow option
+------------------
+If you want to run HIL or real flight from the transmitter instead of a helper script, configure:
+- `CST_RC_SEL_EN = 1`
+- `CST_RC_CTRL_CH = <controller_pot>`
+- `TRJ_RC_MODE_EN = 1`
+- `TRJ_RC_MODE_CH = <workflow_pot>`
+- `TRJ_RC_SEL_EN = 1`
+- `TRJ_RC_SEL_CH = <item_pot>`
+- `TRJ_RC_MIN_ID = 100`
+- `TRJ_RC_MAX_ID = 104`
+- `TRJ_RC_START_EN = 1`
+- `TRJ_RC_START_BTN = <H_button_index>`
+
+Workflow pot slots:
+- `0`: hold position
+- `1`: one identification maneuver
+- `2`: one trajectory
+- `3`: `identification_only`
+- `4`: `trajectory_only`
+- `5`: `full_stack`
+
+Press the `H` button to apply the currently selected workflow.
+
 5. Refresh the shipped figures
 ------------------------------
 ```bash

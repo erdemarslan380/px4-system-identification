@@ -267,6 +267,38 @@ python3 experimental_validation/build_latest_x500_candidate.py \
   --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
 
+7. RC-assisted workflow selection
+---------------------------------
+For operator-driven HIL or real-flight use, the modules can be driven from RC pots plus one trigger button:
+- `CST_RC_SEL_EN = 1`
+- `CST_RC_CTRL_CH = <controller_pot>`
+- `TRJ_RC_MODE_EN = 1`
+- `TRJ_RC_MODE_CH = <workflow_pot>`
+- `TRJ_RC_SEL_EN = 1`
+- `TRJ_RC_SEL_CH = <item_pot>`
+- `TRJ_RC_MIN_ID = 100`
+- `TRJ_RC_MAX_ID = 104`
+- `TRJ_RC_START_EN = 1`
+- `TRJ_RC_START_BTN = <H_button_index>`
+
+Workflow pot slots:
+- `0`: hold position
+- `1`: one identification maneuver
+- `2`: one trajectory
+- `3`: `identification_only`
+- `4`: `trajectory_only`
+- `5`: `full_stack`
+
+Item pot behavior:
+- in workflow slot `1`, the item pot selects one of the `9` identification profiles
+- in workflow slot `2`, the item pot selects one trajectory id in `TRJ_RC_MIN_ID..TRJ_RC_MAX_ID`, with the default shipped range `100..104`
+
+Trigger button behavior:
+- press `H` with workflow slot `0`: return to hold
+- press `H` with workflow slot `1`: start the selected identification profile
+- press `H` with workflow slot `2`: start the selected trajectory
+- press `H` with workflow slot `3`, `4`, or `5`: start the selected built-in campaign
+
 8. HIL/HITL on CubeOrange with jMAVSim
 -------------------------------------
 Use HIL only as a pre-flight smoke test:

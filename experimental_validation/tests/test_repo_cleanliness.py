@@ -177,8 +177,27 @@ class RepoCleanlinessTests(unittest.TestCase):
     def test_trajectory_reader_uses_explicit_integer_types_for_rc_selector_bounds(self) -> None:
         content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")
         self.assertIn("math::max<int32_t>(0, _param_trj_rc_max_id.get())", content)
-        self.assertIn("math::max<int32_t>(1, _rc_selector_max_traj_id + 1)", content)
+        self.assertTrue(
+            "math::max<int32_t>(1, _rc_selector_max_traj_id + 1)" in content
+            or "trajectorySelectionSlotCount(_rc_selector_min_traj_id, _rc_selector_max_traj_id)" in content
+        )
         self.assertIn("math::constrain<int32_t>(_param_trj_ident_prof.get(), 0, 8)", content)
+
+    def test_trajectory_reader_supports_rc_workflow_button_and_id_range(self) -> None:
+        module_yaml = (OVERLAY_ROOT / "trajectory_reader" / "module.yaml").read_text(encoding="utf-8")
+        self.assertIn("TRJ_RC_MODE_EN", module_yaml)
+        self.assertIn("TRJ_RC_MIN_ID", module_yaml)
+        self.assertIn("TRJ_RC_START_BTN", module_yaml)
+        self.assertIn("manual_control_setpoint.buttons", module_yaml)
+
+        content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")
+        self.assertIn("RcWorkflowSelection::FULL_STACK", content)
+        self.assertIn("rcButtonPressed(manual_control.buttons", content)
+        self.assertIn("trajectoryIdFromSelectionSlot", content)
+
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("TRJ_RC_START_BTN", readme)
+        self.assertIn("workflow pot slots", readme.lower())
 
     def test_trajectory_reader_uses_chunked_identification_log_writes_for_nuttx(self) -> None:
         content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")

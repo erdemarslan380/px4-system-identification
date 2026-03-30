@@ -13,5 +13,6 @@ if(BUILD_TESTING)
     px4_add_unit_gtest(
         SRC
             trajectory_reader_offboard_transition_test.cpp
+            trajectory_reader_rc_control_test.cpp
     )
 endif()

@@ -1,4 +1,5 @@
 #include "custom_pos_control.hpp"
+#include "../trajectory_reader/trajectory_reader_rc_control.hpp"
 
 #include <cstring>
 
@@ -26,15 +27,6 @@ float readAuxChannel(const manual_control_setpoint_s &manual_control, int channe
 	}
 }
 
-int quantizeAuxSelection(float aux_value, int slots)
-{
-	if (!PX4_ISFINITE(aux_value) || slots <= 0) {
-		return -1;
-	}
-
-	const float normalized = math::constrain((aux_value + 1.0f) * 0.5f, 0.0f, 0.999999f);
-	return math::constrain(static_cast<int>(floorf(normalized * static_cast<float>(slots))), 0, slots - 1);
-}
 }
 
 ModuleBase::Descriptor CustomPosControl::desc{task_spawn, custom_command, print_usage};

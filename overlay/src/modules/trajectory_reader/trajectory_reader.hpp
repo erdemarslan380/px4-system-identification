@@ -36,6 +36,8 @@
 
 #include <matrix/matrix/math.hpp>
 
+#include "trajectory_reader_rc_control.hpp"
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -147,8 +149,12 @@ private:
 	const char *controllerTypeToString(int32_t controller_type) const;
 	const char *identProfileToString(IdentificationProfile profile) const;
 	const char *identProfilePurpose(IdentificationProfile profile) const;
+	const char *rcWorkflowToString(RcWorkflowSelection workflow) const;
 	float identificationDurationS(IdentificationProfile profile) const;
-	void updateRcSelections();
+	void updateRcSelections(const manual_control_setpoint_s &manual_control);
+	void updateRcWorkflowSelection(const manual_control_setpoint_s &manual_control);
+	void handleRcWorkflowTrigger(const manual_control_setpoint_s &manual_control, const matrix::Vector3f &current_pos);
+	void applyRcWorkflowSelection(const matrix::Vector3f &current_pos);
 	void resetIdentificationState();
 	bool startIdentificationLog(hrt_abstime setpoint_timestamp);
 	void stopIdentificationLog();
@@ -253,8 +259,18 @@ private:
 	bool _ident_completion_announced{false};
 	int32_t _rc_select_enabled{0};
 	int32_t _rc_selector_channel{0};
-	int32_t _rc_selector_max_traj_id{3};
+	int32_t _rc_selector_min_traj_id{100};
+	int32_t _rc_selector_max_traj_id{104};
 	int32_t _rc_selected_index{-1};
+	int32_t _rc_mode_select_enabled{0};
+	int32_t _rc_mode_selector_channel{0};
+	int32_t _rc_workflow_selected_slot{-1};
+	int32_t _rc_start_enabled{0};
+	int32_t _rc_start_button_index{1};
+	bool _rc_start_button_prev{false};
+	bool _manual_control_cached_valid{false};
+	manual_control_setpoint_s _manual_control_cached{};
+	RcWorkflowSelection _rc_workflow_selection{RcWorkflowSelection::HOLD_POSITION};
 	int32_t _param_mode_cmd_cached{-1};
 	int32_t _param_traj_id_cached{-1};
 	int32_t _param_ident_profile_cached{-1};
@@ -299,9 +315,14 @@ private:
 		(ParamFloat<px4::params::MPC_YAWRAUTO_ACC>) _param_mpc_yawrauto_acc,
 		(ParamFloat<px4::params::MPC_Z_V_AUTO_DN>) _param_mpc_z_v_auto_dn,
 		(ParamFloat<px4::params::MPC_Z_V_AUTO_UP>) _param_mpc_z_v_auto_up,
+		(ParamInt<px4::params::TRJ_RC_MODE_EN>) _param_trj_rc_mode_en,
+		(ParamInt<px4::params::TRJ_RC_MODE_CH>) _param_trj_rc_mode_ch,
 		(ParamInt<px4::params::TRJ_RC_SEL_EN>) _param_trj_rc_sel_en,
 		(ParamInt<px4::params::TRJ_RC_SEL_CH>) _param_trj_rc_sel_ch,
+		(ParamInt<px4::params::TRJ_RC_MIN_ID>) _param_trj_rc_min_id,
 		(ParamInt<px4::params::TRJ_RC_MAX_ID>) _param_trj_rc_max_id,
+		(ParamInt<px4::params::TRJ_RC_START_EN>) _param_trj_rc_start_en,
+		(ParamInt<px4::params::TRJ_RC_START_BTN>) _param_trj_rc_start_btn,
 		(ParamInt<px4::params::TRJ_IDENT_PROF>) _param_trj_ident_prof,
 		(ParamInt<px4::params::TRJ_CAMPAIGN>) _param_trj_campaign,
 		(ParamInt<px4::params::TRJ_CAMPAIGN_CMD>) _param_trj_campaign_cmd,

@@ -37,16 +37,6 @@ float readAuxChannel(const manual_control_setpoint_s &manual_control, int channe
 	}
 }
 
-int quantizeAuxSelection(float aux_value, int slots)
-{
-	if (!PX4_ISFINITE(aux_value) || slots <= 0) {
-		return -1;
-	}
-
-	const float normalized = math::constrain((aux_value + 1.0f) * 0.5f, 0.0f, 0.999999f);
-	return math::constrain(static_cast<int>(floorf(normalized * static_cast<float>(slots))), 0, slots - 1);
-}
-
 float squaref(float value)
 {
 	return value * value;
@@ -162,8 +152,14 @@ void TrajectoryReader::parametersUpdate() {
 	setParamMpcZVAutoDn(_param_mpc_z_v_auto_dn.get());
 	setParamMpcZVAutoUp(_param_mpc_z_v_auto_up.get());
 	_rc_select_enabled = _param_trj_rc_sel_en.get();
+	_rc_mode_select_enabled = _param_trj_rc_mode_en.get();
+	_rc_mode_selector_channel = _param_trj_rc_mode_ch.get();
 	_rc_selector_channel = _param_trj_rc_sel_ch.get();
+	_rc_selector_min_traj_id = math::max<int32_t>(0, _param_trj_rc_min_id.get());
 	_rc_selector_max_traj_id = math::max<int32_t>(0, _param_trj_rc_max_id.get());
+	_rc_selector_max_traj_id = math::max<int32_t>(_rc_selector_min_traj_id, _rc_selector_max_traj_id);
+	_rc_start_enabled = _param_trj_rc_start_en.get();
+	_rc_start_button_index = math::constrain<int32_t>(_param_trj_rc_start_btn.get(), 1, 16);
 
 	const int32_t ident_profile = math::constrain<int32_t>(_param_trj_ident_prof.get(), 0, 8);
 	if (ident_profile != _param_ident_profile_cached) {
@@ -315,6 +311,26 @@ const char *TrajectoryReader::identProfilePurpose(IdentificationProfile profile)
 		return "step-like thrust sequence for motor time constants";
 	default:
 		return "system identification maneuver";
+	}
+}
+
+const char *TrajectoryReader::rcWorkflowToString(RcWorkflowSelection workflow) const
+{
+	switch (workflow) {
+	case RcWorkflowSelection::HOLD_POSITION:
+		return "hold_position";
+	case RcWorkflowSelection::SINGLE_IDENT:
+		return "single_ident";
+	case RcWorkflowSelection::SINGLE_TRAJECTORY:
+		return "single_trajectory";
+	case RcWorkflowSelection::IDENTIFICATION_ONLY:
+		return "identification_only";
+	case RcWorkflowSelection::TRAJECTORY_ONLY:
+		return "trajectory_only";
+	case RcWorkflowSelection::FULL_STACK:
+		return "full_stack";
+	default:
+		return "hold_position";
 	}
 }
 
@@ -1205,48 +1221,212 @@ void TrajectoryReader::writeIdentificationLogSample(const matrix::Vector3f &curr
 	syncIdentificationLogIfNeeded(false);
 }
 
-void TrajectoryReader::updateRcSelections()
+void TrajectoryReader::updateRcWorkflowSelection(const manual_control_setpoint_s &manual_control)
+{
+	if (_rc_mode_select_enabled == 0 || _rc_mode_selector_channel < 1 || _rc_mode_selector_channel > 6) {
+		_rc_workflow_selected_slot = -1;
+		return;
+	}
+
+	const float aux_value = readAuxChannel(manual_control, _rc_mode_selector_channel);
+	const int selection = quantizeAuxSelection(aux_value, 6);
+	if (selection < 0 || selection == _rc_workflow_selected_slot) {
+		return;
+	}
+
+	_rc_workflow_selected_slot = selection;
+	_rc_workflow_selection = static_cast<RcWorkflowSelection>(selection);
+	_rc_selected_index = -1;
+	PX4_INFO("RC workflow selected: %s", rcWorkflowToString(_rc_workflow_selection));
+}
+
+void TrajectoryReader::updateRcSelections(const manual_control_setpoint_s &manual_control)
 {
 	if (_rc_select_enabled == 0 || _rc_selector_channel < 1 || _rc_selector_channel > 6) {
 		_rc_selected_index = -1;
 		return;
 	}
 
-	manual_control_setpoint_s manual_control{};
-	if (!_manual_control_sub.update(&manual_control) || !manual_control.valid) {
+	const bool select_ident = (_rc_mode_select_enabled != 0)
+		? (_rc_workflow_selection == RcWorkflowSelection::SINGLE_IDENT)
+		: (_mode == Mode::IDENTIFICATION);
+	const bool select_traj = (_rc_mode_select_enabled != 0)
+		? (_rc_workflow_selection == RcWorkflowSelection::SINGLE_TRAJECTORY)
+		: (_mode == Mode::TRAJECTORY);
+
+	if (!select_ident && !select_traj) {
+		_rc_selected_index = -1;
 		return;
 	}
 
 	const float aux_value = readAuxChannel(manual_control, _rc_selector_channel);
-	const int slot_count = (_mode == Mode::IDENTIFICATION)
+	const int slot_count = select_ident
 		? 9
-		: math::max<int32_t>(1, _rc_selector_max_traj_id + 1);
+		: trajectorySelectionSlotCount(_rc_selector_min_traj_id, _rc_selector_max_traj_id);
 	const int selection = quantizeAuxSelection(aux_value, slot_count);
 	if (selection < 0 || selection == _rc_selected_index) {
 		return;
 	}
 
 	_rc_selected_index = selection;
-	if (_mode == Mode::IDENTIFICATION) {
+	if (select_ident) {
 		_ident_profile = static_cast<IdentificationProfile>(selection);
 		param_t ident_param = param_find("TRJ_IDENT_PROF");
 		const int32_t profile_value = selection;
 		if (ident_param != PARAM_INVALID) {
 			param_set(ident_param, &profile_value);
 		}
-		stopTrajectoryTrackingLog();
-		stopIdentificationLog();
-		resetIdentificationState();
-		_start_new_tracking_log = true;
+
+		if (_mode == Mode::IDENTIFICATION) {
+			stopTrajectoryTrackingLog();
+			stopIdentificationLog();
+			resetIdentificationState();
+			_start_new_tracking_log = true;
+		}
 	} else {
-		if (setTrajectoryId(static_cast<uint8_t>(selection))) {
-			const int32_t traj_value = selection;
+		const uint8_t traj_id = trajectoryIdFromSelectionSlot(selection, _rc_selector_min_traj_id, _rc_selector_max_traj_id);
+
+		if (setTrajectoryId(traj_id)) {
+			const int32_t traj_value = static_cast<int32_t>(traj_id);
 			param_t traj_param = param_find("TRJ_ACTIVE_ID");
 			if (traj_param != PARAM_INVALID) {
 				param_set(traj_param, &traj_value);
 			}
+
+			if (_mode == Mode::TRAJECTORY) {
+				stopTrajectoryTrackingLog();
+				closeTrajectoryFile();
+				_buffer_len = 0;
+				_eof = false;
+				_finalize_tracking_log = false;
+				_traj_offset_valid = false;
+				_need_traj_offset = true;
+				_start_new_tracking_log = true;
+			}
 		}
 	}
+}
+
+void TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_pos)
+{
+	auto set_controller_param = [&](int32_t controller_type) {
+		param_t controller_param = param_find("CST_POS_CTRL_TYP");
+		if (controller_param != PARAM_INVALID) {
+			param_set(controller_param, &controller_type);
+		}
+		_controller_type_cached = controller_type;
+	};
+
+	auto set_mode_param = [&](Mode mode) {
+		const int32_t mode_value = static_cast<int32_t>(mode);
+		_param_mode_cmd_cached = mode_value;
+		param_t mode_param = param_find("TRJ_MODE_CMD");
+		if (mode_param != PARAM_INVALID) {
+			param_set(mode_param, &mode_value);
+		}
+	};
+
+	auto set_campaign_param = [&](CampaignType campaign_type) {
+		_campaign_type = campaign_type;
+		const int32_t campaign_value = static_cast<int32_t>(campaign_type);
+		_param_campaign_cached = campaign_value;
+		param_t campaign_param = param_find("TRJ_CAMPAIGN");
+		if (campaign_param != PARAM_INVALID) {
+			param_set(campaign_param, &campaign_value);
+		}
+	};
+
+	switch (_rc_workflow_selection) {
+	case RcWorkflowSelection::HOLD_POSITION:
+		stopCampaign(true);
+		set_campaign_param(CampaignType::NONE);
+		set_controller_param(4);
+		setTrajectoryReaderMode(Mode::POSITION);
+		setPositionModeRef(current_pos, _pos_yaw, true);
+		set_mode_param(Mode::POSITION);
+		PX4_INFO("RC trigger: hold_position");
+		return;
+
+	case RcWorkflowSelection::SINGLE_IDENT:
+		stopCampaign(false);
+		set_campaign_param(CampaignType::NONE);
+		set_controller_param(6);
+		if (_mode == Mode::IDENTIFICATION) {
+			setTrajectoryReaderMode(Mode::POSITION);
+		}
+		setPositionModeRef(current_pos, _pos_yaw, true);
+		setTrajectoryReaderMode(Mode::IDENTIFICATION);
+		set_mode_param(Mode::IDENTIFICATION);
+		PX4_INFO("RC trigger: identification %s", identProfileToString(_ident_profile));
+		return;
+
+	case RcWorkflowSelection::SINGLE_TRAJECTORY:
+		stopCampaign(false);
+		set_campaign_param(CampaignType::NONE);
+		set_controller_param(4);
+		if (_mode == Mode::TRAJECTORY) {
+			setTrajectoryReaderMode(Mode::POSITION);
+		}
+		setPositionModeRef(current_pos, _pos_yaw, true);
+		setTrajectoryReaderMode(Mode::TRAJECTORY);
+		set_mode_param(Mode::TRAJECTORY);
+		PX4_INFO("RC trigger: trajectory %u", static_cast<unsigned>(_traj_id));
+		return;
+
+	case RcWorkflowSelection::IDENTIFICATION_ONLY:
+		set_campaign_param(CampaignType::IDENTIFICATION_ONLY);
+		set_controller_param(4);
+		if (_mode != Mode::POSITION) {
+			setTrajectoryReaderMode(Mode::POSITION);
+		}
+		setPositionModeRef(current_pos, _pos_yaw, true);
+		set_mode_param(Mode::POSITION);
+		requestCampaignStart();
+		return;
+
+	case RcWorkflowSelection::TRAJECTORY_ONLY:
+		set_campaign_param(CampaignType::TRAJECTORY_ONLY);
+		set_controller_param(4);
+		if (_mode != Mode::POSITION) {
+			setTrajectoryReaderMode(Mode::POSITION);
+		}
+		setPositionModeRef(current_pos, _pos_yaw, true);
+		set_mode_param(Mode::POSITION);
+		requestCampaignStart();
+		return;
+
+	case RcWorkflowSelection::FULL_STACK:
+		set_campaign_param(CampaignType::FULL_STACK);
+		set_controller_param(4);
+		if (_mode != Mode::POSITION) {
+			setTrajectoryReaderMode(Mode::POSITION);
+		}
+		setPositionModeRef(current_pos, _pos_yaw, true);
+		set_mode_param(Mode::POSITION);
+		requestCampaignStart();
+		return;
+
+	default:
+		return;
+	}
+}
+
+void TrajectoryReader::handleRcWorkflowTrigger(const manual_control_setpoint_s &manual_control, const matrix::Vector3f &current_pos)
+{
+	if (_rc_start_enabled == 0) {
+		_rc_start_button_prev = false;
+		return;
+	}
+
+	const bool pressed = rcButtonPressed(manual_control.buttons, _rc_start_button_index);
+	const bool rising_edge = pressed && !_rc_start_button_prev;
+	_rc_start_button_prev = pressed;
+
+	if (!rising_edge) {
+		return;
+	}
+
+	applyRcWorkflowSelection(current_pos);
 }
 
 void TrajectoryReader::queueTrackingLogSample(const matrix::Vector3f &ref_first_pos, hrt_abstime setpoint_timestamp)
@@ -1555,7 +1735,11 @@ void TrajectoryReader::Run()
 		updateControllerTypeCache();
 	}
 
-	updateRcSelections();
+	manual_control_setpoint_s manual_control{};
+	if (_manual_control_sub.update(&manual_control) && manual_control.valid) {
+		_manual_control_cached = manual_control;
+		_manual_control_cached_valid = true;
+	}
 
 	_vehicle_status_sub.update(&_status);
 	// deceted offboard entry
@@ -1592,6 +1776,12 @@ void TrajectoryReader::Run()
 		vehicle_local_position.z
 	};
 	const hrt_abstime now = hrt_absolute_time();
+
+	if (_manual_control_cached_valid && _manual_control_cached.valid) {
+		updateRcWorkflowSelection(_manual_control_cached);
+		updateRcSelections(_manual_control_cached);
+		handleRcWorkflowTrigger(_manual_control_cached, current_pos);
+	}
 
 	// Keep a hold reference streaming while armed so OFFBOARD can latch cleanly,
 	// even if the operator has already selected TRAJECTORY or IDENTIFICATION mode.

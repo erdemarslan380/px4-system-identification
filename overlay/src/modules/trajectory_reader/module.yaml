@@ -12,6 +12,23 @@ parameters:
         type: boolean
         default: 0
 
+      TRJ_RC_MODE_EN:
+        description:
+          short: Enable RC workflow selection
+          long: |
+            When enabled, one AUX channel selects the workflow that will be applied
+            when the configured RC start button is pressed.
+        type: boolean
+        default: 0
+
+      TRJ_RC_MODE_CH:
+        description:
+          short: RC AUX channel used for workflow selection
+        type: int32
+        min: 1
+        max: 6
+        default: 4
+
       TRJ_RC_SEL_CH:
         description:
           short: RC AUX channel used for selection
@@ -20,13 +37,38 @@ parameters:
         max: 6
         default: 6
 
+      TRJ_RC_MIN_ID:
+        description:
+          short: Minimum trajectory id reachable by the RC selector
+        type: int32
+        min: 0
+        max: 255
+        default: 100
+
       TRJ_RC_MAX_ID:
         description:
           short: Maximum trajectory id reachable by the RC selector
         type: int32
         min: 0
         max: 255
-        default: 3
+        default: 104
+
+      TRJ_RC_START_EN:
+        description:
+          short: Enable RC button workflow trigger
+          long: |
+            When enabled, the selected workflow is applied on the rising edge of the
+            configured button in manual_control_setpoint.buttons.
+        type: boolean
+        default: 0
+
+      TRJ_RC_START_BTN:
+        description:
+          short: One-based RC button index used as the workflow trigger
+        type: int32
+        min: 1
+        max: 16
+        default: 1
 
       TRJ_IDENT_PROF:
         description:

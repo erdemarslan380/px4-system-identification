@@ -50,6 +50,32 @@ Use one calm day and keep the workflow simple:
 - let the vehicle return to the common anchor between items,
 - land after the last trajectory.
 
+RC-driven operator workflow
+---------------------------
+If you want to run the sortie from the transmitter instead of typing commands in the shell, configure:
+- `CST_RC_SEL_EN = 1`
+- `CST_RC_CTRL_CH = <controller_pot>`
+- `TRJ_RC_MODE_EN = 1`
+- `TRJ_RC_MODE_CH = <workflow_pot>`
+- `TRJ_RC_SEL_EN = 1`
+- `TRJ_RC_SEL_CH = <item_pot>`
+- `TRJ_RC_MIN_ID = 100`
+- `TRJ_RC_MAX_ID = 104`
+- `TRJ_RC_START_EN = 1`
+- `TRJ_RC_START_BTN = <H_button_index>`
+
+Workflow pot slots:
+- `0`: hold position
+- `1`: one identification maneuver
+- `2`: one trajectory
+- `3`: `identification_only`
+- `4`: `trajectory_only`
+- `5`: `full_stack`
+
+With slot `1`, the item pot selects one of the `9` identification profiles.
+With slot `2`, the item pot selects one trajectory in the shipped range `100..104`.
+Press the `H` button to apply the current selection.
+
 1. One full real-flight campaign
 --------------------------------
 Start the helper modules on the vehicle:
