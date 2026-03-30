@@ -1,0 +1,7 @@
+{
+  "hairpin": {"source": "t3r6_15891fec.csv", "assumption": "mapped from earlier screenshot sequence"},
+  "circle": {"source": "t4r5_13e6b622.csv", "assumption": "mapped from earlier screenshot sequence"},
+  "lemniscate": {"source": "t5r3_111ced1a.csv", "assumption": "mapped from earlier screenshot sequence"},
+  "time_optimal_30s": {"source": "t103r1_c7ba798.csv", "assumption": "trajectory id 103 is explicit"},
+  "minimum_snap_50s": {"source": "t104r2_e4f13fa.csv", "assumption": "trajectory id 104 is explicit"}
+}

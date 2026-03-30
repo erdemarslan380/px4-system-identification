@@ -51,6 +51,60 @@ float squaref(float value)
 {
 	return value * value;
 }
+
+struct CampaignDefinitionItem {
+	Mode mode;
+	IdentificationProfile ident_profile;
+	uint8_t traj_id;
+	const char *name;
+};
+
+static constexpr CampaignDefinitionItem kIdentificationOnlyCampaign[] = {
+	{Mode::IDENTIFICATION, IdentificationProfile::HOVER_THRUST, 0, "hover_thrust"},
+	{Mode::IDENTIFICATION, IdentificationProfile::MASS_VERTICAL, 0, "mass_vertical"},
+	{Mode::IDENTIFICATION, IdentificationProfile::ROLL_SWEEP, 0, "roll_sweep"},
+	{Mode::IDENTIFICATION, IdentificationProfile::PITCH_SWEEP, 0, "pitch_sweep"},
+	{Mode::IDENTIFICATION, IdentificationProfile::YAW_SWEEP, 0, "yaw_sweep"},
+	{Mode::IDENTIFICATION, IdentificationProfile::DRAG_X, 0, "drag_x"},
+	{Mode::IDENTIFICATION, IdentificationProfile::DRAG_Y, 0, "drag_y"},
+	{Mode::IDENTIFICATION, IdentificationProfile::DRAG_Z, 0, "drag_z"},
+	{Mode::IDENTIFICATION, IdentificationProfile::MOTOR_STEP, 0, "motor_step"},
+};
+
+static constexpr CampaignDefinitionItem kFullStackCampaign[] = {
+	{Mode::IDENTIFICATION, IdentificationProfile::HOVER_THRUST, 0, "hover_thrust"},
+	{Mode::IDENTIFICATION, IdentificationProfile::MASS_VERTICAL, 0, "mass_vertical"},
+	{Mode::IDENTIFICATION, IdentificationProfile::ROLL_SWEEP, 0, "roll_sweep"},
+	{Mode::IDENTIFICATION, IdentificationProfile::PITCH_SWEEP, 0, "pitch_sweep"},
+	{Mode::IDENTIFICATION, IdentificationProfile::YAW_SWEEP, 0, "yaw_sweep"},
+	{Mode::IDENTIFICATION, IdentificationProfile::DRAG_X, 0, "drag_x"},
+	{Mode::IDENTIFICATION, IdentificationProfile::DRAG_Y, 0, "drag_y"},
+	{Mode::IDENTIFICATION, IdentificationProfile::DRAG_Z, 0, "drag_z"},
+	{Mode::IDENTIFICATION, IdentificationProfile::MOTOR_STEP, 0, "motor_step"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 100, "hairpin"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 101, "lemniscate"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 102, "circle"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 103, "time_optimal_30s"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 104, "minimum_snap_50s"},
+};
+
+const CampaignDefinitionItem *campaignDefinition(CampaignType type, size_t &count)
+{
+	switch (type) {
+	case CampaignType::IDENTIFICATION_ONLY:
+		count = sizeof(kIdentificationOnlyCampaign) / sizeof(kIdentificationOnlyCampaign[0]);
+		return kIdentificationOnlyCampaign;
+
+	case CampaignType::FULL_STACK:
+		count = sizeof(kFullStackCampaign) / sizeof(kFullStackCampaign[0]);
+		return kFullStackCampaign;
+
+	case CampaignType::NONE:
+	default:
+		count = 0;
+		return nullptr;
+	}
+}
 }
 
 ModuleBase::Descriptor TrajectoryReader::desc{task_spawn, custom_command, print_usage};
@@ -76,6 +130,7 @@ TrajectoryReader::~TrajectoryReader() {
 }
 
 bool TrajectoryReader::init() {
+	setCampaignStatusParam(0);
     ScheduleOnInterval(20_ms);
     return true;
 }
@@ -108,6 +163,16 @@ void TrajectoryReader::parametersUpdate() {
 		_start_new_tracking_log = (_mode == Mode::IDENTIFICATION);
 	}
 
+	const int32_t campaign_type = math::constrain<int32_t>(_param_trj_campaign.get(), 0, 2);
+	if (campaign_type != _param_campaign_cached) {
+		_param_campaign_cached = campaign_type;
+		_campaign_type = static_cast<CampaignType>(campaign_type);
+
+		if (_campaign_active && _campaign_type == CampaignType::NONE) {
+			stopCampaign(true);
+		}
+	}
+
 	const matrix::Vector3f anchor{
 		_param_trj_anchor_x.get(),
 		_param_trj_anchor_y.get(),
@@ -130,6 +195,26 @@ void TrajectoryReader::parametersUpdate() {
 	if (mode_cmd != _param_mode_cmd_cached) {
 		_param_mode_cmd_cached = mode_cmd;
 		setTrajectoryReaderMode(static_cast<Mode>(mode_cmd));
+	}
+
+	const int32_t campaign_cmd = math::constrain<int32_t>(_param_trj_campaign_cmd.get(), 0, 2);
+	if (campaign_cmd != _param_campaign_cmd_cached) {
+		_param_campaign_cmd_cached = campaign_cmd;
+
+		if (campaign_cmd == 1) {
+			requestCampaignStart();
+		} else if (campaign_cmd == 2) {
+			stopCampaign(true);
+		}
+
+		if (campaign_cmd != 0) {
+			const int32_t idle = 0;
+			param_t campaign_cmd_param = param_find("TRJ_CAMPAIGN_CMD");
+			if (campaign_cmd_param != PARAM_INVALID) {
+				param_set(campaign_cmd_param, &idle);
+			}
+			_param_campaign_cmd_cached = 0;
+		}
 	}
 }
 
@@ -218,6 +303,287 @@ const char *TrajectoryReader::identProfilePurpose(IdentificationProfile profile)
 		return "step-like thrust sequence for motor time constants";
 	default:
 		return "system identification maneuver";
+	}
+}
+
+const char *TrajectoryReader::campaignTypeToString(CampaignType type) const
+{
+	switch (type) {
+	case CampaignType::IDENTIFICATION_ONLY:
+		return "identification_only";
+
+	case CampaignType::FULL_STACK:
+		return "full_stack";
+
+	case CampaignType::NONE:
+	default:
+		return "none";
+	}
+}
+
+void TrajectoryReader::setCampaignStatusParam(int32_t status)
+{
+	param_t campaign_status = param_find("TRJ_CAMPAIGN_STA");
+	if (campaign_status != PARAM_INVALID) {
+		param_set(campaign_status, &status);
+	}
+}
+
+bool TrajectoryReader::requestCampaignStart()
+{
+	if (_campaign_type == CampaignType::NONE) {
+		PX4_WARN("Campaign start ignored: select TRJ_CAMPAIGN first");
+		return false;
+	}
+
+	_campaign_start_requested = true;
+	PX4_INFO("Campaign start requested: %s", campaignTypeToString(_campaign_type));
+	return true;
+}
+
+void TrajectoryReader::stopCampaign(bool announce)
+{
+	const bool was_active = _campaign_active || _campaign_start_requested;
+
+	_campaign_active = false;
+	_campaign_start_requested = false;
+	_campaign_stage = CampaignStage::IDLE;
+	_campaign_item_index = 0;
+	_campaign_anchor_settle_since = 0;
+	_campaign_last_transition_time = 0;
+
+	if (was_active) {
+		const int32_t controller_type = 4;
+		param_t controller_param = param_find("CST_POS_CTRL_TYP");
+		if (controller_param != PARAM_INVALID) {
+			param_set(controller_param, &controller_type);
+		}
+		_controller_type_cached = controller_type;
+		setTrajectoryReaderMode(Mode::POSITION);
+		const int32_t mode_value = static_cast<int32_t>(Mode::POSITION);
+		param_t mode_param = param_find("TRJ_MODE_CMD");
+		if (mode_param != PARAM_INVALID) {
+			param_set(mode_param, &mode_value);
+		}
+		if (announce) {
+			PX4_INFO("Campaign stopped");
+		}
+	}
+
+	setCampaignStatusParam(was_active && announce ? 3 : 0);
+}
+
+bool TrajectoryReader::startCampaign(const matrix::Vector3f &current_pos, hrt_abstime now)
+{
+	size_t campaign_count = 0;
+	const CampaignDefinitionItem *campaign_items = campaignDefinition(_campaign_type, campaign_count);
+
+	if (!campaign_items || campaign_count == 0) {
+		PX4_WARN("Campaign start ignored: no campaign selected");
+		_campaign_start_requested = false;
+		return false;
+	}
+
+	_campaign_anchor = current_pos;
+	_campaign_yaw = _pos_yaw;
+	_campaign_item_index = 0;
+	_campaign_active = true;
+	_campaign_start_requested = false;
+	_campaign_stage = CampaignStage::RETURN_TO_ANCHOR;
+	_campaign_anchor_settle_since = 0;
+	_campaign_last_transition_time = now;
+	setCampaignStatusParam(1);
+	setTrajectoryAnchor(_campaign_anchor);
+	const float anchor_values[3] = {
+		_campaign_anchor(0),
+		_campaign_anchor(1),
+		_campaign_anchor(2)
+	};
+	param_t anchor_params[3] = {
+		param_find("TRJ_ANCHOR_X"),
+		param_find("TRJ_ANCHOR_Y"),
+		param_find("TRJ_ANCHOR_Z"),
+	};
+	for (int i = 0; i < 3; ++i) {
+		if (anchor_params[i] != PARAM_INVALID) {
+			param_set(anchor_params[i], &anchor_values[i]);
+		}
+	}
+	transitionCampaignToAnchor(current_pos, now, false);
+	PX4_INFO("Campaign armed: %s (%u items)",
+		 campaignTypeToString(_campaign_type),
+		 static_cast<unsigned>(campaign_count));
+	return true;
+}
+
+void TrajectoryReader::transitionCampaignToAnchor(const matrix::Vector3f &current_pos, hrt_abstime now, bool announce)
+{
+	const int32_t controller_type = 4;
+	param_t controller_param = param_find("CST_POS_CTRL_TYP");
+	if (controller_param != PARAM_INVALID) {
+		param_set(controller_param, &controller_type);
+	}
+	_controller_type_cached = controller_type;
+	setTrajectoryReaderMode(Mode::POSITION);
+	setPositionModeRef(_campaign_anchor, _campaign_yaw, true);
+	const int32_t mode_value = static_cast<int32_t>(Mode::POSITION);
+	param_t mode_param = param_find("TRJ_MODE_CMD");
+	if (mode_param != PARAM_INVALID) {
+		param_set(mode_param, &mode_value);
+	}
+	_campaign_stage = CampaignStage::RETURN_TO_ANCHOR;
+	_campaign_anchor_settle_since = ((current_pos - _campaign_anchor).norm() <= CAMPAIGN_RETURN_RADIUS_M) ? now : 0;
+	_campaign_last_transition_time = now;
+
+	if (announce) {
+		PX4_INFO("Campaign returning to anchor [%.2f %.2f %.2f]",
+			 (double)_campaign_anchor(0),
+			 (double)_campaign_anchor(1),
+			 (double)_campaign_anchor(2));
+	}
+}
+
+bool TrajectoryReader::startCampaignSegment(size_t item_index, hrt_abstime now)
+{
+	size_t campaign_count = 0;
+	const CampaignDefinitionItem *campaign_items = campaignDefinition(_campaign_type, campaign_count);
+
+	if (!campaign_items || item_index >= campaign_count) {
+		return false;
+	}
+
+	const CampaignDefinitionItem &item = campaign_items[item_index];
+	setTrajectoryAnchor(_campaign_anchor);
+	param_t controller_param = param_find("CST_POS_CTRL_TYP");
+
+	if (item.mode == Mode::IDENTIFICATION) {
+		const int32_t controller_type = 6;
+		if (controller_param != PARAM_INVALID) {
+			param_set(controller_param, &controller_type);
+		}
+		_controller_type_cached = controller_type;
+		_ident_profile = item.ident_profile;
+		const int32_t profile_value = static_cast<int32_t>(item.ident_profile);
+		_param_ident_profile_cached = profile_value;
+		param_t ident_param = param_find("TRJ_IDENT_PROF");
+		if (ident_param != PARAM_INVALID) {
+			param_set(ident_param, &profile_value);
+		}
+		setTrajectoryReaderMode(Mode::IDENTIFICATION);
+
+	} else if (item.mode == Mode::TRAJECTORY) {
+		const int32_t controller_type = 4;
+		if (controller_param != PARAM_INVALID) {
+			param_set(controller_param, &controller_type);
+		}
+		_controller_type_cached = controller_type;
+		if (!setTrajectoryId(item.traj_id)) {
+			PX4_ERR("Campaign failed to load trajectory %u", static_cast<unsigned>(item.traj_id));
+			return false;
+		}
+		const int32_t traj_value = static_cast<int32_t>(item.traj_id);
+		_param_traj_id_cached = traj_value;
+		param_t traj_param = param_find("TRJ_ACTIVE_ID");
+		if (traj_param != PARAM_INVALID) {
+			param_set(traj_param, &traj_value);
+		}
+		setTrajectoryReaderMode(Mode::TRAJECTORY);
+	}
+
+	const int32_t mode_value = static_cast<int32_t>(item.mode);
+	_param_mode_cmd_cached = mode_value;
+	param_t mode_param = param_find("TRJ_MODE_CMD");
+	if (mode_param != PARAM_INVALID) {
+		param_set(mode_param, &mode_value);
+	}
+
+	_campaign_stage = CampaignStage::RUN_SEGMENT;
+	_campaign_last_transition_time = now;
+	_campaign_anchor_settle_since = 0;
+	PX4_INFO("Campaign segment %u/%u started: %s",
+		 static_cast<unsigned>(item_index + 1),
+		 static_cast<unsigned>(campaign_count),
+		 item.name);
+	return true;
+}
+
+bool TrajectoryReader::campaignSegmentCompleted() const
+{
+	if (!_campaign_active || _campaign_stage != CampaignStage::RUN_SEGMENT) {
+		return false;
+	}
+
+	if (_mode == Mode::IDENTIFICATION) {
+		return _eof && _ident_log_fd < 0 && _tracking_log_fd < 0 && _pending_tracking_size == 0;
+	}
+
+	if (_mode == Mode::TRAJECTORY) {
+		return _eof && _tracking_log_fd < 0 && _pending_tracking_size == 0;
+	}
+
+	return false;
+}
+
+void TrajectoryReader::updateCampaign(const matrix::Vector3f &current_pos, hrt_abstime now, bool in_offboard)
+{
+	if (!_campaign_active) {
+		return;
+	}
+
+	if (!in_offboard) {
+		PX4_WARN("Campaign aborted: OFFBOARD exited");
+		stopCampaign(true);
+		return;
+	}
+
+	size_t campaign_count = 0;
+	const CampaignDefinitionItem *campaign_items = campaignDefinition(_campaign_type, campaign_count);
+
+	if (!campaign_items || campaign_count == 0) {
+		stopCampaign(true);
+		return;
+	}
+
+	if (_campaign_stage == CampaignStage::RETURN_TO_ANCHOR) {
+		const float anchor_distance = (current_pos - _campaign_anchor).norm();
+		if (anchor_distance <= CAMPAIGN_RETURN_RADIUS_M) {
+			if (_campaign_anchor_settle_since == 0) {
+				_campaign_anchor_settle_since = now;
+			}
+
+			if (now - _campaign_anchor_settle_since >= CAMPAIGN_RETURN_SETTLE_US) {
+				if (!startCampaignSegment(_campaign_item_index, now)) {
+					PX4_ERR("Campaign failed to start segment %u", static_cast<unsigned>(_campaign_item_index));
+					stopCampaign(true);
+				}
+			}
+		} else {
+			_campaign_anchor_settle_since = 0;
+		}
+
+		return;
+	}
+
+	if (_campaign_stage == CampaignStage::RUN_SEGMENT && campaignSegmentCompleted()) {
+		PX4_INFO("Campaign segment completed");
+		_campaign_item_index++;
+
+		if (_campaign_item_index >= campaign_count) {
+			_campaign_stage = CampaignStage::COMPLETE;
+			setTrajectoryReaderMode(Mode::POSITION);
+			setPositionModeRef(_campaign_anchor, _campaign_yaw, true);
+			const int32_t mode_value = static_cast<int32_t>(Mode::POSITION);
+			param_t mode_param = param_find("TRJ_MODE_CMD");
+			if (mode_param != PARAM_INVALID) {
+				param_set(mode_param, &mode_value);
+			}
+			_campaign_active = false;
+			setCampaignStatusParam(2);
+			PX4_INFO("Campaign completed: %s", campaignTypeToString(_campaign_type));
+			return;
+		}
+
+		transitionCampaignToAnchor(current_pos, now, true);
 	}
 }
 
@@ -393,6 +759,8 @@ bool TrajectoryReader::startTrajectoryTrackingLog(hrt_abstime setpoint_timestamp
 		return false;
 	}
 
+	_tracking_log_samples_since_sync = 0;
+	syncTrackingLogIfNeeded(true);
 	_tracking_log_run_counter = next_run_counter;
 	PX4_INFO("Tracking log started: %s", path);
 	return true;
@@ -407,11 +775,12 @@ void TrajectoryReader::clearPendingTrackingSamples()
 void TrajectoryReader::stopTrajectoryTrackingLog()
 {
 	if (_tracking_log_fd >= 0) {
-		(void)fsync(_tracking_log_fd);
+		syncTrackingLogIfNeeded(true);
 		close(_tracking_log_fd);
 		_tracking_log_fd = -1;
 	}
 
+	_tracking_log_samples_since_sync = 0;
 	clearPendingTrackingSamples();
 	_start_new_tracking_log = false;
 	_finalize_tracking_log = false;
@@ -481,6 +850,8 @@ bool TrajectoryReader::startIdentificationLog(hrt_abstime setpoint_timestamp)
 		return false;
 	}
 
+	_ident_log_samples_since_sync = 0;
+	syncIdentificationLogIfNeeded(true);
 	_ident_log_run_counter = next_run_counter;
 	PX4_INFO("Identification log started: %s", path);
 	return true;
@@ -489,9 +860,35 @@ bool TrajectoryReader::startIdentificationLog(hrt_abstime setpoint_timestamp)
 void TrajectoryReader::stopIdentificationLog()
 {
 	if (_ident_log_fd >= 0) {
-		(void)fsync(_ident_log_fd);
+		syncIdentificationLogIfNeeded(true);
 		close(_ident_log_fd);
 		_ident_log_fd = -1;
+	}
+
+	_ident_log_samples_since_sync = 0;
+}
+
+void TrajectoryReader::syncTrackingLogIfNeeded(bool force)
+{
+	if (_tracking_log_fd < 0) {
+		return;
+	}
+
+	if (force || _tracking_log_samples_since_sync >= LOG_FSYNC_INTERVAL_SAMPLES) {
+		(void)fsync(_tracking_log_fd);
+		_tracking_log_samples_since_sync = 0;
+	}
+}
+
+void TrajectoryReader::syncIdentificationLogIfNeeded(bool force)
+{
+	if (_ident_log_fd < 0) {
+		return;
+	}
+
+	if (force || _ident_log_samples_since_sync >= LOG_FSYNC_INTERVAL_SAMPLES) {
+		(void)fsync(_ident_log_fd);
+		_ident_log_samples_since_sync = 0;
 	}
 }
 
@@ -783,7 +1180,14 @@ void TrajectoryReader::writeIdentificationLogSample(const matrix::Vector3f &curr
 		controllerTypeToString(_controller_type_cached))) {
 		PX4_ERR("Failed writing identification log row");
 		stopIdentificationLog();
+		return;
 	}
+
+	if (_ident_log_samples_since_sync < LOG_FSYNC_INTERVAL_SAMPLES) {
+		_ident_log_samples_since_sync++;
+	}
+
+	syncIdentificationLogIfNeeded(false);
 }
 
 void TrajectoryReader::updateRcSelections()
@@ -882,6 +1286,12 @@ void TrajectoryReader::flushTrackingLogSamples(const matrix::Vector3f &current_p
 			stopTrajectoryTrackingLog();
 			return;
 		}
+
+		if (_tracking_log_samples_since_sync < LOG_FSYNC_INTERVAL_SAMPLES) {
+			_tracking_log_samples_since_sync++;
+		}
+
+		syncTrackingLogIfNeeded(false);
 
 		_pending_tracking_head = (_pending_tracking_head + 1) % MAX_PENDING_TRACKING_SAMPLES;
 		_pending_tracking_size--;
@@ -1166,10 +1576,16 @@ void TrajectoryReader::Run()
 		vehicle_local_position.y,
 		vehicle_local_position.z
 	};
+	const hrt_abstime now = hrt_absolute_time();
 
 	// Keep a hold reference streaming while armed so OFFBOARD can latch cleanly,
 	// even if the operator has already selected TRAJECTORY or IDENTIFICATION mode.
 	if ((_mode == Mode::TRAJECTORY || _mode == Mode::IDENTIFICATION) && !in_offboard) {
+		if (_campaign_active) {
+			PX4_WARN("Campaign aborted before OFFBOARD became active");
+			stopCampaign(true);
+		}
+
 		if ((_tracking_log_fd >= 0 || _pending_tracking_size > 0)) {
 			stopTrajectoryTrackingLog();
 			_start_new_tracking_log = true;
@@ -1186,6 +1602,10 @@ void TrajectoryReader::Run()
 
 		publishHoldPositionSetpoint(current_pos);
 		return;
+	}
+
+	if (_campaign_start_requested && !_campaign_active && in_offboard) {
+		startCampaign(current_pos, now);
 	}
 
 	if (entered_offboard) {
@@ -1217,8 +1637,10 @@ void TrajectoryReader::Run()
 	}
 
 	if (_mode == Mode::TRAJECTORY || _mode == Mode::IDENTIFICATION) {
-		flushTrackingLogSamples(current_pos, hrt_absolute_time());
+		flushTrackingLogSamples(current_pos, now);
 	}
+
+	updateCampaign(current_pos, now, in_offboard);
 
 	if (entered_offboard || _need_reset) {
 		resetSmoothers(current_pos, _pos_yaw);
@@ -1322,12 +1744,12 @@ void TrajectoryReader::Run()
 	}
 
 	if (_mode == Mode::IDENTIFICATION) {
-		fillIdentificationBuffer(current_pos, hrt_absolute_time());
+		fillIdentificationBuffer(current_pos, now);
 		publishSetpoint(current_pos);
 
 		if (_eof) {
 			_finalize_tracking_log = true;
-			flushTrackingLogSamples(current_pos, hrt_absolute_time());
+			flushTrackingLogSamples(current_pos, now);
 			if (_ident_finalize_log) {
 				stopIdentificationLog();
 			}
@@ -1716,6 +2138,62 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
         return PX4_OK;
     }
 
+	if (!strcmp(argv[0], "set_campaign")) {
+		if (argc < 2) {
+			PX4_ERR("usage: trajectory_reader set_campaign <none|identification_only|full_stack>");
+			return PX4_ERROR;
+		}
+
+		CampaignType campaign_type = CampaignType::NONE;
+		if (!strcmp(argv[1], "none")) {
+			campaign_type = CampaignType::NONE;
+		} else if (!strcmp(argv[1], "identification_only")) {
+			campaign_type = CampaignType::IDENTIFICATION_ONLY;
+		} else if (!strcmp(argv[1], "full_stack")) {
+			campaign_type = CampaignType::FULL_STACK;
+		} else {
+			PX4_ERR("Invalid campaign: %s", argv[1]);
+			return PX4_ERROR;
+		}
+
+		instance->_campaign_type = campaign_type;
+		const int32_t campaign_value = static_cast<int32_t>(campaign_type);
+		param_t campaign_param = param_find("TRJ_CAMPAIGN");
+		if (campaign_param != PARAM_INVALID) {
+			param_set(campaign_param, &campaign_value);
+		}
+
+		if (campaign_type == CampaignType::NONE) {
+			instance->stopCampaign(true);
+		}
+
+		PX4_INFO("Campaign set to %s", instance->campaignTypeToString(campaign_type));
+		return PX4_OK;
+	}
+
+	if (!strcmp(argv[0], "start_campaign")) {
+		if (!instance->requestCampaignStart()) {
+			return PX4_ERROR;
+		}
+
+		const int32_t start_value = 1;
+		param_t campaign_cmd = param_find("TRJ_CAMPAIGN_CMD");
+		if (campaign_cmd != PARAM_INVALID) {
+			param_set(campaign_cmd, &start_value);
+		}
+		return PX4_OK;
+	}
+
+	if (!strcmp(argv[0], "stop_campaign")) {
+		instance->stopCampaign(true);
+		const int32_t stop_value = 2;
+		param_t campaign_cmd = param_find("TRJ_CAMPAIGN_CMD");
+		if (campaign_cmd != PARAM_INVALID) {
+			param_set(campaign_cmd, &stop_value);
+		}
+		return PX4_OK;
+	}
+
     if (!strcmp(argv[0], "set_traj_id")) {
         if (argc < 2) {
             PX4_ERR("usage: trajectory_reader set_traj_id <trajectory_id_number>");
@@ -1776,6 +2254,10 @@ int TrajectoryReader::print_status()
 	PX4_INFO("  Identification purpose: %s", identProfilePurpose(_ident_profile));
 	PX4_INFO("  Identification duration: %.2f s", (double)identificationDurationS(_ident_profile));
 	PX4_INFO("  Identification log open: %s", (_ident_log_fd >= 0) ? "yes" : "no");
+	PX4_INFO("  Campaign: %s", campaignTypeToString(_campaign_type));
+	PX4_INFO("  Campaign active: %s", _campaign_active ? "yes" : "no");
+	PX4_INFO("  Campaign stage: %u", static_cast<unsigned>(_campaign_stage));
+	PX4_INFO("  Campaign item index: %u", static_cast<unsigned>(_campaign_item_index));
 
     if (_mode == Mode::POSITION) {
         PX4_INFO("  Position target: [%.2f, %.2f, %.2f]", (double)_pos_target(0), (double)_pos_target(1), (double)_pos_target(2));
@@ -1845,6 +2327,17 @@ profiles such as hover, inertia sweeps, drag sweeps, and motor-step tests.
 		"Set identification motion profile");
 	PRINT_MODULE_USAGE_ARG("<hover_thrust|roll_sweep|pitch_sweep|yaw_sweep|drag_x|drag_y|drag_z|mass_vertical|motor_step>",
 		"Identification profile", true);
+
+	PRINT_MODULE_USAGE_COMMAND_DESCR("set_campaign",
+		"Select the built-in campaign");
+	PRINT_MODULE_USAGE_ARG("<none|identification_only|full_stack>",
+		"Campaign to arm", true);
+
+	PRINT_MODULE_USAGE_COMMAND_DESCR("start_campaign",
+		"Start the selected campaign once OFFBOARD is active");
+
+	PRINT_MODULE_USAGE_COMMAND_DESCR("stop_campaign",
+		"Abort the active campaign and hold position");
 
     PRINT_MODULE_USAGE_PARAM_INT(
         'i',

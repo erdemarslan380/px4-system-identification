@@ -46,6 +46,52 @@ parameters:
         max: 8
         default: 0
 
+      TRJ_CAMPAIGN:
+        description:
+          short: Built-in maneuver campaign
+          long: |
+            Selects an optional built-in sequence that can run multiple
+            identification maneuvers and validation trajectories from one
+            anchor position without logging the return-to-anchor segments.
+        type: enum
+        values:
+          0: Disabled
+          1: Identification only (9 maneuvers)
+          2: Full stack (9 maneuvers + 5 trajectories)
+        min: 0
+        max: 2
+        default: 0
+
+      TRJ_CAMPAIGN_CMD:
+        description:
+          short: Campaign command trigger
+          long: |
+            Set to Start to arm the selected campaign. The module consumes the
+            command and resets it back to Idle after accepting it.
+        type: enum
+        values:
+          0: Idle
+          1: Start
+          2: Stop
+        min: 0
+        max: 2
+        default: 0
+
+      TRJ_CAMPAIGN_STA:
+        description:
+          short: Campaign execution status
+          long: |
+            Readback status for the built-in campaign helper scripts.
+        type: enum
+        values:
+          0: Idle
+          1: Active
+          2: Completed
+          3: Aborted
+        min: 0
+        max: 3
+        default: 0
+
       TRJ_MODE_CMD:
         description:
           short: Active trajectory reader mode

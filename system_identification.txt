@@ -55,6 +55,14 @@ The nine built-in maneuvers are:
 
 Each maneuver is triggered directly from the PX4 shell through `trajectory_reader set_ident_profile <profile>`.
 
+The current overlay also provides a built-in campaign layer:
+- `identification_only`
+  - runs the nine maneuvers above in one uninterrupted session
+- `full_stack`
+  - runs the same nine maneuvers and then the five shipped validation trajectories
+
+In both cases the module returns to the common anchor between items and does not log those repositioning legs.
+
 Exact SITL execution flow
 -------------------------
 0. Clone PX4 into a dedicated identification tree:
@@ -84,6 +92,22 @@ Exact SITL execution flow
    - switch to `OFFBOARD`
 5. Run one maneuver at a time and wait for completion before sending the next one.
 6. For a full truth-assisted x500 candidate, keep all nine maneuvers inside the same uninterrupted SITL session.
+
+The now-preferred short execution path is the built-in campaign:
+- in `pxh>`:
+  - `custom_pos_control start`
+  - `trajectory_reader start`
+  - `custom_pos_control set px4_default`
+  - `custom_pos_control enable`
+  - `trajectory_reader ref 0 0 -3 0`
+- from a second terminal:
+  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign full_stack --prepare-hover --heartbeat-warmup 5 --arm-attempts 10 --timeout 520`
+
+That one command now covers:
+- takeoff to the common hover point,
+- the 9 identification maneuvers,
+- the 5 validation trajectories,
+- return-to-anchor transitions without extra CSV logs.
 
 CubeOrange hardware build
 -------------------------

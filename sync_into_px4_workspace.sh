@@ -363,6 +363,37 @@ source_path.write_text(source, encoding='utf-8')
 PY
 }
 
+patch_rcs_hil_usb_stream_rate() {
+  local rcS_path="$1"
+  [ -f "$rcS_path" ] || return 0
+  python3 - "$rcS_path" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+old = 'mavlink stream -d /dev/ttyACM0 -s HIL_ACTUATOR_CONTROLS -r 200'
+new = 'mavlink stream -d /dev/ttyACM0 -s HIL_ACTUATOR_CONTROLS -r 50'
+if old in text:
+    text = text.replace(old, new, 1)
+path.write_text(text, encoding='utf-8')
+PY
+}
+
+patch_hil_airframe_startup() {
+  local airframe_path="$1"
+  [ -f "$airframe_path" ] || return 0
+  python3 - "$airframe_path" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+text = text.replace('trajectory_reader abs_ref 0 0 -3 0', 'trajectory_reader ref 0 0 -3 0')
+path.write_text(text, encoding='utf-8')
+PY
+}
+
 patch_board_file "$px4_root/$board_rel"
 patch_gz_plugins_cmake "$px4_root/src/modules/simulation/gz_plugins/CMakeLists.txt"
 patch_simulation_gazebo_script "$px4_root/Tools/simulation/gz/simulation-gazebo"
@@ -372,6 +403,8 @@ patch_gz_bridge_gimbal \
   "$px4_root/src/modules/simulation/gz_bridge/GZBridge.hpp" \
   "$px4_root/src/modules/simulation/gz_bridge/GZBridge.cpp"
 patch_local_position_estimator_params "$px4_root/src/modules/local_position_estimator/params.yaml"
+patch_rcs_hil_usb_stream_rate "$px4_root/ROMFS/px4fmu_common/init.d/rcS"
+patch_hil_airframe_startup "$px4_root/ROMFS/px4fmu_common/init.d/airframes/1001_rc_quad_x.hil"
 cleanup_legacy_param_sources "$px4_root/src/modules/custom_pos_control"
 cleanup_legacy_param_sources "$px4_root/src/modules/trajectory_reader"
 
@@ -383,5 +416,7 @@ echo "x500 model.sdf patched for SystemIdentificationLoggerPlugin"
 echo "uORB message list patched for MultiTrajectorySetpoint.msg"
 echo "gz_bridge patched to tolerate missing simulated gimbal topics"
 echo "local_position_estimator params.yaml patched for LTEST_MODE compatibility"
+echo "rcS patched to lower USB HIL_ACTUATOR_CONTROLS stream rate for CDC-based HITL"
+echo "1001_rc_quad_x.hil patched to use relative hover setup for HITL"
 echo "Legacy params.c overlays removed in favor of module.yaml"
 echo "Next step: build SITL with 'make px4_sitl gz_x500' or your target board build."

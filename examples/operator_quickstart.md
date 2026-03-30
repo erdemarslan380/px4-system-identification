@@ -43,39 +43,37 @@ unset HEADLESS
 make px4_sitl gz_x500
 ```
 
-4. Identification in SITL
--------------------------
+4. One full campaign in SITL
+----------------------------
 In `pxh>`:
 ```bash
 custom_pos_control start
 trajectory_reader start
+custom_pos_control set px4_default
 custom_pos_control enable
-custom_pos_control set sysid
-trajectory_reader set_mode identification
+param set COM_DISARM_PRFLT 60
+trajectory_reader ref 0 0 -3 0
 ```
 
-Then in QGroundControl:
-1. arm
-2. take off to about `3 m`
-3. hover
-4. switch to `OFFBOARD`
-
-Run:
+From a second terminal:
 ```bash
-trajectory_reader set_ident_profile hover_thrust
-trajectory_reader set_ident_profile mass_vertical
-trajectory_reader set_ident_profile roll_sweep
-trajectory_reader set_ident_profile pitch_sweep
-trajectory_reader set_ident_profile yaw_sweep
-trajectory_reader set_ident_profile drag_x
-trajectory_reader set_ident_profile drag_y
-trajectory_reader set_ident_profile drag_z
-trajectory_reader set_ident_profile motor_step
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --campaign full_stack \
+  --prepare-hover \
+  --heartbeat-warmup 5 \
+  --arm-attempts 10 \
+  --timeout 520
 ```
 
-You can run the full set in one boot session. The current overlay closes and flushes each CSV at the end of a profile, so you do not need to reboot PX4 between profiles.
+This one command runs:
+- 9 identification maneuvers
+- then trajectories `100..104`
 
-Build the candidate:
+Return-to-anchor legs are not logged.
+
+Build the candidate after the identification part:
 ```bash
 cd ~/px4-system-identification
 python3 experimental_validation/build_latest_x500_candidate.py \
@@ -83,39 +81,7 @@ python3 experimental_validation/build_latest_x500_candidate.py \
   --out-dir ~/px4-system-identification/experimental_validation/outputs/x500_candidate
 ```
 
-5. Validation trajectories in SITL
-----------------------------------
-In `pxh>`:
-```bash
-custom_pos_control start
-trajectory_reader start
-custom_pos_control set px4_default
-custom_pos_control enable
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
-```
-
-Trajectory IDs:
-- `100`: `hairpin`, `23 s`
-- `101`: `lemniscate`, `19 s`
-- `102`: `circle`, `15 s`
-- `103`: `time_optimal_30s`, `11 s`
-- `104`: `minimum_snap_50s`, `14 s`
-
-Run one trajectory:
-```bash
-trajectory_reader set_traj_anchor 0 0 -3
-trajectory_reader set_traj_id 100
-trajectory_reader set_mode trajectory
-```
-
-After each run:
-```bash
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
-```
-
-6. Refresh the shipped figures
+5. Refresh the shipped figures
 ------------------------------
 ```bash
 cd ~/px4-system-identification
@@ -126,16 +92,11 @@ Outputs:
 - `~/px4-system-identification/examples/paper_assets/paper_validation_summary.json`
 - `~/px4-system-identification/examples/paper_assets/figures/`
 
-7. HIL/HITL quick order
+6. HIL/HITL smoke order
 -----------------------
-- upload the CubeOrange firmware first
-- keep `jMAVSim`, `QGroundControl`, and any shell tool closed during upload
-- start `jMAVSim` on USB `ttyACM0`
-- open QGroundControl in UDP-only mode
-- do not open a MAVLink shell on `ttyACM0` after `jMAVSim` starts
-- the HIL airframe now starts the modules automatically and stages a `0 0 -3 0` hover reference at boot
+Use HIL only to prove that one uninterrupted campaign works in one boot and writes CSV logs to the SD card.
 
-Firmware upload:
+Upload:
 ```bash
 cd ~/px4-system-identification
 python3 examples/upload_cubeorange_firmware.py
@@ -147,25 +108,20 @@ cd ~/px4-system-identification
 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
 ```
 
-Run one identification profile over UDP only:
+Then run the same campaign:
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_hitl_udp_sequence.py \
+python3 examples/run_mavlink_campaign.py \
   --endpoint udpin:127.0.0.1:14550 \
-  --kind ident \
-  --name hover_thrust
+  --campaign full_stack \
+  --timeout 520
 ```
 
-Run one validation trajectory over UDP only:
-```bash
-cd ~/px4-system-identification
-python3 examples/run_hitl_udp_sequence.py \
-  --endpoint udpin:127.0.0.1:14550 \
-  --kind trajectory \
-  --traj-id 100
-```
+Acceptance check on the SD card:
+- `9` files in `identification_logs/`
+- `14` files in `tracking_logs/`
 
-8. Pull SD-card logs into the repo and review them
+7. Pull SD-card logs into the repo and review them
 --------------------------------------------------
 ```bash
 cd ~/px4-system-identification

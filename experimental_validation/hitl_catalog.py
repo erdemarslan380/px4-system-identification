@@ -32,6 +32,37 @@ TRAJECTORY_DURATIONS_S = {
     104: 14.0,
 }
 
+CAMPAIGNS = {
+    "identification_only": {
+        "ident_profiles": [
+            "hover_thrust",
+            "mass_vertical",
+            "roll_sweep",
+            "pitch_sweep",
+            "yaw_sweep",
+            "drag_x",
+            "drag_y",
+            "drag_z",
+            "motor_step",
+        ],
+        "trajectory_ids": [],
+    },
+    "full_stack": {
+        "ident_profiles": [
+            "hover_thrust",
+            "mass_vertical",
+            "roll_sweep",
+            "pitch_sweep",
+            "yaw_sweep",
+            "drag_x",
+            "drag_y",
+            "drag_z",
+            "motor_step",
+        ],
+        "trajectory_ids": [100, 101, 102, 103, 104],
+    },
+}
+
 
 def identification_profile_index(name: str) -> int:
     return IDENTIFICATION_PROFILES[name]
@@ -43,3 +74,18 @@ def identification_duration_s(name: str) -> float:
 
 def trajectory_duration_s(traj_id: int) -> float:
     return TRAJECTORY_DURATIONS_S[traj_id]
+
+
+def campaign_ident_profiles(name: str) -> list[str]:
+    return list(CAMPAIGNS[name]["ident_profiles"])
+
+
+def campaign_trajectory_ids(name: str) -> list[int]:
+    return list(CAMPAIGNS[name]["trajectory_ids"])
+
+
+def campaign_expected_duration_s(name: str, return_buffer_s: float = 12.0) -> float:
+    ident_total = sum(identification_duration_s(profile) for profile in campaign_ident_profiles(name))
+    trajectory_total = sum(trajectory_duration_s(traj_id) for traj_id in campaign_trajectory_ids(name))
+    segment_count = len(campaign_ident_profiles(name)) + len(campaign_trajectory_ids(name))
+    return ident_total + trajectory_total + max(0, segment_count - 1) * return_buffer_s

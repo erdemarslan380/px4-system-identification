@@ -42,146 +42,56 @@ This must leave these paths on the card:
 - `/fs/microsd/tracking_logs/`
 - `/fs/microsd/identification_logs/`
 
-Use one calm day and keep the same simple rule in every sortie:
+Use one calm day and keep the workflow simple:
 - manual takeoff,
 - stabilize at about `3 m`,
 - switch to `OFFBOARD`,
-- run one or two commands,
-- return to hover,
-- land.
+- start one built-in campaign,
+- let the vehicle return to the common anchor between items,
+- land after the last trajectory.
 
-1. Identification sorties
--------------------------
+1. One full real-flight campaign
+--------------------------------
 Start the helper modules on the vehicle:
-
-```bash
-custom_pos_control start
-trajectory_reader start
-custom_pos_control enable
-custom_pos_control set sysid
-trajectory_reader set_mode identification
-```
-
-Then fly these four sorties.
-
-Sortie 1
-- `trajectory_reader set_ident_profile hover_thrust`
-- `trajectory_reader set_ident_profile mass_vertical`
-
-Sortie 2
-- `trajectory_reader set_ident_profile roll_sweep`
-- `trajectory_reader set_ident_profile pitch_sweep`
-
-Sortie 3
-- `trajectory_reader set_ident_profile yaw_sweep`
-- `trajectory_reader set_ident_profile motor_step`
-
-Sortie 4
-- `trajectory_reader set_ident_profile drag_x`
-- `trajectory_reader set_ident_profile drag_y`
-- `trajectory_reader set_ident_profile drag_z`
-
-Approximate durations:
-- `hover_thrust`: `26 s`
-- `mass_vertical`: `36 s`
-- `roll_sweep`: `28 s`
-- `pitch_sweep`: `28 s`
-- `yaw_sweep`: `24 s`
-- `drag_x`: `30 s`
-- `drag_y`: `30 s`
-- `drag_z`: `30 s`
-- `motor_step`: `24 s`
-
-Wait for these PX4 messages before the next command:
-- `Identification maneuver completed: ...`
-- `Identification log completed: ...`
-- `Tracking log completed: ...`
-
-Logs are written to:
-- `/fs/microsd/identification_logs/`
-- `/fs/microsd/tracking_logs/`
-
-The current overlay flushes and closes each CSV when a maneuver finishes, so the next profile can be started in the same boot session without rebooting PX4.
-
-If you want to pull those CSV files over the live FTDI link instead of removing the SD card:
-- `python3 ~/px4-system-identification/examples/pull_sdcard_logs_over_mavftp.py --port /dev/ttyACM0 --baud 57600 --destination-dir ~/px4-system-identification/hitl_runs/session_001`
-- then run `python3 ~/px4-system-identification/experimental_validation/build_hitl_review_bundle.py --log-root ~/px4-system-identification/hitl_runs/session_001 --out-dir ~/px4-system-identification/hitl_runs/session_001/review`
-
-2. Validation trajectories on the real vehicle
-----------------------------------------------
-Switch to the baseline PX4 controller path:
 
 ```bash
 custom_pos_control start
 trajectory_reader start
 custom_pos_control set px4_default
 custom_pos_control enable
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
+trajectory_reader ref 0 0 -3 0
+trajectory_reader set_campaign full_stack
 ```
 
-The five validation trajectories are:
-- `100`: `hairpin`, `23 s`
-- `101`: `lemniscate`, `19 s`
-- `102`: `circle`, `15 s`
-- `103`: `time_optimal_30s`, `11 s`
-- `104`: `minimum_snap_50s`, `14 s`
-
-They share the same anchored start hover at `(0, 0, -3)`, but they do not all return to that point on their own. After each run, command position hold again before starting the next ID.
-
-Run them with this pattern:
+Then start the campaign:
 
 ```bash
-trajectory_reader set_traj_anchor 0 0 -3
-trajectory_reader set_traj_id 100
-trajectory_reader set_mode trajectory
+trajectory_reader start_campaign
 ```
 
-After one trajectory finishes:
+The built-in `full_stack` order is:
+1. `hover_thrust`
+2. `mass_vertical`
+3. `roll_sweep`
+4. `pitch_sweep`
+5. `yaw_sweep`
+6. `drag_x`
+7. `drag_y`
+8. `drag_z`
+9. `motor_step`
+10. trajectory `100` hairpin
+11. trajectory `101` lemniscate
+12. trajectory `102` circle
+13. trajectory `103` time_optimal_30s
+14. trajectory `104` minimum_snap_50s
 
-```bash
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
-```
+The campaign returns to the common anchor between items and those return legs are not logged.
 
-Then run the next ID.
+Expected logs after one uninterrupted sortie:
+- `9` files under `/fs/microsd/identification_logs/`
+- `14` files under `/fs/microsd/tracking_logs/`
 
-The five full command blocks are:
-
-```bash
-trajectory_reader set_traj_anchor 0 0 -3
-trajectory_reader set_traj_id 100
-trajectory_reader set_mode trajectory
-
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
-trajectory_reader set_traj_anchor 0 0 -3
-trajectory_reader set_traj_id 101
-trajectory_reader set_mode trajectory
-
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
-trajectory_reader set_traj_anchor 0 0 -3
-trajectory_reader set_traj_id 102
-trajectory_reader set_mode trajectory
-
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
-trajectory_reader set_traj_anchor 0 0 -3
-trajectory_reader set_traj_id 103
-trajectory_reader set_mode trajectory
-
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
-trajectory_reader set_traj_anchor 0 0 -3
-trajectory_reader set_traj_id 104
-trajectory_reader set_mode trajectory
-```
-
-Validation tracking logs are written to:
-- `/fs/microsd/tracking_logs/`
-
-3. After the flights
+2. After the flight
 --------------------
 1. copy the identification logs and tracking logs to your workstation,
 2. import the SD-card CSV files into this repository:

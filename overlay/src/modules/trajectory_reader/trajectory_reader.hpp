@@ -65,6 +65,19 @@ enum class IdentificationProfile : uint8_t {
 	MOTOR_STEP = 8
 };
 
+enum class CampaignType : uint8_t {
+	NONE = 0,
+	IDENTIFICATION_ONLY = 1,
+	FULL_STACK = 2
+};
+
+enum class CampaignStage : uint8_t {
+	IDLE = 0,
+	RETURN_TO_ANCHOR = 1,
+	RUN_SEGMENT = 2,
+	COMPLETE = 3
+};
+
 class TrajectoryReader :
 	public ModuleBase,
 	public px4::ScheduledWorkItem,
@@ -118,6 +131,17 @@ private:
 	void flushTrackingLogSamples(const matrix::Vector3f &current_pos, hrt_abstime now);
 	void clearPendingTrackingSamples();
 	void clearTrackingLogFailure();
+	void syncTrackingLogIfNeeded(bool force);
+	void syncIdentificationLogIfNeeded(bool force);
+	bool requestCampaignStart();
+	void stopCampaign(bool announce);
+	bool startCampaign(const matrix::Vector3f &current_pos, hrt_abstime now);
+	void updateCampaign(const matrix::Vector3f &current_pos, hrt_abstime now, bool in_offboard);
+	bool startCampaignSegment(size_t item_index, hrt_abstime now);
+	bool campaignSegmentCompleted() const;
+	void transitionCampaignToAnchor(const matrix::Vector3f &current_pos, hrt_abstime now, bool announce);
+	const char *campaignTypeToString(CampaignType type) const;
+	void setCampaignStatusParam(int32_t status);
 	void updateControllerTypeCache();
 	const char *controllerTypeToString(int32_t controller_type) const;
 	const char *identProfileToString(IdentificationProfile profile) const;
@@ -186,6 +210,9 @@ private:
 
 	static constexpr size_t MAX_PENDING_TRACKING_SAMPLES = 32;
 	static constexpr hrt_abstime TRACKING_COMPARISON_DELAY_US{200000}; // 200 ms
+	static constexpr uint8_t LOG_FSYNC_INTERVAL_SAMPLES{10};
+	static constexpr float CAMPAIGN_RETURN_RADIUS_M{0.35f};
+	static constexpr hrt_abstime CAMPAIGN_RETURN_SETTLE_US{1000000};
 	PendingTrackingSample _pending_tracking_samples[MAX_PENDING_TRACKING_SAMPLES]{};
 	size_t _pending_tracking_head{0};
 	size_t _pending_tracking_size{0};
@@ -193,11 +220,13 @@ private:
 	bool _start_new_tracking_log{false};
 	bool _finalize_tracking_log{false};
 	uint16_t _tracking_log_run_counter{0};
+	uint8_t _tracking_log_samples_since_sync{0};
 	int32_t _controller_type_cached{0};
 	bool _tracking_log_failed_latched{false};
 	uint32_t _tracking_log_fail_count{0};
 	int _ident_log_fd{-1};
 	uint16_t _ident_log_run_counter{0};
+	uint8_t _ident_log_samples_since_sync{0};
 
 	// mode & state
 	Mode _mode{Mode::POSITION};
@@ -228,8 +257,19 @@ private:
 	int32_t _param_mode_cmd_cached{-1};
 	int32_t _param_traj_id_cached{-1};
 	int32_t _param_ident_profile_cached{-1};
+	int32_t _param_campaign_cached{-1};
+	int32_t _param_campaign_cmd_cached{-1};
 	bool _param_anchor_cached_valid{false};
 	matrix::Vector3f _param_anchor_cached{};
+	CampaignType _campaign_type{CampaignType::NONE};
+	CampaignStage _campaign_stage{CampaignStage::IDLE};
+	bool _campaign_active{false};
+	bool _campaign_start_requested{false};
+	size_t _campaign_item_index{0};
+	matrix::Vector3f _campaign_anchor{};
+	float _campaign_yaw{0.f};
+	hrt_abstime _campaign_anchor_settle_since{0};
+	hrt_abstime _campaign_last_transition_time{0};
 
 	// position mode
 	matrix::Vector3f _pos_target{};
@@ -262,6 +302,9 @@ private:
 		(ParamInt<px4::params::TRJ_RC_SEL_CH>) _param_trj_rc_sel_ch,
 		(ParamInt<px4::params::TRJ_RC_MAX_ID>) _param_trj_rc_max_id,
 		(ParamInt<px4::params::TRJ_IDENT_PROF>) _param_trj_ident_prof,
+		(ParamInt<px4::params::TRJ_CAMPAIGN>) _param_trj_campaign,
+		(ParamInt<px4::params::TRJ_CAMPAIGN_CMD>) _param_trj_campaign_cmd,
+		(ParamInt<px4::params::TRJ_CAMPAIGN_STA>) _param_trj_campaign_sta,
 		(ParamInt<px4::params::TRJ_MODE_CMD>) _param_trj_mode_cmd,
 		(ParamInt<px4::params::TRJ_ACTIVE_ID>) _param_trj_active_id,
 		(ParamFloat<px4::params::TRJ_ANCHOR_X>) _param_trj_anchor_x,
