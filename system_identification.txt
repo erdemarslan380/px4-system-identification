@@ -215,6 +215,19 @@ Workflow slots:
 
 The `H` button applies the currently selected workflow. In single-identification mode the item pot selects one of the `9` identification profiles. In single-trajectory mode the item pot selects one trajectory id in `100..104` by default.
 
+QGroundControl calibration notes:
+- use `Vehicle Setup > Radio` first and complete the normal radio calibration,
+- while calibrating, note which spare controls show up as `AUX 1..6`,
+- `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` use those `AUX 1..6` numbers and therefore map to `manual_control_setpoint.aux1..aux6`,
+- if the `H` trigger is coming from a QGroundControl joystick/manual-control button, assign it in `Vehicle Setup > Joystick` and use the resulting one-based button index for `TRJ_RC_START_BTN`,
+- verify the live mapping with `listener manual_control_setpoint` before flight.
+
+The required live checks are:
+- the chosen pots move the intended `auxN` fields,
+- the `H` trigger toggles `manual_control_setpoint.buttons`.
+
+If the button path does not toggle `buttons`, do not rely on the RC trigger and use the helper script or shell commands for the actual start command.
+
 Supported HIL command shapes now mirror SITL:
 - full campaign:
   - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign full_stack --prepare-hover --allow-missing-local-position --blind-hover-seconds 12 --timeout 520`
