@@ -17,6 +17,18 @@ Main folders
 Fastest operator checklist:
 - [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
 
+Results at a glance
+-------------------
+If you only want the main comparison plots, read these blocks in order:
+1. `10. Off-Nominal SITL Check`
+2. `11.2 HIL-identified SITL comparison`
+3. `11.4 Real-flight-identified SITL comparison`
+4. `11.5 Current imported real-flight baseline PID comparison`
+
+Keep this README for the exact commands and use:
+- [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
+for the shortest operator path.
+
 1. Create the dedicated PX4 workspace
 ------------------------------------
 Use only this PX4 tree for this repository:
@@ -306,6 +318,16 @@ QGroundControl calibration and mapping:
 - `TRJ_RC_START_BTN` is a one-based index into `manual_control_setpoint.buttons`; if your `H` trigger comes through QGroundControl joystick/manual-control input, set it in `Vehicle Setup > Joystick`,
 - before the first flight, verify the mapping on the vehicle with `listener manual_control_setpoint`: the chosen pots must move the expected `auxN` field and the `H` trigger must toggle the `buttons` bitfield.
 
+Keep the two RC paths separate:
+- the normal PX4 flight-mode switch in `Vehicle Setup > Flight Modes` controls `Position`, `Offboard`, and the usual PX4 nav states,
+- the repository-specific pots plus `H` trigger select and start identification profiles, trajectories, or campaigns once the vehicle is already in the intended mode.
+
+RC receiver during HIL:
+- yes, a physical receiver can stay electrically connected during HIL while the simulator is running,
+- the simulator owns the USB CDC link, but it does not replace or block the board's RC input path,
+- wire the receiver exactly as you would for real flight on CubeOrange RC input hardware,
+- use this to test radio calibration, arming, failsafe behavior, and `Position <-> Offboard` switch transitions before going to the field.
+
 Important:
 - if the `H` trigger does not change `manual_control_setpoint.buttons`, the RC start trigger will not fire,
 - in that case keep the pot-based selection, but start maneuvers and campaigns from the helper script or shell commands.
@@ -356,6 +378,12 @@ Set the HIL airframe once in QGroundControl with the board connected over USB an
 - `SYS_AUTOSTART = 1001`
 - `SYS_HITL = 1`
 
+If you want to test a real RC receiver during HIL:
+- connect the receiver before boot,
+- finish `Vehicle Setup > Radio` calibration,
+- in `Vehicle Setup > Flight Modes`, assign at least one switch position to `Position` and one to `Offboard`,
+- set `COM_RC_IN_MODE = 0` for receiver-only manual input during that smoke test.
+
 Reboot the board, then close QGroundControl fully before continuing.
 
 Start `jMAVSim` on the current USB CDC device:
@@ -384,10 +412,48 @@ python3 examples/run_mavlink_campaign.py \
   --endpoint udpin:127.0.0.1:14550 \
   --campaign full_stack \
   --prepare-hover \
+  --manual-control-mode 4 \
   --allow-missing-local-position \
   --blind-hover-seconds 12 \
   --timeout 520
 ```
+
+`--manual-control-mode 4` is the default automation setting. It disables manual-control inputs during the scripted hover and campaign start so accidental stick motion cannot interfere.
+
+If you want the physical receiver to stay active during HIL while the helper is running, switch that one flag:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --campaign full_stack \
+  --prepare-hover \
+  --manual-control-mode 0 \
+  --allow-missing-local-position \
+  --blind-hover-seconds 12 \
+  --timeout 520
+```
+
+For a pure RC mode-switch smoke test, do not start a campaign yet. Instead:
+1. start `jMAVSim`,
+2. reopen QGroundControl in UDP-only mode,
+3. start the two modules and hold reference,
+4. arm in `Position`,
+5. use the transmitter flight-mode switch to move `Position -> Offboard -> Position`,
+6. only after that start a campaign if you want.
+
+Minimal shell state for that RC smoke test:
+```bash
+custom_pos_control start
+trajectory_reader start
+custom_pos_control set px4_default
+custom_pos_control enable
+trajectory_reader ref 0 0 -3 0
+```
+
+Why this works:
+- `custom_pos_control` and `trajectory_reader` keep a hold setpoint stream alive,
+- that gives PX4 a valid offboard setpoint source,
+- then the receiver flight-mode switch can be used to test `OFFBOARD` entry and exit electrically in HIL.
 
 Identification-only HIL campaign:
 ```bash
@@ -514,9 +580,16 @@ Two-trajectory panel:
 
 ![Off-Nominal Group 2](examples/offnominal_sitl_study/figures/group_2_time_optimal_minimum_snap.png)
 
-11. Real-flight use
--------------------
-Before the first real-flight test on CubeOrange, build and flash the hardware firmware:
+11. HIL and real-flight use
+---------------------------
+### 11.1 HIL smoke-test workflow
+For HIL, the goal is not to revalidate all science in a second simulator. The goal is to prove that one uninterrupted campaign:
+- runs on the real board,
+- does not blow up RAM or CPU,
+- writes the campaign CSV files to the SD card,
+- and can be copied back over USB CDC.
+
+Before the first HIL or real-flight test on CubeOrange, build and flash the hardware firmware:
 
 ```bash
 cd ~/px4-system-identification
@@ -529,6 +602,32 @@ make cubepilot_cubeorange_default
 Flash this file from QGroundControl:
 - `~/PX4-Autopilot-Identification/build/cubepilot_cubeorange_default/cubepilot_cubeorange_default.px4`
 
+Minimal HIL order:
+1. connect the board over USB,
+2. open QGroundControl once over USB and set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`,
+3. reboot the board and close QGroundControl fully,
+4. start `jMAVSim` on the current USB CDC device,
+5. reopen QGroundControl only in UDP-only mode if you want a viewer,
+6. run `full_stack`, `identification_only`, `trajectory_only`, or one item.
+
+Start `jMAVSim`:
+```bash
+cd ~/px4-system-identification
+./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600
+```
+
+One HIL full campaign:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --campaign full_stack \
+  --prepare-hover \
+  --allow-missing-local-position \
+  --blind-hover-seconds 12 \
+  --timeout 520
+```
+
 Use the same campaign choices on hardware:
 - `full_stack`
 - `identification_only`
@@ -536,6 +635,55 @@ Use the same campaign choices on hardware:
 - one identification maneuver
 - one trajectory
 
+The short command set for those variants is kept in:
+- [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
+
+### 11.2 HIL-identified SITL comparison
+This block is reserved for the pipeline:
+1. run the 9 identification maneuvers in one HIL session,
+2. pull `identification_logs/*.csv`,
+3. estimate an x500 candidate from those HIL logs,
+4. run the 5 validation trajectories in SITL with that candidate,
+5. compare that SITL result against the stock SITL baseline and the imported real-flight baseline traces.
+
+Current README placeholders for that block:
+
+![HIL Identified Group 1](examples/hitl_identified_sitl/figures/group_1_circle_hairpin_lemniscate.png)
+
+![HIL Identified Group 2](examples/hitl_identified_sitl/figures/group_2_time_optimal_minimum_snap.png)
+
+When the first complete HIL identification session exists under:
+- `~/px4-system-identification/hitl_runs/session_001/identification_logs/`
+
+run:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/build_x500_candidate_from_logs.py \
+  --ident-root ~/px4-system-identification/hitl_runs/session_001/identification_logs \
+  --out-dir ~/px4-system-identification/experimental_validation/outputs/hitl_candidate
+
+python3 experimental_validation/prepare_identified_model.py \
+  --px4-root ~/PX4-Autopilot-Identification \
+  --candidate-dir ~/px4-system-identification/experimental_validation/outputs/hitl_candidate \
+  --model-name x500_hil_identified
+
+python3 experimental_validation/run_sitl_validation.py \
+  --px4-root ~/PX4-Autopilot-Identification \
+  --candidate-dir ~/px4-system-identification/experimental_validation/outputs/hitl_candidate \
+  --out-root ~/px4-system-identification/examples/hitl_identified_sitl/runs
+
+python3 experimental_validation/trajectory_comparison_figures.py \
+  --stock-root ~/px4-system-identification/examples/offnominal_sitl_study/results/stock_baseline_pid \
+  --compare-root ~/px4-system-identification/examples/hitl_identified_sitl/runs/digital_twin \
+  --compare-root-2 ~/px4-system-identification/examples/real_flight_baseline_pid \
+  --compare-label "HIL-identified SITL" \
+  --compare-label-2 "Real flight results" \
+  --out-dir ~/px4-system-identification/examples/hitl_identified_sitl/figures
+```
+
+These HIL figures are intentionally kept inline in the README so the comparison is visible in the same document once the first honest HIL log pull exists.
+
+### 11.3 Real-flight operation
 On the SD card, keep these folders:
 - `/fs/microsd/trajectories/`
 - `/fs/microsd/tracking_logs/`
@@ -586,16 +734,70 @@ After the flight, copy the CSV files into this repository under a session direct
 - `~/px4-system-identification/flight_runs/session_001/tracking_logs/`
 - `~/px4-system-identification/flight_runs/session_001/identification_logs/`
 
+A slightly longer sortie plan is here:
+- [real_flight_sorties.md](/home/earsub/px4-system-identification/examples/real_flight_sorties.md)
+
+### 11.4 Real-flight-identified SITL comparison
+This block is reserved for the final pipeline:
+1. fly the 9 identification maneuvers on the real vehicle,
+2. estimate an x500 candidate from the real-flight identification CSVs,
+3. run the 5 validation trajectories in SITL with that candidate,
+4. compare that SITL result against the stock SITL baseline and the imported real-flight baseline traces.
+
+Current README placeholders for that future block:
+
+![Real Flight Identified Group 1](examples/real_flight_identified_sitl/figures/group_1_circle_hairpin_lemniscate.png)
+
+![Real Flight Identified Group 2](examples/real_flight_identified_sitl/figures/group_2_time_optimal_minimum_snap.png)
+
+When the first complete real-flight identification session exists under:
+- `~/px4-system-identification/flight_runs/session_001/identification_logs/`
+
+run:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/build_x500_candidate_from_logs.py \
+  --ident-root ~/px4-system-identification/flight_runs/session_001/identification_logs \
+  --out-dir ~/px4-system-identification/experimental_validation/outputs/real_flight_candidate
+
+python3 experimental_validation/prepare_identified_model.py \
+  --px4-root ~/PX4-Autopilot-Identification \
+  --candidate-dir ~/px4-system-identification/experimental_validation/outputs/real_flight_candidate \
+  --model-name x500_real_flight_identified
+
+python3 experimental_validation/run_sitl_validation.py \
+  --px4-root ~/PX4-Autopilot-Identification \
+  --candidate-dir ~/px4-system-identification/experimental_validation/outputs/real_flight_candidate \
+  --out-root ~/px4-system-identification/examples/real_flight_identified_sitl/runs
+
+python3 experimental_validation/trajectory_comparison_figures.py \
+  --stock-root ~/px4-system-identification/examples/offnominal_sitl_study/results/stock_baseline_pid \
+  --compare-root ~/px4-system-identification/examples/real_flight_identified_sitl/runs/digital_twin \
+  --compare-root-2 ~/px4-system-identification/examples/real_flight_baseline_pid \
+  --compare-label "Real-flight-identified SITL" \
+  --compare-label-2 "Real flight results" \
+  --out-dir ~/px4-system-identification/examples/real_flight_identified_sitl/figures
+```
+
+### 11.5 Current imported real-flight baseline PID comparison
 The imported real-flight baseline PID traces already stored in this repository live under:
 - `~/px4-system-identification/examples/real_flight_baseline_pid/tracking_logs/`
 
-Current stock-SITL vs imported real-flight baseline figures are generated with:
+Current README figures for this block use the same four-layer format as the intended HIL and future real-flight-identified blocks:
+- `Reference`
+- `Stock x500 SITL`
+- `Identified/Tuned SITL`
+- `Real flight results`
+
+They are generated with:
 ```bash
 cd ~/px4-system-identification
 python3 experimental_validation/trajectory_comparison_figures.py \
   --stock-root ~/px4-system-identification/examples/offnominal_sitl_study/results/stock_baseline_pid \
-  --compare-root ~/px4-system-identification/examples/real_flight_baseline_pid \
-  --compare-label "Real flight baseline PID" \
+  --compare-root ~/px4-system-identification/examples/paper_assets/stage1_inputs/digital_twin_sitl \
+  --compare-root-2 ~/px4-system-identification/examples/real_flight_baseline_pid \
+  --compare-label "Identified/Tuned SITL" \
+  --compare-label-2 "Real flight results" \
   --out-dir ~/px4-system-identification/examples/real_flight_baseline_pid/figures
 ```
 
@@ -609,64 +811,6 @@ The curves are aligned by each run's own reference start point so the shapes are
 ![Real Flight Baseline Group 1](examples/real_flight_baseline_pid/figures/group_1_circle_hairpin_lemniscate.png)
 
 ![Real Flight Baseline Group 2](examples/real_flight_baseline_pid/figures/group_2_time_optimal_minimum_snap.png)
-
-HIL-identified model comparison
--------------------------------
-The intended HIL comparison block is:
-1. run the 9 identification maneuvers in one HIL session and pull `identification_logs/*.csv`,
-2. estimate a candidate from those HIL identification logs,
-3. run the 5 validation trajectories in SITL with that candidate,
-4. generate the same two grouped figures against the stock SITL baseline.
-
-The command shape is the same:
-```bash
-cd ~/px4-system-identification
-python3 experimental_validation/trajectory_comparison_figures.py \
-  --stock-root ~/px4-system-identification/examples/offnominal_sitl_study/results/stock_baseline_pid \
-  --compare-root ~/px4-system-identification/examples/hitl_identified_sitl \
-  --compare-label "HIL-identified SITL" \
-  --out-dir ~/px4-system-identification/examples/hitl_identified_sitl/figures
-```
-
-This repository currently does not contain HIL `identification_logs/*.csv` or HIL `tracking_logs/*.csv` under `hitl_runs/`, so there is no honest HIL-derived figure to embed yet. As soon as those CSVs exist, the figure generator above is the path that feeds the README section.
-
-Phase A: identification
-- build and flash your normal PX4 target with this overlay,
-- take off manually to about `3 m`,
-- switch to `OFFBOARD`,
-- run the same nine `set_ident_profile ...` commands,
-- copy the logs from:
-  - `/fs/microsd/identification_logs/`
-  - `/fs/microsd/tracking_logs/`
-
-Phase B: trajectory validation
-- keep `custom_pos_control` in `px4_default`,
-- take off manually to about `3 m`,
-- switch to `OFFBOARD`,
-- move to the common start pose,
-- run the same five trajectory IDs:
-  - `100 hairpin`
-  - `101 lemniscate`
-  - `102 circle`
-  - `103 time_optimal_30s`
-  - `104 minimum_snap_50s`
-- copy the resulting tracking CSV files from `/fs/microsd/tracking_logs/`
-
-The real-flight command pattern is the same as SITL:
-```bash
-custom_pos_control start
-trajectory_reader start
-custom_pos_control set px4_default
-custom_pos_control enable
-trajectory_reader set_mode position
-trajectory_reader abs_ref 0 0 -3 0
-trajectory_reader set_traj_anchor 0 0 -3
-trajectory_reader set_traj_id 100
-trajectory_reader set_mode trajectory
-```
-
-A slightly longer sortie plan is here:
-- [real_flight_sorties.md](/home/earsub/px4-system-identification/examples/real_flight_sorties.md)
 
 12. Review SD-card logs in an interactive 3D browser UI
 -------------------------------------------------------

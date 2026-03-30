@@ -161,6 +161,15 @@ QGroundControl mapping check:
 - if the `H` trigger comes through QGroundControl manual-control or joystick input, set it in `Vehicle Setup > Joystick` and use that one-based button index for `TRJ_RC_START_BTN`,
 - verify the final mapping with `listener manual_control_setpoint`: the pots should move the expected `auxN` field and the `H` trigger must toggle `buttons`.
 
+Keep these separate:
+- `Vehicle Setup > Flight Modes`: normal PX4 mode switch such as `Position` and `Offboard`
+- repo RC params above: select one ident, one trajectory, or one campaign
+
+Receiver in HIL:
+- yes, the physical receiver can stay connected while `jMAVSim` runs,
+- `jMAVSim` uses the USB CDC simulator link, not the RC input pins,
+- this is the right way to test electrical mode-switch behavior before real flight.
+
 If the `H` trigger does not affect `manual_control_setpoint.buttons`, keep using the helper script or shell command to start the selected maneuver or campaign.
 
 5. Refresh the shipped figures
@@ -213,6 +222,29 @@ cd ~/px4-system-identification
 
 After jMAVSim is already running, QGroundControl may be opened again only in UDP-only mode.
 
+If you want to test the physical receiver in HIL:
+1. connect the receiver before boot,
+2. in `Vehicle Setup > Radio`, complete radio calibration,
+3. in `Vehicle Setup > Flight Modes`, assign one switch position to `Position` and one to `Offboard`,
+4. set `COM_RC_IN_MODE = 0`,
+5. reboot, close QGC, start `jMAVSim`, then reopen QGC only in UDP-only mode.
+
+Minimal shell state for RC `Position <-> Offboard` smoke tests:
+```bash
+custom_pos_control start
+trajectory_reader start
+custom_pos_control set px4_default
+custom_pos_control enable
+trajectory_reader ref 0 0 -3 0
+```
+
+Then:
+1. arm in `Position`,
+2. climb to hover,
+3. flip the transmitter flight-mode switch to `Offboard`,
+4. flip back to `Position`,
+5. verify the nav-state change in QGC or with `listener vehicle_status`.
+
 Then run one full HIL campaign:
 ```bash
 cd ~/px4-system-identification
@@ -220,10 +252,13 @@ python3 examples/run_mavlink_campaign.py \
   --endpoint udpin:127.0.0.1:14550 \
   --campaign full_stack \
   --prepare-hover \
+  --manual-control-mode 4 \
   --allow-missing-local-position \
   --blind-hover-seconds 12 \
   --timeout 520
 ```
+
+Use `--manual-control-mode 0` instead if you want the physical receiver to remain active during the scripted HIL campaign. Keep the sticks centered; leaving `Offboard` from the transmitter will abort the running campaign.
 
 Only the 9 HIL identification maneuvers:
 ```bash

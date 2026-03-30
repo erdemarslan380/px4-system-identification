@@ -76,6 +76,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--heartbeat-warmup", type=float, default=2.0)
     parser.add_argument("--arm-attempts", type=int, default=3)
+    parser.add_argument(
+        "--manual-control-mode",
+        type=int,
+        choices=range(0, 9),
+        default=4,
+        help=(
+            "Value written to COM_RC_IN_MODE during --prepare-hover. "
+            "Default 4 disables manual control so sticks cannot interfere. "
+            "Use 0 to keep a physical RC receiver active during HIL mode-switch tests."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -150,7 +161,7 @@ def arm_with_retries(mav, attempts: int) -> None:
 
 
 def prepare_hover(mav, args: argparse.Namespace) -> None:
-    set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    set_param(mav, "COM_RC_IN_MODE", args.manual_control_mode, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
     arm_with_retries(mav, attempts=max(1, args.arm_attempts))
     set_offboard(mav)
 

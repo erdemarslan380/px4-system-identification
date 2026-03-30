@@ -37,12 +37,20 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
   Lower-level estimators for mass, inertia, drag, motor coefficients, and motor dynamics.
 - `experimental_validation/compare_with_sdf.py`
   Compares identified values with the SDF reference and writes JSON summaries.
+- `experimental_validation/build_x500_candidate_from_logs.py`
+  Builds one x500 candidate directly from any `identification_logs/` directory, including future HIL and real-flight sessions.
+- `experimental_validation/prepare_identified_model.py`
+  Writes the identified Gazebo model variant back into the PX4 workspace for follow-up SITL validation.
+- `experimental_validation/run_sitl_validation.py`
+  Runs the five fixed validation trajectories in stock SITL and identified-candidate SITL.
 - `experimental_validation/twin_metrics.py`
   Computes the blended digital-twin score and family-level scores.
 - `experimental_validation/paper_artifacts.py`
   Produces overlay plots, sensitivity plots, and summary files for documentation and papers.
 - `experimental_validation/trajectory_comparison_figures.py`
-  Produces the grouped 3D comparison figures used in the README for stock SITL vs another dataset such as real-flight baseline PID traces or a future HIL-identified SITL candidate.
+  Produces the grouped 3D comparison figures used in the README for stock SITL vs another dataset such as off-nominal SITL, imported real-flight baseline PID traces, or a future HIL-identified / real-flight-identified SITL candidate.
+- `experimental_validation/generate_pending_comparison_figures.py`
+  Produces honest placeholder figures for README comparison blocks whose data has not been collected yet.
 - `experimental_validation/reference_models.py`
   Built-in x500 reference and currently frozen example candidate models.
 - `experimental_validation/tests/`
@@ -56,7 +64,8 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
 5. `identification.py` merges and normalizes those logs.
 6. Estimators recover model parameters.
 7. `compare_with_sdf.py` compares recovered parameters against the known SDF reference.
-8. `paper_artifacts.py` converts the current candidate into researcher-facing figures and tables.
+8. `prepare_identified_model.py` and `run_sitl_validation.py` turn that candidate into a new Gazebo SITL validation run.
+9. `trajectory_comparison_figures.py` turns those runs into the grouped README comparison figures.
 
 ## Validation Modes
 - `px4_only`

@@ -1,46 +1,62 @@
 {
-  "stock_label": "SITL",
-  "compare_label": "Real flight baseline PID",
+  "stock_label": "Stock x500 SITL",
+  "compare_label": "Identified/Tuned SITL",
+  "compare_label_2": "Real flight results",
   "cases": {
     "circle": {
-      "stock_label": "SITL",
-      "compare_label": "Real flight baseline PID",
-      "rmse_sitl_m": 0.5789424714560855,
-      "rmse_compare_m": 0.489398640942069,
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "Identified/Tuned SITL",
+      "rmse_stock_m": 0.5789424714560855,
+      "rmse_compare_m": 0.11095367727138805,
       "stock_samples": 710,
-      "compare_samples": 1091
+      "compare_samples": 600,
+      "compare_label_2": "Real flight results",
+      "rmse_compare_2_m": 0.489398640942069,
+      "compare_2_samples": 1091
     },
     "hairpin": {
-      "stock_label": "SITL",
-      "compare_label": "Real flight baseline PID",
-      "rmse_sitl_m": 0.603336118294338,
-      "rmse_compare_m": 0.3849692670088386,
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "Identified/Tuned SITL",
+      "rmse_stock_m": 0.603336118294338,
+      "rmse_compare_m": 0.15049567932076988,
       "stock_samples": 1091,
-      "compare_samples": 710
+      "compare_samples": 600,
+      "compare_label_2": "Real flight results",
+      "rmse_compare_2_m": 0.3849692670088386,
+      "compare_2_samples": 710
     },
     "lemniscate": {
-      "stock_label": "SITL",
-      "compare_label": "Real flight baseline PID",
-      "rmse_sitl_m": 0.6166438206907169,
-      "rmse_compare_m": 0.17191619476021353,
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "Identified/Tuned SITL",
+      "rmse_stock_m": 0.6166438206907169,
+      "rmse_compare_m": 0.11274907045416532,
       "stock_samples": 910,
-      "compare_samples": 113
+      "compare_samples": 600,
+      "compare_label_2": "Real flight results",
+      "rmse_compare_2_m": 0.17191619476021353,
+      "compare_2_samples": 113
     },
     "time_optimal_30s": {
-      "stock_label": "SITL",
-      "compare_label": "Real flight baseline PID",
-      "rmse_sitl_m": 0.32106971550327534,
-      "rmse_compare_m": 0.22469077249831235,
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "Identified/Tuned SITL",
+      "rmse_stock_m": 0.32106971550327534,
+      "rmse_compare_m": 0.4501708102729711,
       "stock_samples": 528,
-      "compare_samples": 528
+      "compare_samples": 600,
+      "compare_label_2": "Real flight results",
+      "rmse_compare_2_m": 0.22469077249831235,
+      "compare_2_samples": 528
     },
     "minimum_snap_50s": {
-      "stock_label": "SITL",
-      "compare_label": "Real flight baseline PID",
-      "rmse_sitl_m": 0.4047047336131289,
-      "rmse_compare_m": 0.43235499858689946,
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "Identified/Tuned SITL",
+      "rmse_stock_m": 0.4047047336131289,
+      "rmse_compare_m": 0.3410787476180977,
       "stock_samples": 657,
-      "compare_samples": 657
+      "compare_samples": 600,
+      "compare_label_2": "Real flight results",
+      "rmse_compare_2_m": 0.43235499858689946,
+      "compare_2_samples": 657
     }
   },
   "figures": {

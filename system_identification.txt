@@ -228,13 +228,29 @@ The required live checks are:
 
 If the button path does not toggle `buttons`, do not rely on the RC trigger and use the helper script or shell commands for the actual start command.
 
+Keep the PX4 flight-mode switch separate from the repository-specific workflow selection:
+- `Vehicle Setup > Flight Modes` handles `Position`, `Offboard`, and the normal PX4 nav states,
+- the repository RC parameters above choose one identification profile, one trajectory, or one built-in campaign.
+
+During HIL, a physical RC receiver may stay connected while `jMAVSim` is running. The simulator uses the USB CDC MAVLink link and does not replace the board's RC input wiring. This is the correct electrical smoke test for radio calibration, arming, and `Position <-> Offboard` transitions before real flight.
+
+For an RC-driven HIL mode-switch smoke test:
+- connect the receiver before boot,
+- complete `Vehicle Setup > Radio`,
+- in `Vehicle Setup > Flight Modes`, assign one switch position to `Position` and one to `Offboard`,
+- set `COM_RC_IN_MODE = 0`,
+- start `custom_pos_control`, `trajectory_reader`, and a hold reference,
+- arm in `Position`, climb to hover, then flip the transmitter switch `Position -> Offboard -> Position`.
+
+When using the scripted HIL helper, the default automation setting is still to disable manual-control inputs during the scripted hover preparation. If the goal is to keep the physical receiver active during the scripted HIL run, pass `--manual-control-mode 0`.
+
 Supported HIL command shapes now mirror SITL:
 - full campaign:
-  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign full_stack --prepare-hover --allow-missing-local-position --blind-hover-seconds 12 --timeout 520`
+  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign full_stack --prepare-hover --manual-control-mode 4 --allow-missing-local-position --blind-hover-seconds 12 --timeout 520`
 - identification only:
-  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign identification_only --prepare-hover --allow-missing-local-position --blind-hover-seconds 12 --timeout 420`
+  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign identification_only --prepare-hover --manual-control-mode 4 --allow-missing-local-position --blind-hover-seconds 12 --timeout 420`
 - trajectories only:
-  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign trajectory_only --prepare-hover --allow-missing-local-position --blind-hover-seconds 12 --timeout 220`
+  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign trajectory_only --prepare-hover --manual-control-mode 4 --allow-missing-local-position --blind-hover-seconds 12 --timeout 220`
 - one identification maneuver:
   - `python3 ~/px4-system-identification/examples/run_hitl_udp_sequence.py --endpoint udpin:127.0.0.1:14550 --kind ident --name hover_thrust --allow-missing-local-position --blind-hover-seconds 12`
 - one trajectory:

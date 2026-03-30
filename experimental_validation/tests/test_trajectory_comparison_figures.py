@@ -74,6 +74,52 @@ class TrajectoryComparisonFiguresTests(unittest.TestCase):
             self.assertEqual(summary["compare_label"], "Real flight baseline PID")
             self.assertIn("circle", summary["cases"])
 
+    def test_build_comparison_figures_supports_second_comparison_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stock_root = root / "stock"
+            compare_root = root / "compare"
+            compare_root_2 = root / "compare_2"
+            out_dir = root / "out"
+            (stock_root / "tracking_logs").mkdir(parents=True)
+            (compare_root / "tracking_logs").mkdir(parents=True)
+            (compare_root_2 / "tracking_logs").mkdir(parents=True)
+
+            for case_index, case in enumerate(CASES):
+                _write_tracking_csv(
+                    stock_root / "tracking_logs" / f"{case}.csv",
+                    offset_x=0.0,
+                    offset_y=0.0,
+                    error_scale=1.0 + case_index * 0.1,
+                )
+                _write_tracking_csv(
+                    compare_root / "tracking_logs" / f"{case}.csv",
+                    offset_x=10.0,
+                    offset_y=20.0,
+                    error_scale=1.5 + case_index * 0.1,
+                )
+                _write_tracking_csv(
+                    compare_root_2 / "tracking_logs" / f"{case}.csv",
+                    offset_x=-5.0,
+                    offset_y=15.0,
+                    error_scale=2.0 + case_index * 0.1,
+                )
+
+            summary = build_comparison_figures(
+                stock_root=stock_root,
+                compare_root=compare_root,
+                compare_label="Identified SITL",
+                compare_root_2=compare_root_2,
+                compare_label_2="Real flight results",
+                out_dir=out_dir,
+            )
+
+            self.assertTrue((out_dir / "group_1_circle_hairpin_lemniscate.png").exists())
+            self.assertTrue((out_dir / "group_2_time_optimal_minimum_snap.png").exists())
+            self.assertEqual(summary["compare_label"], "Identified SITL")
+            self.assertEqual(summary["compare_label_2"], "Real flight results")
+            self.assertIn("rmse_compare_2_m", summary["cases"]["circle"])
+
 
 if __name__ == "__main__":
     unittest.main()

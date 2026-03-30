@@ -76,6 +76,14 @@ With slot `1`, the item pot selects one of the `9` identification profiles.
 With slot `2`, the item pot selects one trajectory in the shipped range `100..104`.
 Press the `H` button to apply the current selection.
 
+QGroundControl calibration check:
+- in `Vehicle Setup > Radio`, finish the normal radio calibration and note which spare controls show up as `AUX 1..6`,
+- use those `AUX` slot numbers for `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH`,
+- if the `H` trigger comes through QGroundControl manual-control input, set it in `Vehicle Setup > Joystick` and use that one-based button index for `TRJ_RC_START_BTN`,
+- on the vehicle, run `listener manual_control_setpoint` once and verify that the pots move the expected `auxN` fields and that the `H` trigger toggles `buttons`.
+
+If the `H` trigger does not affect `manual_control_setpoint.buttons`, keep the RC pots for selection only and start the selected maneuver or campaign from the helper script or shell.
+
 1. One full real-flight campaign
 --------------------------------
 Start the helper modules on the vehicle:

@@ -47,14 +47,19 @@ class RunMavlinkCampaignTests(unittest.TestCase):
         args.settle_seconds = 3.0
         args.allow_missing_local_position = True
         args.blind_hover_seconds = 7.0
+        args.manual_control_mode = 4
         with (
-            mock.patch("examples.run_mavlink_campaign.set_param"),
+            mock.patch("examples.run_mavlink_campaign.set_param") as set_param_mock,
             mock.patch("examples.run_mavlink_campaign.arm_with_retries"),
             mock.patch("examples.run_mavlink_campaign.set_offboard"),
             mock.patch("examples.run_mavlink_campaign.wait_for_hover", side_effect=TimeoutError("no local position")),
             mock.patch("time.sleep") as sleep_mock,
         ):
             prepare_hover(mock.Mock(), args)
+        set_param_mock.assert_called_once()
+        call_args = set_param_mock.call_args.args
+        self.assertEqual(call_args[1], "COM_RC_IN_MODE")
+        self.assertEqual(call_args[2], 4)
         sleep_mock.assert_called_once_with(7.0)
 
     def test_prepare_hover_raises_without_fallback(self):
@@ -65,14 +70,19 @@ class RunMavlinkCampaignTests(unittest.TestCase):
         args.settle_seconds = 3.0
         args.allow_missing_local_position = False
         args.blind_hover_seconds = 7.0
+        args.manual_control_mode = 0
         with (
-            mock.patch("examples.run_mavlink_campaign.set_param"),
+            mock.patch("examples.run_mavlink_campaign.set_param") as set_param_mock,
             mock.patch("examples.run_mavlink_campaign.arm_with_retries"),
             mock.patch("examples.run_mavlink_campaign.set_offboard"),
             mock.patch("examples.run_mavlink_campaign.wait_for_hover", side_effect=TimeoutError("no local position")),
         ):
             with self.assertRaises(TimeoutError):
                 prepare_hover(mock.Mock(), args)
+        set_param_mock.assert_called_once()
+        call_args = set_param_mock.call_args.args
+        self.assertEqual(call_args[1], "COM_RC_IN_MODE")
+        self.assertEqual(call_args[2], 0)
 
 
 if __name__ == '__main__':

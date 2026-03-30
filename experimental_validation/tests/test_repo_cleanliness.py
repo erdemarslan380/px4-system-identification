@@ -198,6 +198,9 @@ class RepoCleanlinessTests(unittest.TestCase):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("TRJ_RC_START_BTN", readme)
         self.assertIn("workflow pot slots", readme.lower())
+        self.assertIn("Vehicle Setup > Radio", readme)
+        self.assertIn("listener manual_control_setpoint", readme)
+        self.assertIn("manual_control_setpoint.aux1..aux6", readme)
 
     def test_trajectory_reader_uses_chunked_identification_log_writes_for_nuttx(self) -> None:
         content = (OVERLAY_ROOT / "trajectory_reader" / "trajectory_reader.cpp").read_text(encoding="utf-8")
