@@ -41,6 +41,8 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
   Computes the blended digital-twin score and family-level scores.
 - `experimental_validation/paper_artifacts.py`
   Produces overlay plots, sensitivity plots, and summary files for documentation and papers.
+- `experimental_validation/trajectory_comparison_figures.py`
+  Produces the grouped 3D comparison figures used in the README for stock SITL vs another dataset such as real-flight baseline PID traces or a future HIL-identified SITL candidate.
 - `experimental_validation/reference_models.py`
   Built-in x500 reference and currently frozen example candidate models.
 - `experimental_validation/tests/`

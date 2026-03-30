@@ -113,7 +113,7 @@ def build_comparison_figures(
 
     for figure_index, cases in enumerate(PANEL_GROUPS, start=1):
         cols = len(cases)
-        fig = plt.figure(figsize=(12.2 * cols + 9.8, 13.2), layout="constrained")
+        fig = plt.figure(figsize=(12.2 * cols + 9.8, 13.2))
         gs = fig.add_gridspec(1, cols + 1, width_ratios=[1.0] * cols + [0.66])
         axes = [fig.add_subplot(gs[0, idx], projection="3d") for idx in range(cols)]
         side = gs[0, cols].subgridspec(

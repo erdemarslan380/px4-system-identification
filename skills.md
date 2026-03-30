@@ -11,6 +11,7 @@ This repository is focused on one job: extracting Gazebo/PX4 vehicle model param
 - Estimates inertial, motor, and drag parameters from those logs.
 - Compares identified parameters with a Gazebo SDF reference.
 - Produces paper-ready figures, validation summaries, and stress-test plots.
+- Produces grouped comparison figures that overlay a reference trajectory, stock SITL, and another dataset such as imported real-flight baseline PID traces or a future HIL-identified SITL result.
 
 ## Intended Users
 - Control researchers

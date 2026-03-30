@@ -578,6 +578,47 @@ After the flight, copy the CSV files into this repository under a session direct
 The imported real-flight baseline PID traces already stored in this repository live under:
 - `~/px4-system-identification/examples/real_flight_baseline_pid/tracking_logs/`
 
+Current stock-SITL vs imported real-flight baseline figures are generated with:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/trajectory_comparison_figures.py \
+  --stock-root ~/px4-system-identification/examples/offnominal_sitl_study/results/stock_baseline_pid \
+  --compare-root ~/px4-system-identification/examples/real_flight_baseline_pid \
+  --compare-label "Real flight baseline PID" \
+  --out-dir ~/px4-system-identification/examples/real_flight_baseline_pid/figures
+```
+
+Those figures are stored here:
+- `~/px4-system-identification/examples/real_flight_baseline_pid/figures/group_1_circle_hairpin_lemniscate.png`
+- `~/px4-system-identification/examples/real_flight_baseline_pid/figures/group_2_time_optimal_minimum_snap.png`
+- `~/px4-system-identification/examples/real_flight_baseline_pid/figures/comparison_summary.json`
+
+The curves are aligned by each run's own reference start point so the shapes are directly comparable, while each contour error is still computed against that run's own reference CSV.
+
+![Real Flight Baseline Group 1](examples/real_flight_baseline_pid/figures/group_1_circle_hairpin_lemniscate.png)
+
+![Real Flight Baseline Group 2](examples/real_flight_baseline_pid/figures/group_2_time_optimal_minimum_snap.png)
+
+HIL-identified model comparison
+-------------------------------
+The intended HIL comparison block is:
+1. run the 9 identification maneuvers in one HIL session and pull `identification_logs/*.csv`,
+2. estimate a candidate from those HIL identification logs,
+3. run the 5 validation trajectories in SITL with that candidate,
+4. generate the same two grouped figures against the stock SITL baseline.
+
+The command shape is the same:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/trajectory_comparison_figures.py \
+  --stock-root ~/px4-system-identification/examples/offnominal_sitl_study/results/stock_baseline_pid \
+  --compare-root ~/px4-system-identification/examples/hitl_identified_sitl \
+  --compare-label "HIL-identified SITL" \
+  --out-dir ~/px4-system-identification/examples/hitl_identified_sitl/figures
+```
+
+This repository currently does not contain HIL `identification_logs/*.csv` or HIL `tracking_logs/*.csv` under `hitl_runs/`, so there is no honest HIL-derived figure to embed yet. As soon as those CSVs exist, the figure generator above is the path that feeds the README section.
+
 Phase A: identification
 - build and flash your normal PX4 target with this overlay,
 - take off manually to about `3 m`,

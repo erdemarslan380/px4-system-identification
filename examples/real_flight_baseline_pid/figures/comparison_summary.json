@@ -1,0 +1,50 @@
+{
+  "stock_label": "SITL",
+  "compare_label": "Real flight baseline PID",
+  "cases": {
+    "circle": {
+      "stock_label": "SITL",
+      "compare_label": "Real flight baseline PID",
+      "rmse_sitl_m": 0.5789424714560855,
+      "rmse_compare_m": 0.489398640942069,
+      "stock_samples": 710,
+      "compare_samples": 1091
+    },
+    "hairpin": {
+      "stock_label": "SITL",
+      "compare_label": "Real flight baseline PID",
+      "rmse_sitl_m": 0.603336118294338,
+      "rmse_compare_m": 0.3849692670088386,
+      "stock_samples": 1091,
+      "compare_samples": 710
+    },
+    "lemniscate": {
+      "stock_label": "SITL",
+      "compare_label": "Real flight baseline PID",
+      "rmse_sitl_m": 0.6166438206907169,
+      "rmse_compare_m": 0.17191619476021353,
+      "stock_samples": 910,
+      "compare_samples": 113
+    },
+    "time_optimal_30s": {
+      "stock_label": "SITL",
+      "compare_label": "Real flight baseline PID",
+      "rmse_sitl_m": 0.32106971550327534,
+      "rmse_compare_m": 0.22469077249831235,
+      "stock_samples": 528,
+      "compare_samples": 528
+    },
+    "minimum_snap_50s": {
+      "stock_label": "SITL",
+      "compare_label": "Real flight baseline PID",
+      "rmse_sitl_m": 0.4047047336131289,
+      "rmse_compare_m": 0.43235499858689946,
+      "stock_samples": 657,
+      "compare_samples": 657
+    }
+  },
+  "figures": {
+    "group_1_circle_hairpin_lemniscate": "/home/earsub/px4-system-identification/examples/real_flight_baseline_pid/figures/group_1_circle_hairpin_lemniscate.png",
+    "group_2_time_optimal_minimum_snap": "/home/earsub/px4-system-identification/examples/real_flight_baseline_pid/figures/group_2_time_optimal_minimum_snap.png"
+  }
+}
