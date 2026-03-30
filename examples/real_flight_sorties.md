@@ -26,6 +26,30 @@ You can also flash this file from QGroundControl with the CubeOrange connected o
 Keep this same firmware on the board for the first USB-connected HIL/HITL check.
 The HIL/HITL wiring and simulator steps are described in the main README.
 
+Keep calibration across firmware updates
+----------------------------------------
+If the physical airframe did not change, do not recalibrate everything by hand after every firmware build.
+
+Primary path: QGroundControl
+1. connect the board,
+2. open `Parameters > Tools > Save to file`,
+3. save over:
+   - `experimental_validation/qgc/current_vehicle.params`
+4. regenerate the restore files:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/calibration_restore.py \
+  --input experimental_validation/qgc/current_vehicle.params \
+  --out-dir experimental_validation/qgc/restore \
+  --board-defaults overlay/ROMFS/px4fmu_common/init.d/rc.board_defaults
+```
+
+Fallback one-command path if MAVLink is already available:
+```bash
+cd ~/px4-system-identification
+./examples/update_vehicle_calibration_snapshot.sh udpin:127.0.0.1:14550 57600
+```
+
 Before the flight day, prepare the SD card on the workstation:
 
 ```bash

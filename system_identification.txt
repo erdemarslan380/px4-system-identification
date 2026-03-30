@@ -643,13 +643,38 @@ This repository also provides the direct helper:
 
 Real-flight calibration restore after firmware update
 -----------------------------------------------------
-This repository also supports restoring calibration-related parameters after a firmware update.
+This repository also supports keeping sensor and RC calibration across firmware updates.
 
-Place the QGroundControl export at:
+The intended operator idea is simple:
+- keep one full vehicle parameter snapshot in the repo,
+- derive a smaller calibration/RC restore subset from it,
+- bake that smaller subset into the firmware as `rc.board_defaults`,
+- only recalibrate physically when something on the airframe actually changes.
+
+Recommended primary path:
+1. connect the board,
+2. open QGroundControl,
+3. go to `Parameters`,
+4. open `Tools`,
+5. use `Save to file`,
+6. save over:
+   - `~/px4-system-identification/experimental_validation/qgc/current_vehicle.params`
+7. regenerate the restore outputs:
+   - `python3 experimental_validation/calibration_restore.py --input ~/px4-system-identification/experimental_validation/qgc/current_vehicle.params --out-dir ~/px4-system-identification/experimental_validation/qgc/restore --board-defaults ~/px4-system-identification/overlay/ROMFS/px4fmu_common/init.d/rc.board_defaults`
+
+Fallback helper if the board is already reachable over MAVLink:
+- `./examples/update_vehicle_calibration_snapshot.sh udpin:127.0.0.1:14550 57600`
+
+That helper updates:
 - `~/px4-system-identification/experimental_validation/qgc/current_vehicle.params`
+- `~/px4-system-identification/experimental_validation/qgc/restore/restore_calibration.params`
+- `~/px4-system-identification/experimental_validation/qgc/restore/restore_calibration.nsh`
+- `~/px4-system-identification/overlay/ROMFS/px4fmu_common/init.d/rc.board_defaults`
 
-Then run:
-- `python3 experimental_validation/calibration_restore.py --input ~/px4-system-identification/experimental_validation/qgc/current_vehicle.params --out-dir ~/px4-system-identification/experimental_validation/qgc/restore`
+Why this is not done from the full dump directly:
+- the full parameter dump is still kept in the repo,
+- but only calibration- and RC-related parameters are baked into firmware defaults,
+- because embedding every experiment-specific parameter would make the workflow brittle.
 
 Files to cite in a paper appendix
 ---------------------------------

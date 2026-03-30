@@ -1,7 +1,19 @@
 Operator Quickstart
 ===================
 
-This is the shortest path for a fresh terminal.
+This is the shortest copy-paste path.
+
+Use this file if:
+- you already know PX4 basics,
+- you want the minimum number of commands,
+- you do not want to read the long technical document first.
+
+Follow the stages in order:
+1. `SITL`
+2. `HIL`
+3. `real flight`
+
+If a stage is not clean, stop there and fix it before continuing.
 
 1. Prepare the dedicated PX4 tree
 ---------------------------------
@@ -347,6 +359,59 @@ python3 experimental_validation/build_hitl_review_bundle.py \
 Use the mounted-SD script or the USB CDC MAVFTP pull script for a given session, not both.
 Before the live pull, close `jMAVSim`, `QGroundControl`, and any USB MAVLink shell on the same USB CDC device.
 The MAVFTP pull helper writes `pull_report.json`, skips already complete files, and only retries the missing ones on the next run.
+
+8. Keep calibration across firmware updates
+-------------------------------------------
+Primary path: use QGroundControl
+1. connect the board,
+2. open `Parameters`,
+3. open `Tools`,
+4. click `Save to file`,
+5. save over:
+   - `experimental_validation/qgc/current_vehicle.params`
+6. regenerate the restore files:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/calibration_restore.py \
+  --input experimental_validation/qgc/current_vehicle.params \
+  --out-dir experimental_validation/qgc/restore \
+  --board-defaults overlay/ROMFS/px4fmu_common/init.d/rc.board_defaults
+```
+
+Fallback one-command path if MAVLink is already available:
+```bash
+cd ~/px4-system-identification
+./examples/update_vehicle_calibration_snapshot.sh udpin:127.0.0.1:14550 57600
+```
+
+This updates:
+- `experimental_validation/qgc/current_vehicle.params`
+- `experimental_validation/qgc/restore/restore_calibration.params`
+- `experimental_validation/qgc/restore/restore_calibration.nsh`
+- `overlay/ROMFS/px4fmu_common/init.d/rc.board_defaults`
+
+After that, rebuild firmware normally:
+```bash
+cd ~/px4-system-identification
+./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification boards/cubepilot/cubeorange/default.px4board
+
+cd ~/PX4-Autopilot-Identification
+make cubepilot_cubeorange_default
+```
+
+If you recalibrate later in QGroundControl:
+1. use `Parameters > Tools > Save to file`,
+2. replace `experimental_validation/qgc/current_vehicle.params`,
+3. rerun:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/calibration_restore.py \
+  --input experimental_validation/qgc/current_vehicle.params \
+  --out-dir experimental_validation/qgc/restore \
+  --board-defaults overlay/ROMFS/px4fmu_common/init.d/rc.board_defaults
+```
+
+Do not bake the entire parameter dump into firmware defaults. Keep the full dump for reference, but only restore the calibration- and RC-related subset through `rc.board_defaults`.
 
 If you are not removing the SD card, first find the live USB CDC device:
 ```bash

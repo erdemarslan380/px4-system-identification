@@ -5,7 +5,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from experimental_validation.calibration_restore import select_calibration_params, write_restore_outputs
+from experimental_validation.calibration_restore import (
+    format_board_defaults_lines,
+    format_param_literal,
+    select_calibration_params,
+    write_restore_outputs,
+)
 
 
 class CalibrationRestoreTests(unittest.TestCase):
@@ -35,9 +40,22 @@ class CalibrationRestoreTests(unittest.TestCase):
             params_text = Path(outputs["params"]).read_text(encoding="utf-8")
             nsh_text = Path(outputs["nsh"]).read_text(encoding="utf-8")
             payload = json.loads(Path(outputs["json"]).read_text(encoding="utf-8"))
+            board_defaults_text = Path(outputs["board_defaults"]).read_text(encoding="utf-8")
             self.assertIn("CAL_ACC0_XOFF,0.1", params_text)
             self.assertIn("param set CAL_ACC0_XOFF 0.1", nsh_text)
+            self.assertIn("param set-default CAL_ACC0_XOFF 0.1", board_defaults_text)
             self.assertEqual(payload["SENS_BOARD_ROT"], 12.0)
+
+    def test_format_board_defaults_lines_uses_param_set_default(self) -> None:
+        lines = format_board_defaults_lines({"CAL_ACC0_XOFF": 0.1, "SENS_BOARD_ROT": 12.0})
+        self.assertEqual(lines[0], "#!/bin/sh")
+        self.assertIn("param set-default CAL_ACC0_XOFF 0.1", lines)
+        self.assertIn("param set-default SENS_BOARD_ROT 12", lines)
+
+    def test_format_param_literal_drops_trailing_dot_zero_for_integers(self) -> None:
+        self.assertEqual(format_param_literal(50.0), "50")
+        self.assertEqual(format_param_literal(-1.0), "-1")
+        self.assertEqual(format_param_literal(0.125), "0.125")
 
 
 if __name__ == "__main__":

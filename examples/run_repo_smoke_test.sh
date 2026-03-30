@@ -9,6 +9,7 @@ python3 -m unittest \
   experimental_validation.tests.test_px4_hardware_helpers \
   experimental_validation.tests.test_hitl_review_bundle \
   experimental_validation.tests.test_report_hil_resources \
+  experimental_validation.tests.test_export_vehicle_params \
   experimental_validation.tests.test_pull_sdcard_logs_over_mavftp \
   experimental_validation.tests.test_validation_trajectories \
   experimental_validation.tests.test_generate_placeholder_sitl_runs \

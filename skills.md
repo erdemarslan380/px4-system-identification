@@ -13,6 +13,7 @@ This repository is focused on one job: extracting Gazebo/PX4 vehicle model param
 - Produces paper-ready figures, validation summaries, and stress-test plots.
 - Produces grouped comparison figures that overlay a reference trajectory, stock SITL, and another dataset such as off-nominal SITL, imported real-flight baseline PID traces, a future HIL-identified SITL result, or a future real-flight-identified SITL result.
 - Produces reproducible HIL RAM/CPU summaries from pulled PX4 ULogs so hardware smoke tests can be verified from files, not memory.
+- Keeps a reusable vehicle-parameter snapshot so calibration and RC mapping can survive firmware rebuilds without repeated manual setup.
 
 ## Intended Users
 - Control researchers
@@ -27,6 +28,7 @@ This repository is focused on one job: extracting Gazebo/PX4 vehicle model param
 5. Estimate a digital-twin candidate with `experimental_validation/cli.py` or `experimental_validation/build_x500_candidate_from_logs.py`.
 6. Validate that candidate with `prepare_identified_model.py`, `run_sitl_validation.py`, and `trajectory_comparison_figures.py`.
 7. Summarize HIL health with `experimental_validation/report_hil_resources.py` before treating a hardware smoke run as signed off.
+8. Refresh the saved calibration snapshot with `experimental_validation/export_vehicle_params.py` and `examples/update_vehicle_calibration_snapshot.sh` before rebuilding flight firmware.
 
 ## Assumptions
 - Baseline control for identification is the PX4 default position controller.

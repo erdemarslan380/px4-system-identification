@@ -21,6 +21,8 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
   Python estimation, comparison, scoring, and figure-generation pipeline.
 - `examples/`
   Example YAML plans, sortie definitions, and generated paper assets.
+- `examples/update_vehicle_calibration_snapshot.sh`
+  One-command helper that refreshes the saved vehicle parameter snapshot and regenerates the build-time calibration defaults.
 - `sync_into_px4_workspace.sh`
   Copies the overlay into an external PX4 workspace.
 
@@ -41,6 +43,8 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
   Compares identified values with the SDF reference and writes JSON summaries.
 - `experimental_validation/build_x500_candidate_from_logs.py`
   Builds one x500 candidate directly from any `identification_logs/` directory, including future HIL and real-flight sessions.
+- `experimental_validation/export_vehicle_params.py`
+  Pulls a full PX4 parameter snapshot over MAVLink and writes it in a QGroundControl-compatible `.params` format.
 - `experimental_validation/prepare_identified_model.py`
   Writes the identified Gazebo model variant back into the PX4 workspace for follow-up SITL validation.
 - `experimental_validation/run_sitl_validation.py`

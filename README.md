@@ -7,6 +7,24 @@ This repository is for one workflow:
 3. run five validation trajectories,
 4. compare the digital twin with the reference traces.
 
+Who this documentation is for
+-----------------------------
+This repo is written for PX4 users and robotics researchers who:
+- can already fly and calibrate a drone,
+- do not want to fight with unnecessary Linux details,
+- want copy-paste commands and a reproducible workflow.
+
+Which document to open first
+----------------------------
+- If you want the shortest operator path:
+  - [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
+- If you want the full command-by-command reference:
+  - [README.md](/home/earsub/px4-system-identification/README.md)
+- If you want the long technical explanation for a report, thesis, or paper:
+  - [system_identification.txt](/home/earsub/px4-system-identification/system_identification.txt)
+- If you want a ready-to-paste ChatGPT prompt for paper writing:
+  - [paper_chatgpt_prompt.md](/home/earsub/px4-system-identification/paper_chatgpt_prompt.md)
+
 Main folders
 ------------
 - `overlay/`: PX4 and Gazebo additions
@@ -17,6 +35,15 @@ Main folders
 
 Fastest operator checklist:
 - [operator_quickstart.md](/home/earsub/px4-system-identification/examples/operator_quickstart.md)
+
+Practical rule before you start
+-------------------------------
+Treat the workflow as three stages:
+1. `SITL`: prove the methodology and scripts work.
+2. `HIL`: prove the real board can run the campaign and write logs.
+3. `Real flight`: collect the final data.
+
+Do not jump to the next stage until the previous one is clean.
 
 Results at a glance
 -------------------
@@ -732,6 +759,64 @@ python3 experimental_validation/trajectory_comparison_figures.py \
 These HIL figures are intentionally kept inline in the README so the comparison is visible in the same document once the first honest HIL log pull exists.
 
 ### 11.3 Real-flight operation
+Firmware updates without recalibrating everything:
+- keep one full vehicle snapshot in:
+  - `~/px4-system-identification/experimental_validation/qgc/current_vehicle.params`
+- derive the build-time restore subset from it:
+  - `~/px4-system-identification/experimental_validation/qgc/restore/`
+- the build-embedded restore file is:
+  - `~/px4-system-identification/overlay/ROMFS/px4fmu_common/init.d/rc.board_defaults`
+
+Why this repo does not embed the full parameter dump directly:
+- a full dump includes many temporary or environment-specific settings,
+- embedding all of them into firmware would make HIL, logging, and experiment settings too rigid,
+- so this workflow stores the full snapshot for reference but only bakes the calibration- and RC-related subset into `rc.board_defaults`.
+
+Recommended primary path: use QGroundControl
+1. connect the board,
+2. open QGroundControl,
+3. go to `Parameters`,
+4. open `Tools`,
+5. use `Save to file`,
+6. save over:
+   - `~/px4-system-identification/experimental_validation/qgc/current_vehicle.params`
+7. regenerate the restore files:
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/calibration_restore.py \
+  --input ~/px4-system-identification/experimental_validation/qgc/current_vehicle.params \
+  --out-dir ~/px4-system-identification/experimental_validation/qgc/restore \
+  --board-defaults ~/px4-system-identification/overlay/ROMFS/px4fmu_common/init.d/rc.board_defaults
+```
+
+Fallback path if the vehicle is already reachable over MAVLink and you want one command:
+```bash
+cd ~/px4-system-identification
+./examples/update_vehicle_calibration_snapshot.sh udpin:127.0.0.1:14550 57600
+```
+
+That helper:
+- exports the full PX4 parameter snapshot,
+- regenerates `restore_calibration.params` for QGroundControl import,
+- regenerates `restore_calibration.nsh` for shell restore,
+- regenerates `rc.board_defaults` so the next firmware build already carries the latest calibration-like defaults.
+
+Then sync and rebuild as usual:
+```bash
+cd ~/px4-system-identification
+./sync_into_px4_workspace.sh ~/PX4-Autopilot-Identification boards/cubepilot/cubeorange/default.px4board
+
+cd ~/PX4-Autopilot-Identification
+make cubepilot_cubeorange_default
+```
+
+Only redo the physical QGroundControl accelerometer / gyro / radio calibration if something on the real airframe changed:
+- sensor mounting,
+- controller orientation,
+- receiver mapping,
+- frame wiring,
+- or a real hardware replacement.
+
 On the SD card, keep these folders:
 - `/fs/microsd/trajectories/`
 - `/fs/microsd/tracking_logs/`
