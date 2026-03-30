@@ -24,6 +24,7 @@ HIL_RESOURCE_REPORT_SCRIPT = REPO_ROOT / "experimental_validation" / "report_hil
 EXPORT_VEHICLE_PARAMS_SCRIPT = REPO_ROOT / "experimental_validation" / "export_vehicle_params.py"
 TRAJECTORY_ASSET_DIR = REPO_ROOT / "assets" / "validation_trajectories"
 CALIBRATION_SNAPSHOT_SCRIPT = REPO_ROOT / "examples" / "update_vehicle_calibration_snapshot.sh"
+HIL_AIRFRAME_SCRIPT = REPO_ROOT / "overlay" / "ROMFS" / "px4fmu_common" / "init.d" / "airframes" / "1001_rc_quad_x.hil"
 
 
 class RepoCleanlinessTests(unittest.TestCase):
@@ -153,6 +154,12 @@ class RepoCleanlinessTests(unittest.TestCase):
         calibration_snapshot = CALIBRATION_SNAPSHOT_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("export_vehicle_params.py", calibration_snapshot)
         self.assertIn("calibration_restore.py", calibration_snapshot)
+
+    def test_hil_airframe_forces_estimator_stack_needed_by_custom_controller(self) -> None:
+        content = HIL_AIRFRAME_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("param set EKF2_EN 0", content)
+        self.assertIn("param set LPE_EN 1", content)
+        self.assertIn("param set ATT_EN 1", content)
 
     def test_primary_docs_cover_cubeorange_build_flow(self) -> None:
         docs = [

@@ -26,6 +26,14 @@ param set-default MAV_2_FORWARD 0
 # - without real battery
 param set-default CBRK_SUPPLY_CHK 894281
 
+# Hardware HIL still needs PX4's own attitude/local-position estimator chain
+# to publish vehicle_attitude and vehicle_local_position for the custom
+# controller and trajectory logger. Force the legacy HIL estimator stack on
+# every HIL boot instead of relying on stale saved defaults.
+param set EKF2_EN 0
+param set LPE_EN 1
+param set ATT_EN 1
+
 # Square quadrotor X PX4 numbering
 param set-default CA_ROTOR_COUNT 4
 param set-default CA_ROTOR0_PX 1

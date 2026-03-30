@@ -1,0 +1,14 @@
+{
+  "failed": {
+    "identification_logs": [],
+    "tracking_logs": []
+  },
+  "pulled": {
+    "identification_logs": [],
+    "tracking_logs": []
+  },
+  "skipped": {
+    "identification_logs": [],
+    "tracking_logs": []
+  }
+}

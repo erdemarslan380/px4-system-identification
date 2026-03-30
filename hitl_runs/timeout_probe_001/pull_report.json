@@ -1,0 +1,20 @@
+{
+  "failed": {
+    "sess103": [],
+    "sess104": []
+  },
+  "pulled": {
+    "sess103": [
+      "log100.ulg",
+      "log101.ulg",
+      "log102.ulg"
+    ],
+    "sess104": [
+      "log100.ulg"
+    ]
+  },
+  "skipped": {
+    "sess103": [],
+    "sess104": []
+  }
+}

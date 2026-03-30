@@ -16,13 +16,15 @@ if str(REPO_ROOT) not in sys.path:
 from experimental_validation.hitl_catalog import campaign_expected_duration_s
 from examples.run_hitl_udp_sequence import (
     arm,
+    encode_param_value,
+    request_message_interval,
     read_param,
     reset_mode_cmd,
     set_offboard,
     set_param,
     start_gcs_heartbeat_thread,
+    wait_for_sim_ready,
     wait_for_hover,
-    wait_for_local_position,
     wait_heartbeat,
 )
 
@@ -53,6 +55,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--hover-timeout", type=float, default=20.0)
     parser.add_argument("--settle-seconds", type=float, default=3.0)
+    parser.add_argument(
+        "--sim-ready-timeout",
+        type=float,
+        default=20.0,
+        help="How long to wait for ATTITUDE and, when required, stable LOCAL_POSITION_NED before arming or starting.",
+    )
+    parser.add_argument(
+        "--sim-ready-min-local-samples",
+        type=int,
+        default=3,
+        help="Number of finite LOCAL_POSITION_NED samples required to declare the estimator ready.",
+    )
     parser.add_argument(
         "--allow-missing-local-position",
         action="store_true",
@@ -145,6 +159,52 @@ def wait_for_campaign_completion(mav, timeout_s: float) -> None:
     raise TimeoutError(f"Campaign did not complete within {timeout_s:.1f} s")
 
 
+def trigger_campaign_start(mav, timeout_s: float = 8.0) -> None:
+    mav.mav.param_set_send(
+        mav.target_system,
+        mav.target_component,
+        b"TRJ_CAMPAIGN_CMD",
+        float(encode_param_value(1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)),
+        mavutil.mavlink.MAV_PARAM_TYPE_INT32,
+    )
+
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        try:
+            campaign_status = read_param(
+                mav,
+                "TRJ_CAMPAIGN_STA",
+                mavutil.mavlink.MAV_PARAM_TYPE_INT32,
+                timeout=0.6,
+            )
+            if int(campaign_status) != 0:
+                return
+        except TimeoutError:
+            pass
+
+        msg = mav.recv_match(blocking=True, timeout=0.5)
+        if not msg:
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "PARAM_VALUE":
+            param_id = getattr(msg, "param_id", b"")
+            if isinstance(param_id, bytes):
+                param_id = param_id.decode(errors="ignore").rstrip("\x00")
+            else:
+                param_id = str(param_id).rstrip("\x00")
+            if param_id == "TRJ_CAMPAIGN_CMD":
+                return
+
+        if msg_type == "STATUSTEXT":
+            text = decode_statustext(msg)
+            if "Campaign" in text:
+                print(text, flush=True)
+                return
+
+    raise TimeoutError("Campaign trigger was not acknowledged")
+
+
 def arm_with_retries(mav, attempts: int) -> None:
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
@@ -161,6 +221,12 @@ def arm_with_retries(mav, attempts: int) -> None:
 
 
 def prepare_hover(mav, args: argparse.Namespace) -> None:
+    wait_for_sim_ready(
+        mav,
+        timeout=args.sim_ready_timeout,
+        require_local_position=not args.allow_missing_local_position,
+        min_local_samples=max(1, args.sim_ready_min_local_samples),
+    )
     set_param(mav, "COM_RC_IN_MODE", args.manual_control_mode, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
     arm_with_retries(mav, attempts=max(1, args.arm_attempts))
     set_offboard(mav)
@@ -198,14 +264,25 @@ def main() -> int:
             prepare_hover(mav, args)
         else:
             try:
-                wait_for_local_position(mav, timeout=5.0)
+                wait_for_sim_ready(
+                    mav,
+                    timeout=args.sim_ready_timeout,
+                    require_local_position=True,
+                    min_local_samples=max(1, args.sim_ready_min_local_samples),
+                )
             except TimeoutError:
                 if not args.allow_missing_local_position:
                     raise
+                wait_for_sim_ready(
+                    mav,
+                    timeout=max(3.0, args.sim_ready_timeout / 2.0),
+                    require_local_position=False,
+                    min_local_samples=1,
+                )
                 print("LOCAL_POSITION_NED not available; starting campaign without a position gate", flush=True)
 
         print(f"Starting campaign {args.campaign}", flush=True)
-        set_param(mav, "TRJ_CAMPAIGN_CMD", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        trigger_campaign_start(mav)
         wait_for_campaign_completion(mav, timeout_s=args.timeout or default_timeout_s(args.campaign))
         reset_mode_cmd(mav, strict=args.strict_stop)
         print(f"Completed campaign {args.campaign}", flush=True)

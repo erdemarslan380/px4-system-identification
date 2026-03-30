@@ -219,6 +219,11 @@ HIL order:
 5. only then reopen QGroundControl in UDP-only mode if you want a viewer,
 6. run the HIL helper from a second terminal.
 
+Warmup rule:
+- after `jMAVSim` starts, do not arm immediately
+- the helpers now wait for real `ATTITUDE` and stable `LOCAL_POSITION_NED`
+- use `--allow-missing-local-position` only as a temporary debug escape, not as the normal HIL path
+
 Upload:
 ```bash
 cd ~/px4-system-identification
@@ -275,8 +280,8 @@ python3 examples/run_mavlink_campaign.py \
   --campaign full_stack \
   --prepare-hover \
   --manual-control-mode 4 \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12 \
+  --sim-ready-timeout 25 \
+  --sim-ready-min-local-samples 3 \
   --timeout 520
 ```
 
@@ -289,8 +294,8 @@ python3 examples/run_mavlink_campaign.py \
   --endpoint udpin:127.0.0.1:14550 \
   --campaign identification_only \
   --prepare-hover \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12 \
+  --sim-ready-timeout 25 \
+  --sim-ready-min-local-samples 3 \
   --timeout 420
 ```
 
@@ -301,8 +306,8 @@ python3 examples/run_mavlink_campaign.py \
   --endpoint udpin:127.0.0.1:14550 \
   --campaign trajectory_only \
   --prepare-hover \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12 \
+  --sim-ready-timeout 25 \
+  --sim-ready-min-local-samples 3 \
   --timeout 220
 ```
 
@@ -313,8 +318,8 @@ python3 examples/run_hitl_udp_sequence.py \
   --endpoint udpin:127.0.0.1:14550 \
   --kind ident \
   --name hover_thrust \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12
+  --sim-ready-timeout 25 \
+  --sim-ready-min-local-samples 3
 ```
 
 One HIL trajectory:
@@ -324,8 +329,8 @@ python3 examples/run_hitl_udp_sequence.py \
   --endpoint udpin:127.0.0.1:14550 \
   --kind trajectory \
   --traj-id 100 \
-  --allow-missing-local-position \
-  --blind-hover-seconds 12
+  --sim-ready-timeout 25 \
+  --sim-ready-min-local-samples 3
 ```
 
 Acceptance check on the SD card:

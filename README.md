@@ -270,6 +270,11 @@ Keep the transport split simple:
 - USB CDC device, for example `/dev/ttyACM0`: `jMAVSim`
 - `QGroundControl`: UDP only after `jMAVSim` is already running
 
+Warmup rule:
+- after `jMAVSim` starts, do not arm immediately
+- the helpers now wait for real `ATTITUDE` and stable `LOCAL_POSITION_NED` before arming
+- use `--allow-missing-local-position` only as a temporary debug fallback, not as the normal HIL path
+
 Order:
 1. finish SITL and close the SITL `QGroundControl` window
 2. connect CubeOrange over USB
@@ -323,37 +328,42 @@ Full HIL campaign:
 
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign full_stack   --prepare-hover   --manual-control-mode 4   --allow-missing-local-position   --blind-hover-seconds 12   --timeout 520
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign full_stack   --prepare-hover   --manual-control-mode 4   --sim-ready-timeout 25   --sim-ready-min-local-samples 3   --timeout 520
 ```
 
 Keep the receiver active during HIL by changing only one flag:
 
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign full_stack   --prepare-hover   --manual-control-mode 0   --allow-missing-local-position   --blind-hover-seconds 12   --timeout 520
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign full_stack   --prepare-hover   --manual-control-mode 0   --sim-ready-timeout 25   --sim-ready-min-local-samples 3   --timeout 520
 ```
 
 Other HIL runs:
 
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign identification_only   --prepare-hover   --allow-missing-local-position   --blind-hover-seconds 12   --timeout 420
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign identification_only   --prepare-hover   --sim-ready-timeout 25   --sim-ready-min-local-samples 3   --timeout 420
 ```
 
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign trajectory_only   --prepare-hover   --allow-missing-local-position   --blind-hover-seconds 12   --timeout 220
+python3 examples/run_mavlink_campaign.py   --endpoint udpin:127.0.0.1:14550   --campaign trajectory_only   --prepare-hover   --sim-ready-timeout 25   --sim-ready-min-local-samples 3   --timeout 220
 ```
 
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_hitl_udp_sequence.py   --endpoint udpin:127.0.0.1:14550   --kind ident   --name hover_thrust   --allow-missing-local-position   --blind-hover-seconds 12
+python3 examples/run_hitl_udp_sequence.py   --endpoint udpin:127.0.0.1:14550   --kind ident   --name hover_thrust   --sim-ready-timeout 25   --sim-ready-min-local-samples 3
 ```
 
 ```bash
 cd ~/px4-system-identification
-python3 examples/run_hitl_udp_sequence.py   --endpoint udpin:127.0.0.1:14550   --kind trajectory   --traj-id 100   --allow-missing-local-position   --blind-hover-seconds 12
+python3 examples/run_hitl_udp_sequence.py   --endpoint udpin:127.0.0.1:14550   --kind trajectory   --traj-id 100   --sim-ready-timeout 25   --sim-ready-min-local-samples 3
 ```
+
+If the helper times out before the run starts, do not force the campaign with blind hover first. Check the estimator path. A healthy HIL boot should provide:
+- `ATTITUDE`
+- `LOCAL_POSITION_NED`
+- no repeated `Accel/Gyro/Baro missing` preflight spam
 
 Minimal RC smoke test in HIL:
 

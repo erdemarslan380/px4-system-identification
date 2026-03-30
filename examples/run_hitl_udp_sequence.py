@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import math
 import struct
 import sys
@@ -21,6 +22,44 @@ from experimental_validation.hitl_catalog import (
     identification_profile_index,
     trajectory_duration_s,
 )
+
+
+_ORIGINAL_ADD_MESSAGE = mavutil.add_message
+
+
+def install_pymavlink_message_store_patch() -> None:
+    if getattr(mavutil, "_px4_sysid_add_message_patched", False):
+        return
+
+    def _patched_add_message(messages, mtype, msg):
+        try:
+            return _ORIGINAL_ADD_MESSAGE(messages, mtype, msg)
+        except TypeError as exc:
+            if "'NoneType' object does not support item assignment" not in str(exc):
+                raise
+
+            if getattr(msg, "_instance_field", None) is None:
+                raise
+
+            instance_value = getattr(msg, msg._instance_field, None)
+            if instance_value is None:
+                raise
+
+            current = messages.get(mtype)
+            if current is None:
+                current = copy.copy(msg)
+                messages[mtype] = current
+
+            if getattr(current, "_instances", None) is None:
+                current._instances = {}
+
+            return _ORIGINAL_ADD_MESSAGE(messages, mtype, msg)
+
+    mavutil.add_message = _patched_add_message
+    mavutil._px4_sysid_add_message_patched = True
+
+
+install_pymavlink_message_store_patch()
 
 
 def normalize_param_id(param_id: object) -> str:
@@ -106,6 +145,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hover-timeout", type=float, default=20.0)
     parser.add_argument("--settle-seconds", type=float, default=6.0)
     parser.add_argument(
+        "--sim-ready-timeout",
+        type=float,
+        default=20.0,
+        help="How long to wait for ATTITUDE and, when required, stable LOCAL_POSITION_NED before arming.",
+    )
+    parser.add_argument(
+        "--sim-ready-min-local-samples",
+        type=int,
+        default=3,
+        help="Number of finite LOCAL_POSITION_NED samples required to declare the estimator ready.",
+    )
+    parser.add_argument(
         "--allow-missing-local-position",
         action="store_true",
         help="For HIL links that do not stream LOCAL_POSITION_NED, use a timed hover settle and keep the existing anchor params.",
@@ -126,9 +177,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def wait_heartbeat(mav, timeout: float = 20.0) -> None:
-    heartbeat = mav.wait_heartbeat(timeout=timeout)
-    if heartbeat is None:
-        raise TimeoutError("No UDP heartbeat received from jMAVSim/PX4")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        send_gcs_heartbeat(mav)
+        heartbeat = mav.recv_match(type="HEARTBEAT", blocking=True, timeout=0.5)
+        if heartbeat is not None:
+            return
+    raise TimeoutError("No MAVLink heartbeat received from jMAVSim/PX4")
 
 
 def send_gcs_heartbeat(mav) -> None:
@@ -168,6 +223,40 @@ def wait_command_ack(mav, command: int, timeout: float = 5.0) -> int:
         if msg and msg.command == command:
             return int(msg.result)
     raise TimeoutError(f"No COMMAND_ACK for {command}")
+
+
+def request_message_interval(
+    mav,
+    message_id: int,
+    interval_us: int = 100_000,
+    timeout: float = 3.0,
+) -> None:
+    mav.mav.command_long_send(
+        mav.target_system,
+        mav.target_component,
+        mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+        0,
+        message_id,
+        interval_us,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+    try:
+        result = wait_command_ack(mav, mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, timeout=timeout)
+    except TimeoutError:
+        return
+
+    if result not in (
+        mavutil.mavlink.MAV_RESULT_ACCEPTED,
+        mavutil.mavlink.MAV_RESULT_IN_PROGRESS,
+    ):
+        raise RuntimeError(
+            f"MAV_CMD_SET_MESSAGE_INTERVAL for message {message_id} rejected with ACK result {result}"
+        )
 
 
 def set_param(mav, name: str, value: float, param_type: int, timeout: float = 8.0) -> None:
@@ -264,6 +353,61 @@ def wait_for_local_position(mav, timeout: float = 5.0):
     raise TimeoutError("No LOCAL_POSITION_NED received")
 
 
+def local_position_sample_is_reasonable(msg) -> bool:
+    values = (float(msg.x), float(msg.y), float(msg.z))
+    return all(math.isfinite(value) and abs(value) < 100.0 for value in values)
+
+
+def wait_for_sim_ready(
+    mav,
+    *,
+    timeout: float,
+    require_local_position: bool,
+    min_local_samples: int,
+):
+    request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE)
+    request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, interval_us=500_000)
+    request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
+
+    deadline = time.time() + timeout
+    attitude_seen = False
+    local_position_seen = 0
+    latest_local_position = None
+
+    while time.time() < deadline:
+        msg = mav.recv_match(
+            type=["ATTITUDE", "LOCAL_POSITION_NED", "STATUSTEXT"],
+            blocking=True,
+            timeout=1.0,
+        )
+        if not msg:
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "ATTITUDE":
+            attitude_seen = True
+
+        elif msg_type == "LOCAL_POSITION_NED":
+            if local_position_sample_is_reasonable(msg):
+                local_position_seen += 1
+                latest_local_position = msg
+            else:
+                local_position_seen = 0
+
+        elif msg_type == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+
+        if attitude_seen and (not require_local_position or local_position_seen >= min_local_samples):
+            return latest_local_position
+
+    missing = []
+    if not attitude_seen:
+        missing.append("ATTITUDE")
+    if require_local_position and local_position_seen < min_local_samples:
+        missing.append("stable LOCAL_POSITION_NED")
+    raise TimeoutError("Simulation not ready: missing " + ", ".join(missing))
+
+
 def wait_for_hover(mav, target_delta_z: float, timeout: float):
     first_msg = wait_for_local_position(mav, timeout=min(timeout, 5.0))
     baseline_z = float(first_msg.z)
@@ -306,9 +450,18 @@ def prepare_hover_and_anchor(
     hover_z: float,
     hover_timeout: float,
     settle_seconds: float,
+    sim_ready_timeout: float,
+    sim_ready_min_local_samples: int,
     allow_missing_local_position: bool,
     blind_hover_seconds: float,
 ) -> None:
+    wait_for_sim_ready(
+        mav,
+        timeout=sim_ready_timeout,
+        require_local_position=not allow_missing_local_position,
+        min_local_samples=max(1, sim_ready_min_local_samples),
+    )
+
     arm(mav)
     set_offboard(mav)
 
@@ -385,6 +538,8 @@ def main() -> int:
             hover_z=args.hover_z,
             hover_timeout=args.hover_timeout,
             settle_seconds=args.settle_seconds,
+            sim_ready_timeout=args.sim_ready_timeout,
+            sim_ready_min_local_samples=args.sim_ready_min_local_samples,
             allow_missing_local_position=args.allow_missing_local_position,
             blind_hover_seconds=args.blind_hover_seconds,
         )
