@@ -105,6 +105,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--hover-timeout", type=float, default=20.0)
     parser.add_argument("--settle-seconds", type=float, default=6.0)
+    parser.add_argument(
+        "--allow-missing-local-position",
+        action="store_true",
+        help="For HIL links that do not stream LOCAL_POSITION_NED, use a timed hover settle and keep the existing anchor params.",
+    )
+    parser.add_argument(
+        "--blind-hover-seconds",
+        type=float,
+        default=12.0,
+        help="Timed settle used with --allow-missing-local-position when LOCAL_POSITION_NED is unavailable.",
+    )
     parser.add_argument("--tail-seconds", type=float, default=3.0)
     parser.add_argument(
         "--strict-reset",
@@ -128,6 +139,13 @@ def send_gcs_heartbeat(mav) -> None:
         0,
         0,
     )
+
+
+def decode_statustext(msg) -> str:
+    text = getattr(msg, "text", "")
+    if isinstance(text, bytes):
+        return text.decode(errors="ignore").rstrip("\x00")
+    return str(text).rstrip("\x00")
 
 
 def start_gcs_heartbeat_thread(mav, period_s: float = 1.0) -> tuple[threading.Event, threading.Thread]:
@@ -282,6 +300,51 @@ def reset_mode_cmd(mav, strict: bool) -> bool:
         return False
 
 
+def prepare_hover_and_anchor(
+    mav,
+    *,
+    hover_z: float,
+    hover_timeout: float,
+    settle_seconds: float,
+    allow_missing_local_position: bool,
+    blind_hover_seconds: float,
+) -> None:
+    arm(mav)
+    set_offboard(mav)
+
+    try:
+        wait_for_hover(mav, hover_z, hover_timeout)
+        time.sleep(settle_seconds)
+        anchor_msg = wait_for_local_position(mav, timeout=3.0)
+    except TimeoutError:
+        if not allow_missing_local_position:
+            raise
+        print(
+            f"LOCAL_POSITION_NED not available; using blind hover settle for {blind_hover_seconds:.1f} s and the existing TRJ_ANCHOR_* params",
+            flush=True,
+        )
+        time.sleep(blind_hover_seconds)
+        return
+
+    set_anchor_from_position(mav, float(anchor_msg.x), float(anchor_msg.y), float(anchor_msg.z))
+    print(
+        f"Anchor set from LOCAL_POSITION_NED: x={float(anchor_msg.x):.3f}, "
+        f"y={float(anchor_msg.y):.3f}, z={float(anchor_msg.z):.3f}",
+        flush=True,
+    )
+
+
+def wait_run_window(mav, duration_s: float) -> None:
+    deadline = time.time() + duration_s
+    while time.time() < deadline:
+        timeout = max(0.0, min(1.0, deadline - time.time()))
+        msg = mav.recv_match(blocking=True, timeout=timeout)
+        if not msg:
+            continue
+        if msg.get_type() == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+
+
 def main() -> int:
     args = parse_args()
     connection_kwargs = {"autoreconnect": False}
@@ -317,21 +380,18 @@ def main() -> int:
             trigger_name = f"identification {args.name}"
             trigger_value = 2
 
-        arm(mav)
-        set_offboard(mav)
-        hover_msg = wait_for_hover(mav, args.hover_z, args.hover_timeout)
-        time.sleep(args.settle_seconds)
-        anchor_msg = wait_for_local_position(mav, timeout=3.0)
-        set_anchor_from_position(mav, float(anchor_msg.x), float(anchor_msg.y), float(anchor_msg.z))
-        print(
-            f"Anchor set from LOCAL_POSITION_NED: x={float(anchor_msg.x):.3f}, "
-            f"y={float(anchor_msg.y):.3f}, z={float(anchor_msg.z):.3f}",
-            flush=True,
+        prepare_hover_and_anchor(
+            mav,
+            hover_z=args.hover_z,
+            hover_timeout=args.hover_timeout,
+            settle_seconds=args.settle_seconds,
+            allow_missing_local_position=args.allow_missing_local_position,
+            blind_hover_seconds=args.blind_hover_seconds,
         )
 
         print(f"Starting {trigger_name}", flush=True)
         set_param(mav, "TRJ_MODE_CMD", trigger_value, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-        time.sleep(run_duration + args.tail_seconds)
+        wait_run_window(mav, run_duration + args.tail_seconds)
         reset_mode_cmd(mav, strict=args.strict_reset)
         print(f"Completed {trigger_name}", flush=True)
     finally:

@@ -143,9 +143,9 @@ The current CubeOrange build footprint is now much lighter than before:
 
 CubeOrange HIL/HITL check with jMAVSim
 --------------------------------------
-Use jMAVSim only in the HIL section of the workflow. The verified cable split on this machine is:
-- USB `ttyACM0`: jMAVSim serial link and pre-HITL MAVLink access
-- QGroundControl: UDP only
+Use jMAVSim only in the HIL section of the workflow. The practical split on this machine is:
+- current USB CDC device, for example `/dev/ttyACM0` or `/dev/ttyACM1`: jMAVSim
+- QGroundControl: UDP only after jMAVSim is already running
 
 Important:
 - do not let QGroundControl and jMAVSim open the same serial device at the same time,
@@ -165,35 +165,43 @@ The current firmware/overlay combination was checked with:
 - `HIL_ACT_FUNC1..4 = 101..104`,
 - CubeOrange memory still comfortably below full use during HIL boot.
 
-Start jMAVSim on USB:
-- `~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600`
+Before starting jMAVSim, list the live serial devices:
+- `ls /dev/ttyACM* /dev/ttyUSB*`
+
+Start jMAVSim on the current USB CDC device:
+- `~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600`
 
 For a headless run:
-- `PX4_SYSID_HEADLESS=1 ~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600`
+- `PX4_SYSID_HEADLESS=1 ~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600`
 
-Before jMAVSim starts, use the USB MAVLink shell for the short SD-card pre-check:
-- `python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py /dev/ttyACM0 -b 57600`
-- then run:
-  - `ls /fs/microsd`
-  - `ls /fs/microsd/trajectories`
-  - `free`
-Use QGroundControl in UDP-only mode after jMAVSim starts.
+Use QGroundControl in UDP-only mode only after jMAVSim starts.
 
 The practical HIL order is:
-1. connect CubeOrange over USB,
-2. run the short USB pre-check above,
-3. start jMAVSim on `ttyACM0`,
-4. open QGroundControl with only UDP auto-connect enabled,
-5. set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`,
-6. arm and take off to about `3 m`,
-7. switch to `OFFBOARD`,
-8. set `TRJ_ACTIVE_ID` to `100..104`,
-9. set `TRJ_MODE_CMD = 1` to start the selected trajectory,
-10. set `TRJ_MODE_CMD = 0` to return to position-hold.
+1. close the SITL QGroundControl window completely,
+2. connect CubeOrange over USB,
+3. use QGroundControl once to set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`,
+4. reboot the board and close QGroundControl completely,
+5. start jMAVSim on the current USB CDC device,
+6. optionally reopen QGroundControl with only UDP auto-connect enabled,
+7. run one of the campaign helpers over `udpin:127.0.0.1:14550`.
 
-Before commanding a hardware trajectory, verify from the USB MAVLink pre-check that the SD card is visible.
+The practical SITL order is:
+1. start Gazebo SITL,
+2. optionally open QGroundControl only after Gazebo is already running,
+3. leave QGroundControl passive while the helper drives the campaign,
+4. close QGroundControl fully before moving on to HIL.
 
-If the trajectory files are missing from `/fs/microsd/trajectories/`, hardware trajectory playback will not start.
+Supported HIL command shapes now mirror SITL:
+- full campaign:
+  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign full_stack --prepare-hover --allow-missing-local-position --blind-hover-seconds 12 --timeout 520`
+- identification only:
+  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign identification_only --prepare-hover --allow-missing-local-position --blind-hover-seconds 12 --timeout 420`
+- trajectories only:
+  - `python3 ~/px4-system-identification/examples/run_mavlink_campaign.py --endpoint udpin:127.0.0.1:14550 --campaign trajectory_only --prepare-hover --allow-missing-local-position --blind-hover-seconds 12 --timeout 220`
+- one identification maneuver:
+  - `python3 ~/px4-system-identification/examples/run_hitl_udp_sequence.py --endpoint udpin:127.0.0.1:14550 --kind ident --name hover_thrust --allow-missing-local-position --blind-hover-seconds 12`
+- one trajectory:
+  - `python3 ~/px4-system-identification/examples/run_hitl_udp_sequence.py --endpoint udpin:127.0.0.1:14550 --kind trajectory --traj-id 100 --allow-missing-local-position --blind-hover-seconds 12`
 
 PX4 console behavior during a maneuver
 --------------------------------------
@@ -223,6 +231,22 @@ After a HITL or real-flight session, the intended review flow is:
    - `~/px4-system-identification/hitl_runs/session_001/review/index.html`
 
 The resulting page provides a zoomable and pannable 3D path plot, X/Y/Z versus time plots, basic summary metrics, and copied raw CSV files. The imported logs and generated review bundle can both be committed into the repository for later inspection or GitHub sharing.
+
+If the board remains connected over USB CDC after HITL or a real flight, the SD card does not need to be removed. Use:
+- `ls /dev/ttyACM*`
+- `python3 ~/px4-system-identification/examples/pull_sdcard_logs_over_mavftp.py --port <usb_cdc_device> --baud 57600 --destination-dir ~/px4-system-identification/hitl_runs/session_001`
+
+If you want to inspect the card first, use the MAVFTP browser:
+- `python3 ~/px4-system-identification/examples/sdcard_browser.py --serial-port <usb_cdc_device> --baud 57600`
+- open `http://127.0.0.1:8765/`
+
+The browser lets the operator open `/fs/microsd`, inspect `tracking_logs`, `identification_logs`, and `log`, then pull selected files into:
+- `~/px4-system-identification/hitl_runs/browser_downloads/`
+
+Before either USB CDC method:
+- close `jMAVSim`,
+- close `QGroundControl`,
+- close any MAVLink shell on the same USB CDC device.
 
 Workspace convention
 --------------------

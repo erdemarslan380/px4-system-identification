@@ -26,7 +26,7 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
 - `overlay/src/modules/custom_pos_control/`
   PX4-side control entry point. In this repo it is limited to baseline PX4-default behavior plus system-identification support.
 - `overlay/src/modules/trajectory_reader/`
-  Built-in identification motion generator and baseline trajectory playback logic.
+  Built-in identification motion generator, trajectory playback logic, and the campaign state machine for `identification_only`, `trajectory_only`, and `full_stack`.
 - `overlay/src/modules/simulation/gz_plugins/system_identification_logger/`
   Gazebo plugin that logs simulator truth needed for SITL upper-bound validation.
 
@@ -48,12 +48,13 @@ This repository is a standalone PX4 system-identification toolkit. It separates 
 
 ## Data Flow
 1. Identification motion runs inside PX4.
-2. PX4 writes identification logs.
-3. In SITL, Gazebo truth logger writes synchronized truth logs.
-4. `identification.py` merges and normalizes those logs.
-5. Estimators recover model parameters.
-6. `compare_with_sdf.py` compares recovered parameters against the known SDF reference.
-7. `paper_artifacts.py` converts the current candidate into researcher-facing figures and tables.
+2. `trajectory_reader` can execute one item at a time or a built-in campaign while suppressing return-to-anchor legs from the CSV logs.
+3. PX4 writes identification logs and tracking logs.
+4. In SITL, Gazebo truth logger writes synchronized truth logs.
+5. `identification.py` merges and normalizes those logs.
+6. Estimators recover model parameters.
+7. `compare_with_sdf.py` compares recovered parameters against the known SDF reference.
+8. `paper_artifacts.py` converts the current candidate into researcher-facing figures and tables.
 
 ## Validation Modes
 - `px4_only`

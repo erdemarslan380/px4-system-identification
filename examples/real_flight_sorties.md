@@ -46,7 +46,7 @@ Use one calm day and keep the workflow simple:
 - manual takeoff,
 - stabilize at about `3 m`,
 - switch to `OFFBOARD`,
-- start one built-in campaign,
+- start one built-in campaign or one single item,
 - let the vehicle return to the common anchor between items,
 - land after the last trajectory.
 
@@ -91,18 +91,69 @@ Expected logs after one uninterrupted sortie:
 - `9` files under `/fs/microsd/identification_logs/`
 - `14` files under `/fs/microsd/tracking_logs/`
 
-2. After the flight
---------------------
+2. Identification-only real-flight campaign
+-------------------------------------------
+```bash
+trajectory_reader set_campaign identification_only
+trajectory_reader start_campaign
+```
+
+Expected logs:
+- `9` files under `/fs/microsd/identification_logs/`
+- `9` files under `/fs/microsd/tracking_logs/`
+
+3. Trajectory-only real-flight campaign
+---------------------------------------
+```bash
+trajectory_reader set_campaign trajectory_only
+trajectory_reader start_campaign
+```
+
+Expected logs:
+- `5` files under `/fs/microsd/tracking_logs/`
+
+4. One identification maneuver
+------------------------------
+```bash
+custom_pos_control set sysid
+trajectory_reader set_ident_profile hover_thrust
+trajectory_reader set_mode identification
+```
+
+5. One trajectory
+-----------------
+```bash
+custom_pos_control set px4_default
+trajectory_reader set_traj_id 100
+trajectory_reader set_mode trajectory
+```
+
+6. After the flight
+-------------------
 1. copy the identification logs and tracking logs to your workstation,
 2. import the SD-card CSV files into this repository:
    - `cd ~/px4-system-identification`
-   - `./examples/import_sdcard_logs.sh /media/$USER/<sdcard_mount_name> ~/px4-system-identification/hitl_runs/session_001`
+   - `./examples/import_sdcard_logs.sh /media/$USER/<sdcard_mount_name> ~/px4-system-identification/flight_runs/session_001`
+   - or, for a live pull without removing the card over USB CDC:
+     - `ls /dev/ttyACM*`
+     - `python3 examples/pull_sdcard_logs_over_mavftp.py --port <usb_cdc_device> --baud 57600 --destination-dir ~/px4-system-identification/flight_runs/session_001`
+   - or, to browse first and then pull selected files:
+     - `python3 examples/sdcard_browser.py --serial-port <usb_cdc_device> --baud 57600`
+     - open `http://127.0.0.1:8765/`
 3. build the interactive review bundle:
-   - `python3 experimental_validation/build_hitl_review_bundle.py --log-root ~/px4-system-identification/hitl_runs/session_001 --out-dir ~/px4-system-identification/hitl_runs/session_001/review`
+   - `python3 experimental_validation/build_hitl_review_bundle.py --log-root ~/px4-system-identification/flight_runs/session_001 --out-dir ~/px4-system-identification/flight_runs/session_001/review`
 4. open:
-   - `~/px4-system-identification/hitl_runs/session_001/review/index.html`
+   - `~/px4-system-identification/flight_runs/session_001/review/index.html`
 5. estimate the identified model,
 6. write the candidate into the Gazebo SDF,
 7. run the same five validation trajectories in SITL,
 8. overlay the real-flight traces and the digital-twin traces,
 9. regenerate the same figures.
+
+Before the live USB CDC pull or the browser flow:
+- close `jMAVSim`,
+- close `QGroundControl`,
+- close any MAVLink shell on the same USB CDC device.
+
+The repository already includes the current baseline real-flight PID validation traces under:
+- `~/px4-system-identification/examples/real_flight_baseline_pid/tracking_logs/`

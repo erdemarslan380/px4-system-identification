@@ -149,7 +149,7 @@ Build the browser review bundle:
 ```bash
 cd ~/px4-system-identification
 python3 examples/pull_sdcard_logs_over_mavftp.py \
-  --port /dev/ttyACM0 \
+  --port <usb_cdc_device> \
   --baud 57600 \
   --destination-dir ~/px4-system-identification/hitl_runs/session_001
 
@@ -160,6 +160,21 @@ python3 experimental_validation/build_hitl_review_bundle.py \
 
 Before the live pull, close `jMAVSim`, `QGroundControl`, and any `mavlink_shell.py` process on `/dev/ttyACM0`.
 The MAVFTP helper now enforces single-process CDC access, skips locally complete files, and writes a `pull_report.json` summary next to the imported session.
+
+If you want to browse the SD card before downloading:
+
+```bash
+cd ~/px4-system-identification
+python3 examples/sdcard_browser.py \
+  --serial-port <usb_cdc_device> \
+  --baud 57600
+```
+
+Then open:
+- `http://127.0.0.1:8765/`
+
+The browser lists `/fs/microsd`, opens subdirectories, and pulls selected files into:
+- `~/px4-system-identification/hitl_runs/browser_downloads/`
 
 Then open:
 - `~/px4-system-identification/hitl_runs/session_001/review/index.html`

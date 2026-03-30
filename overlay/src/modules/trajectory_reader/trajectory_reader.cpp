@@ -88,6 +88,14 @@ static constexpr CampaignDefinitionItem kFullStackCampaign[] = {
 	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 104, "minimum_snap_50s"},
 };
 
+static constexpr CampaignDefinitionItem kTrajectoryOnlyCampaign[] = {
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 100, "hairpin"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 101, "lemniscate"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 102, "circle"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 103, "time_optimal_30s"},
+	{Mode::TRAJECTORY, IdentificationProfile::HOVER_THRUST, 104, "minimum_snap_50s"},
+};
+
 const CampaignDefinitionItem *campaignDefinition(CampaignType type, size_t &count)
 {
 	switch (type) {
@@ -98,6 +106,10 @@ const CampaignDefinitionItem *campaignDefinition(CampaignType type, size_t &coun
 	case CampaignType::FULL_STACK:
 		count = sizeof(kFullStackCampaign) / sizeof(kFullStackCampaign[0]);
 		return kFullStackCampaign;
+
+	case CampaignType::TRAJECTORY_ONLY:
+		count = sizeof(kTrajectoryOnlyCampaign) / sizeof(kTrajectoryOnlyCampaign[0]);
+		return kTrajectoryOnlyCampaign;
 
 	case CampaignType::NONE:
 	default:
@@ -163,7 +175,7 @@ void TrajectoryReader::parametersUpdate() {
 		_start_new_tracking_log = (_mode == Mode::IDENTIFICATION);
 	}
 
-	const int32_t campaign_type = math::constrain<int32_t>(_param_trj_campaign.get(), 0, 2);
+	const int32_t campaign_type = math::constrain<int32_t>(_param_trj_campaign.get(), 0, 3);
 	if (campaign_type != _param_campaign_cached) {
 		_param_campaign_cached = campaign_type;
 		_campaign_type = static_cast<CampaignType>(campaign_type);
@@ -314,6 +326,9 @@ const char *TrajectoryReader::campaignTypeToString(CampaignType type) const
 
 	case CampaignType::FULL_STACK:
 		return "full_stack";
+
+	case CampaignType::TRAJECTORY_ONLY:
+		return "trajectory_only";
 
 	case CampaignType::NONE:
 	default:
@@ -2140,7 +2155,7 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
 
 	if (!strcmp(argv[0], "set_campaign")) {
 		if (argc < 2) {
-			PX4_ERR("usage: trajectory_reader set_campaign <none|identification_only|full_stack>");
+			PX4_ERR("usage: trajectory_reader set_campaign <none|identification_only|trajectory_only|full_stack>");
 			return PX4_ERROR;
 		}
 
@@ -2149,6 +2164,8 @@ int TrajectoryReader::custom_command(int argc, char *argv[])
 			campaign_type = CampaignType::NONE;
 		} else if (!strcmp(argv[1], "identification_only")) {
 			campaign_type = CampaignType::IDENTIFICATION_ONLY;
+		} else if (!strcmp(argv[1], "trajectory_only")) {
+			campaign_type = CampaignType::TRAJECTORY_ONLY;
 		} else if (!strcmp(argv[1], "full_stack")) {
 			campaign_type = CampaignType::FULL_STACK;
 		} else {
@@ -2330,7 +2347,7 @@ profiles such as hover, inertia sweeps, drag sweeps, and motor-step tests.
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("set_campaign",
 		"Select the built-in campaign");
-	PRINT_MODULE_USAGE_ARG("<none|identification_only|full_stack>",
+	PRINT_MODULE_USAGE_ARG("<none|identification_only|trajectory_only|full_stack>",
 		"Campaign to arm", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("start_campaign",

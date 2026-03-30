@@ -68,7 +68,8 @@ enum class IdentificationProfile : uint8_t {
 enum class CampaignType : uint8_t {
 	NONE = 0,
 	IDENTIFICATION_ONLY = 1,
-	FULL_STACK = 2
+	FULL_STACK = 2,
+	TRAJECTORY_ONLY = 3
 };
 
 enum class CampaignStage : uint8_t {

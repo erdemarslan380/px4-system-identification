@@ -47,6 +47,10 @@ CAMPAIGNS = {
         ],
         "trajectory_ids": [],
     },
+    "trajectory_only": {
+        "ident_profiles": [],
+        "trajectory_ids": [100, 101, 102, 103, 104],
+    },
     "full_stack": {
         "ident_profiles": [
             "hover_thrust",

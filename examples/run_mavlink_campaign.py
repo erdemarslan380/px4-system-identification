@@ -29,6 +29,7 @@ from examples.run_hitl_udp_sequence import (
 CAMPAIGN_PARAM_VALUES = {
     "identification_only": 1,
     "full_stack": 2,
+    "trajectory_only": 3,
 }
 
 
@@ -52,6 +53,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--hover-timeout", type=float, default=20.0)
     parser.add_argument("--settle-seconds", type=float, default=3.0)
+    parser.add_argument(
+        "--allow-missing-local-position",
+        action="store_true",
+        help="For HIL links that do not stream LOCAL_POSITION_NED, fall back to a timed hover settle instead of failing.",
+    )
+    parser.add_argument(
+        "--blind-hover-seconds",
+        type=float,
+        default=12.0,
+        help="Timed settle used with --allow-missing-local-position when LOCAL_POSITION_NED is unavailable.",
+    )
     parser.add_argument(
         "--timeout",
         type=float,
@@ -137,6 +149,24 @@ def arm_with_retries(mav, attempts: int) -> None:
         raise last_error
 
 
+def prepare_hover(mav, args: argparse.Namespace) -> None:
+    set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    arm_with_retries(mav, attempts=max(1, args.arm_attempts))
+    set_offboard(mav)
+
+    try:
+        wait_for_hover(mav, args.hover_z, args.hover_timeout)
+        time.sleep(args.settle_seconds)
+    except TimeoutError:
+        if not args.allow_missing_local_position:
+            raise
+        print(
+            f"LOCAL_POSITION_NED not available; using blind hover settle for {args.blind_hover_seconds:.1f} s",
+            flush=True,
+        )
+        time.sleep(args.blind_hover_seconds)
+
+
 def main() -> int:
     args = parse_args()
     connection_kwargs = {"autoreconnect": False}
@@ -154,13 +184,14 @@ def main() -> int:
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
 
         if args.prepare_hover:
-            set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-            arm_with_retries(mav, attempts=max(1, args.arm_attempts))
-            set_offboard(mav)
-            wait_for_hover(mav, args.hover_z, args.hover_timeout)
-            time.sleep(args.settle_seconds)
+            prepare_hover(mav, args)
         else:
-            wait_for_local_position(mav, timeout=5.0)
+            try:
+                wait_for_local_position(mav, timeout=5.0)
+            except TimeoutError:
+                if not args.allow_missing_local_position:
+                    raise
+                print("LOCAL_POSITION_NED not available; starting campaign without a position gate", flush=True)
 
         print(f"Starting campaign {args.campaign}", flush=True)
         set_param(mav, "TRJ_CAMPAIGN_CMD", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)

@@ -143,13 +143,9 @@ void CustomPosControl::Run()
 		return false;
 	};
 
-	if (status.arming_state != vehicle_status_s::ARMING_STATE_ARMED || _enabled == 0 || !controller_active) {
+	if (_enabled == 0 || !controller_active) {
 		if (status.nav_state == vehicle_status_s::NAVIGATION_STATE_OFFBOARD) {
-			if (status.arming_state != vehicle_status_s::ARMING_STATE_ARMED) {
-				if (should_log_offboard_pause(1)) {
-					PX4_WARN("Offboard output paused: vehicle not armed");
-				}
-			} else if (_enabled == 0) {
+			if (_enabled == 0) {
 				if (should_log_offboard_pause(2)) {
 					PX4_WARN("Offboard output paused: CST_POS_CTRL_EN=0");
 				}

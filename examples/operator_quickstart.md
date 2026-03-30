@@ -45,6 +45,14 @@ make px4_sitl gz_x500
 
 4. One full campaign in SITL
 ----------------------------
+QGroundControl is optional in SITL. If you open it, do it only after Gazebo is already running and keep it as a passive viewer.
+
+SITL order:
+1. start Gazebo SITL,
+2. optionally open QGroundControl only to watch,
+3. run the campaign helper from a second terminal,
+4. close QGroundControl fully before switching to HIL.
+
 In `pxh>`:
 ```bash
 custom_pos_control start
@@ -73,6 +81,48 @@ This one command runs:
 
 Return-to-anchor legs are not logged.
 
+Only the 9 identification maneuvers:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --campaign identification_only \
+  --prepare-hover \
+  --heartbeat-warmup 5 \
+  --arm-attempts 10 \
+  --timeout 420
+```
+
+Only the 5 trajectories:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --campaign trajectory_only \
+  --prepare-hover \
+  --heartbeat-warmup 5 \
+  --arm-attempts 10 \
+  --timeout 220
+```
+
+One identification maneuver:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --kind ident \
+  --name hover_thrust
+```
+
+One trajectory:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --kind trajectory \
+  --traj-id 100
+```
+
 Build the candidate after the identification part:
 ```bash
 cd ~/px4-system-identification
@@ -96,25 +146,97 @@ Outputs:
 -----------------------
 Use HIL only to prove that one uninterrupted campaign works in one boot and writes CSV logs to the SD card.
 
+If QGroundControl was open for SITL, close it fully before HIL.
+
+HIL order:
+1. connect the board over USB,
+2. open QGroundControl once to set `SYS_AUTOSTART = 1001` and `SYS_HITL = 1`,
+3. reboot the board and close QGroundControl fully,
+4. start `jMAVSim` on the current USB CDC device,
+5. only then reopen QGroundControl in UDP-only mode if you want a viewer,
+6. run the HIL helper from a second terminal.
+
 Upload:
 ```bash
 cd ~/px4-system-identification
 python3 examples/upload_cubeorange_firmware.py
 ```
 
-jMAVSim:
+Find the current serial devices:
 ```bash
-cd ~/px4-system-identification
-./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification /dev/ttyACM0 921600
+ls /dev/ttyACM* /dev/ttyUSB*
 ```
 
-Then run the same campaign:
+Use QGroundControl over USB once to set:
+- `SYS_AUTOSTART = 1001`
+- `SYS_HITL = 1`
+
+Then reboot the board and close QGroundControl fully.
+
+Start jMAVSim on the current USB CDC device:
+```bash
+cd ~/px4-system-identification
+./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600
+```
+
+After jMAVSim is already running, QGroundControl may be opened again only in UDP-only mode.
+
+Then run one full HIL campaign:
 ```bash
 cd ~/px4-system-identification
 python3 examples/run_mavlink_campaign.py \
   --endpoint udpin:127.0.0.1:14550 \
   --campaign full_stack \
+  --prepare-hover \
+  --allow-missing-local-position \
+  --blind-hover-seconds 12 \
   --timeout 520
+```
+
+Only the 9 HIL identification maneuvers:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --campaign identification_only \
+  --prepare-hover \
+  --allow-missing-local-position \
+  --blind-hover-seconds 12 \
+  --timeout 420
+```
+
+Only the 5 HIL trajectories:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_mavlink_campaign.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --campaign trajectory_only \
+  --prepare-hover \
+  --allow-missing-local-position \
+  --blind-hover-seconds 12 \
+  --timeout 220
+```
+
+One HIL identification maneuver:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --kind ident \
+  --name hover_thrust \
+  --allow-missing-local-position \
+  --blind-hover-seconds 12
+```
+
+One HIL trajectory:
+```bash
+cd ~/px4-system-identification
+python3 examples/run_hitl_udp_sequence.py \
+  --endpoint udpin:127.0.0.1:14550 \
+  --kind trajectory \
+  --traj-id 100 \
+  --allow-missing-local-position \
+  --blind-hover-seconds 12
 ```
 
 Acceptance check on the SD card:
@@ -129,7 +251,7 @@ cd ~/px4-system-identification
   ~/px4-system-identification/hitl_runs/session_001
 
 python3 examples/pull_sdcard_logs_over_mavftp.py \
-  --port /dev/ttyACM0 \
+  --port <usb_cdc_device> \
   --baud 57600 \
   --destination-dir ~/px4-system-identification/hitl_runs/session_001
 
@@ -139,8 +261,27 @@ python3 experimental_validation/build_hitl_review_bundle.py \
 ```
 
 Use the mounted-SD script or the USB CDC MAVFTP pull script for a given session, not both.
-Before the live pull, close `jMAVSim`, `QGroundControl`, and any USB MAVLink shell on `/dev/ttyACM0`.
+Before the live pull, close `jMAVSim`, `QGroundControl`, and any USB MAVLink shell on the same USB CDC device.
 The MAVFTP pull helper writes `pull_report.json`, skips already complete files, and only retries the missing ones on the next run.
+
+If you are not removing the SD card, first find the live USB CDC device:
+```bash
+ls /dev/ttyACM*
+```
+
+If you want to browse before pulling:
+```bash
+cd ~/px4-system-identification
+python3 examples/sdcard_browser.py \
+  --serial-port <usb_cdc_device> \
+  --baud 57600
+```
+
+Open:
+- `http://127.0.0.1:8765/`
+
+The browser can list `/fs/microsd`, open folders, and pull selected files into:
+- `~/px4-system-identification/hitl_runs/browser_downloads/`
 
 Open:
 - `~/px4-system-identification/hitl_runs/session_001/review/index.html`
@@ -149,5 +290,6 @@ HIL trajectory control:
 - `TRJ_ACTIVE_ID = 100..104`
 - `TRJ_MODE_CMD = 1` starts the selected trajectory
 - `TRJ_MODE_CMD = 0` returns to position hold
+- `TRJ_MODE_CMD = 2` starts the selected identification profile
 - `TRJ_IDENT_PROF = 0..8` selects the identification profile
 - `CST_POS_CTRL_TYP = 4` keeps the PX4 baseline, `6` switches to the identification path

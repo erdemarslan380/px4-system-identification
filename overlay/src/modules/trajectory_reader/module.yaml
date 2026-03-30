@@ -58,8 +58,9 @@ parameters:
           0: Disabled
           1: Identification only (9 maneuvers)
           2: Full stack (9 maneuvers + 5 trajectories)
+          3: Trajectory only (5 trajectories)
         min: 0
-        max: 2
+        max: 3
         default: 0
 
       TRJ_CAMPAIGN_CMD:

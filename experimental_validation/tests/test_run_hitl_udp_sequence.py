@@ -13,6 +13,7 @@ from examples.run_hitl_udp_sequence import (
     encode_param_value,
     normalize_param_id,
     param_value_matches,
+    prepare_hover_and_anchor,
     reset_mode_cmd,
     set_anchor_from_position,
 )
@@ -64,6 +65,45 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
         self.assertEqual(set_param_mock.call_count, 3)
         names = [call.args[1] for call in set_param_mock.call_args_list]
         self.assertEqual(names, ["TRJ_ANCHOR_X", "TRJ_ANCHOR_Y", "TRJ_ANCHOR_Z"])
+
+    def test_prepare_hover_and_anchor_can_fall_back_to_existing_anchor(self) -> None:
+        with (
+            mock.patch("examples.run_hitl_udp_sequence.arm"),
+            mock.patch("examples.run_hitl_udp_sequence.set_offboard"),
+            mock.patch("examples.run_hitl_udp_sequence.wait_for_hover", side_effect=TimeoutError("no local position")),
+            mock.patch("examples.run_hitl_udp_sequence.set_anchor_from_position") as anchor_mock,
+            mock.patch("time.sleep") as sleep_mock,
+        ):
+            prepare_hover_and_anchor(
+                object(),
+                hover_z=-3.0,
+                hover_timeout=10.0,
+                settle_seconds=2.0,
+                allow_missing_local_position=True,
+                blind_hover_seconds=6.0,
+            )
+        anchor_mock.assert_not_called()
+        sleep_mock.assert_called_once_with(6.0)
+
+    def test_prepare_hover_and_anchor_sets_anchor_when_local_position_exists(self) -> None:
+        anchor_msg = mock.Mock(x=1.0, y=2.0, z=-3.0)
+        with (
+            mock.patch("examples.run_hitl_udp_sequence.arm"),
+            mock.patch("examples.run_hitl_udp_sequence.set_offboard"),
+            mock.patch("examples.run_hitl_udp_sequence.wait_for_hover"),
+            mock.patch("examples.run_hitl_udp_sequence.wait_for_local_position", return_value=anchor_msg),
+            mock.patch("examples.run_hitl_udp_sequence.set_anchor_from_position") as anchor_mock,
+            mock.patch("time.sleep"),
+        ):
+            prepare_hover_and_anchor(
+                object(),
+                hover_z=-3.0,
+                hover_timeout=10.0,
+                settle_seconds=2.0,
+                allow_missing_local_position=False,
+                blind_hover_seconds=6.0,
+            )
+        anchor_mock.assert_called_once_with(mock.ANY, 1.0, 2.0, -3.0)
 
 
 if __name__ == "__main__":

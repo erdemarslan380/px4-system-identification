@@ -43,6 +43,11 @@ class HitlCatalogTests(unittest.TestCase):
     def test_full_stack_campaign_contains_five_validation_trajectories(self):
         self.assertEqual(campaign_trajectory_ids("full_stack"), [100, 101, 102, 103, 104])
 
+    def test_trajectory_only_campaign_contains_only_validation_trajectories(self):
+        self.assertEqual(campaign_ident_profiles("trajectory_only"), [])
+        self.assertEqual(campaign_trajectory_ids("trajectory_only"), [100, 101, 102, 103, 104])
+
     def test_campaign_duration_includes_return_buffer(self):
         self.assertEqual(campaign_expected_duration_s("identification_only", return_buffer_s=0.0), 256.0)
+        self.assertEqual(campaign_expected_duration_s("trajectory_only", return_buffer_s=0.0), 82.0)
         self.assertEqual(campaign_expected_duration_s("full_stack", return_buffer_s=0.0), 338.0)
