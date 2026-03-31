@@ -204,6 +204,7 @@ For HIL or real-flight operation, the RC path can select controller, workflow, a
 - `TRJ_RC_MIN_ID = 100`
 - `TRJ_RC_MAX_ID = 104`
 - `TRJ_RC_START_EN = 1`
+- `TRJ_RC_START_CH = <H_switch_aux>`
 - `TRJ_RC_START_BTN = <H_button_index>`
 
 Workflow slots:
@@ -220,14 +221,15 @@ QGroundControl calibration notes:
 - use `Vehicle Setup > Radio` first and complete the normal radio calibration,
 - while calibrating, note which spare controls show up as `AUX 1..6`,
 - `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` use those `AUX 1..6` numbers and therefore map to `manual_control_setpoint.aux1..aux6`,
-- if the `H` trigger is coming from a QGroundControl joystick/manual-control button, assign it in `Vehicle Setup > Joystick` and use the resulting one-based button index for `TRJ_RC_START_BTN`,
+- if the `H` switch behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`,
+- if the `H` trigger is coming from a QGroundControl joystick/manual-control button, use the resulting one-based button index for `TRJ_RC_START_BTN`,
 - verify the live mapping with `listener manual_control_setpoint` before flight.
 
 The required live checks are:
 - the chosen pots move the intended `auxN` fields,
-- the `H` trigger toggles `manual_control_setpoint.buttons`.
+- the `H` trigger either toggles `manual_control_setpoint.buttons` or drives one `auxN` high.
 
-If the button path does not toggle `buttons`, do not rely on the RC trigger and use the helper script or shell commands for the actual start command.
+If the button path does not toggle `buttons`, use `TRJ_RC_START_CH` with the matching `auxN` switch slot instead.
 
 Keep the PX4 flight-mode switch separate from the repository-specific workflow selection:
 - `Vehicle Setup > Flight Modes` handles `Position`, `Offboard`, and the normal PX4 nav states,

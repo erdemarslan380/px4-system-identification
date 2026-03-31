@@ -55,16 +55,33 @@ parameters:
 
       TRJ_RC_START_EN:
         description:
-          short: Enable RC button workflow trigger
+          short: Enable RC workflow trigger
           long: |
             When enabled, the selected workflow is applied on the rising edge of the
-            configured button in manual_control_setpoint.buttons.
+            configured trigger input. Use TRJ_RC_START_CH for a normal AUX switch.
+            TRJ_RC_START_BTN remains available for joystick or manual-control buttons.
         type: boolean
+        default: 0
+
+      TRJ_RC_START_CH:
+        description:
+          short: RC AUX channel used as the workflow trigger switch
+          long: |
+            Optional AUX channel used as a start trigger. The workflow is applied
+            when this channel rises into the high position. Use this for normal
+            transmitter switches that do not appear in manual_control_setpoint.buttons.
+        type: int32
+        min: 0
+        max: 6
         default: 0
 
       TRJ_RC_START_BTN:
         description:
           short: One-based RC button index used as the workflow trigger
+          long: |
+            Optional manual-control button index used as the workflow trigger.
+            Keep this for joystick or GCS button inputs. For normal RC switches,
+            prefer TRJ_RC_START_CH.
         type: int32
         min: 1
         max: 16

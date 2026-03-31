@@ -226,6 +226,7 @@ Required parameters:
 - `TRJ_RC_MIN_ID = 100`
 - `TRJ_RC_MAX_ID = 104`
 - `TRJ_RC_START_EN = 1`
+- `TRJ_RC_START_CH = <H_switch_aux>`
 - `TRJ_RC_START_BTN = <H_button_index>`
 
 workflow pot slots:
@@ -245,6 +246,9 @@ Trigger button:
 - press `H` in slot `1`: start the selected identification profile
 - press `H` in slot `2`: start the selected trajectory
 - press `H` in slot `3`, `4`, or `5`: start the selected campaign
+- trigger accepted: positive tune
+- cancel or invalid trigger: negative tune
+- pot movement alone: no tune
 
 Controller pot:
 - one end selects `PX4 default`
@@ -254,14 +258,15 @@ QGroundControl mapping:
 - in `Vehicle Setup > Radio`, finish normal calibration first
 - note which spare controls move `AUX 1..6`
 - `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` use those `AUX 1..6` slots and map to `manual_control_setpoint.aux1..aux6`
-- `TRJ_RC_START_BTN` is a one-based index in `manual_control_setpoint.buttons`
+- if the `H` switch behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`
+- use `TRJ_RC_START_BTN` only if the trigger really appears in `manual_control_setpoint.buttons`
 - verify the final mapping on the vehicle with `listener manual_control_setpoint`
 
 Keep these paths separate:
 - `Vehicle Setup > Flight Modes`: normal PX4 mode switch such as `Position` and `Offboard`
 - RC pots plus `H`: this repository's maneuver, trajectory, and campaign selection
 
-If the `H` trigger does not change `manual_control_setpoint.buttons`, keep pot-based selection and start the run from the helper script instead.
+If the `H` switch does not change `manual_control_setpoint.buttons`, that is fine. Set `TRJ_RC_START_CH` to the matching `auxN` slot instead.
 
 Fast RC bench check before any HIL campaign:
 1. Connect the board over USB and open `QGroundControl`.
@@ -284,7 +289,7 @@ Fast RC bench check before any HIL campaign:
 7. Move only the controller pot and confirm the expected `auxN` changes.
 8. Move only the workflow pot and confirm the expected `auxN` changes.
 9. Move only the item pot and confirm the expected `auxN` changes.
-10. Press `H` and confirm `buttons` changes.
+10. Press `H` and confirm either `buttons` changes or one `auxN` jumps high.
 11. Check the selected repo-side state:
    ```bash
    param show CST_POS_CTRL_TYP
@@ -292,6 +297,7 @@ Fast RC bench check before any HIL campaign:
    param show TRJ_CAMPAIGN
    param show TRJ_IDENT_PROF
    param show TRJ_ACTIVE_ID
+   param show TRJ_RC_START_CH
    ```
 12. Check the normal PX4 mode switch separately:
    ```bash

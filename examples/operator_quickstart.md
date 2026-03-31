@@ -165,6 +165,7 @@ If you want to run HIL or real flight from the transmitter instead of a helper s
 - `TRJ_RC_MIN_ID = 100`
 - `TRJ_RC_MAX_ID = 104`
 - `TRJ_RC_START_EN = 1`
+- `TRJ_RC_START_CH = <H_switch_aux>`
 - `TRJ_RC_START_BTN = <H_button_index>`
 
 Workflow pot slots:
@@ -176,6 +177,9 @@ Workflow pot slots:
 - `5`: `full_stack`
 
 Press the `H` button to apply the currently selected workflow.
+- trigger accepted: positive tune
+- cancel or invalid trigger: negative tune
+- pot movement alone: no tune
 
 Controller pot:
 - one end selects `PX4 default`
@@ -184,8 +188,9 @@ Controller pot:
 QGroundControl mapping check:
 - in `Vehicle Setup > Radio`, complete the normal radio calibration and note which spare controls appear as `AUX 1..6`,
 - set `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` from those `AUX` slot numbers,
-- if the `H` trigger comes through QGroundControl manual-control or joystick input, set it in `Vehicle Setup > Joystick` and use that one-based button index for `TRJ_RC_START_BTN`,
-- verify the final mapping with `listener manual_control_setpoint`: the pots should move the expected `auxN` field and the `H` trigger must toggle `buttons`.
+- if the `H` switch behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`,
+- only use `TRJ_RC_START_BTN` when the trigger really comes through `manual_control_setpoint.buttons`,
+- verify the final mapping with `listener manual_control_setpoint`: the pots should move the expected `auxN` field and the `H` trigger should either toggle `buttons` or drive one `auxN` high.
 
 Keep these separate:
 - `Vehicle Setup > Flight Modes`: normal PX4 mode switch such as `Position` and `Offboard`
@@ -196,7 +201,7 @@ Receiver in HIL:
 - `jMAVSim` uses the USB CDC simulator link, not the RC input pins,
 - this is the right way to test electrical mode-switch behavior before real flight.
 
-If the `H` trigger does not affect `manual_control_setpoint.buttons`, keep using the helper script or shell command to start the selected maneuver or campaign.
+If the `H` switch does not affect `manual_control_setpoint.buttons`, that is normal for many receivers. Use `TRJ_RC_START_CH` instead.
 
 Fast RC smoke test before HIL:
 1. Connect the board over USB and open `QGroundControl`.
@@ -223,7 +228,7 @@ Fast RC smoke test before HIL:
    - `H` button.
 8. Confirm:
    - the correct `auxN` field moves for each pot,
-   - `buttons` changes when `H` is pressed.
+   - either `buttons` changes when `H` is pressed, or one `auxN` jumps high.
 9. Check the selected repository-side state:
    ```bash
    param show CST_POS_CTRL_TYP
@@ -231,6 +236,7 @@ Fast RC smoke test before HIL:
    param show TRJ_CAMPAIGN
    param show TRJ_IDENT_PROF
    param show TRJ_ACTIVE_ID
+   param show TRJ_RC_START_CH
    ```
 10. Check the normal flight-mode switch separately:
    ```bash

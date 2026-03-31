@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include <matrix/matrix/math.hpp>
+#include <uORB/topics/tune_control.h>
 
 using namespace time_literals;
 
@@ -40,6 +41,28 @@ float readAuxChannel(const manual_control_setpoint_s &manual_control, int channe
 float squaref(float value)
 {
 	return value * value;
+}
+
+void playPositiveTune()
+{
+	static uORB::Publication<tune_control_s> tune_pub{ORB_ID(tune_control)};
+	tune_control_s tune{};
+	tune.tune_id = tune_control_s::TUNE_ID_NOTIFY_POSITIVE;
+	tune.volume = tune_control_s::VOLUME_LEVEL_DEFAULT;
+	tune.tune_override = false;
+	tune.timestamp = hrt_absolute_time();
+	tune_pub.publish(tune);
+}
+
+void playNegativeTune()
+{
+	static uORB::Publication<tune_control_s> tune_pub{ORB_ID(tune_control)};
+	tune_control_s tune{};
+	tune.tune_id = tune_control_s::TUNE_ID_NOTIFY_NEGATIVE;
+	tune.volume = tune_control_s::VOLUME_LEVEL_DEFAULT;
+	tune.tune_override = false;
+	tune.timestamp = hrt_absolute_time();
+	tune_pub.publish(tune);
 }
 
 struct CampaignDefinitionItem {
@@ -159,6 +182,7 @@ void TrajectoryReader::parametersUpdate() {
 	_rc_selector_max_traj_id = math::max<int32_t>(0, _param_trj_rc_max_id.get());
 	_rc_selector_max_traj_id = math::max<int32_t>(_rc_selector_min_traj_id, _rc_selector_max_traj_id);
 	_rc_start_enabled = _param_trj_rc_start_en.get();
+	_rc_start_channel = math::constrain<int32_t>(_param_trj_rc_start_ch.get(), 0, 6);
 	_rc_start_button_index = math::constrain<int32_t>(_param_trj_rc_start_btn.get(), 1, 16);
 
 	const int32_t ident_profile = math::constrain<int32_t>(_param_trj_ident_prof.get(), 0, 8);
@@ -383,6 +407,7 @@ bool TrajectoryReader::requestCampaignStart()
 {
 	if (_campaign_type == CampaignType::NONE) {
 		PX4_WARN("Campaign start ignored: select TRJ_CAMPAIGN first");
+		playNegativeTune();
 		return false;
 	}
 
@@ -431,6 +456,7 @@ bool TrajectoryReader::startCampaign(const matrix::Vector3f &current_pos, hrt_ab
 	if (!campaign_items || campaign_count == 0) {
 		PX4_WARN("Campaign start ignored: no campaign selected");
 		_campaign_start_requested = false;
+		playNegativeTune();
 		return false;
 	}
 
@@ -529,6 +555,7 @@ bool TrajectoryReader::startCampaignSegment(size_t item_index, hrt_abstime now)
 		_controller_type_cached = controller_type;
 		if (!setTrajectoryId(item.traj_id)) {
 			PX4_ERR("Campaign failed to load trajectory %u", static_cast<unsigned>(item.traj_id));
+			playNegativeTune();
 			return false;
 		}
 		const int32_t traj_value = static_cast<int32_t>(item.traj_id);
@@ -582,6 +609,7 @@ void TrajectoryReader::updateCampaign(const matrix::Vector3f &current_pos, hrt_a
 
 	if (!in_offboard) {
 		PX4_WARN("Campaign aborted: OFFBOARD exited");
+		playNegativeTune();
 		stopCampaign(true);
 		return;
 	}
@@ -590,6 +618,7 @@ void TrajectoryReader::updateCampaign(const matrix::Vector3f &current_pos, hrt_a
 	const CampaignDefinitionItem *campaign_items = campaignDefinition(_campaign_type, campaign_count);
 
 	if (!campaign_items || campaign_count == 0) {
+		playNegativeTune();
 		stopCampaign(true);
 		return;
 	}
@@ -604,6 +633,7 @@ void TrajectoryReader::updateCampaign(const matrix::Vector3f &current_pos, hrt_a
 			if (now - _campaign_anchor_settle_since >= CAMPAIGN_RETURN_SETTLE_US) {
 				if (!startCampaignSegment(_campaign_item_index, now)) {
 					PX4_ERR("Campaign failed to start segment %u", static_cast<unsigned>(_campaign_item_index));
+					playNegativeTune();
 					stopCampaign(true);
 				}
 			}
@@ -1326,7 +1356,7 @@ void TrajectoryReader::updateRcSelections(const manual_control_setpoint_s &manua
 	}
 }
 
-void TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_pos)
+bool TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_pos)
 {
 	auto set_controller_param = [&](int32_t controller_type) {
 		param_t controller_param = param_find("CST_POS_CTRL_TYP");
@@ -1364,7 +1394,8 @@ void TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_
 		setPositionModeRef(current_pos, _pos_yaw, true);
 		set_mode_param(Mode::POSITION);
 		PX4_INFO("RC trigger: hold_position");
-		return;
+		playNegativeTune();
+		return false;
 
 	case RcWorkflowSelection::SINGLE_IDENT:
 		stopCampaign(false);
@@ -1377,7 +1408,8 @@ void TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_
 		setTrajectoryReaderMode(Mode::IDENTIFICATION);
 		set_mode_param(Mode::IDENTIFICATION);
 		PX4_INFO("RC trigger: identification %s", identProfileToString(_ident_profile));
-		return;
+		playPositiveTune();
+		return true;
 
 	case RcWorkflowSelection::SINGLE_TRAJECTORY:
 		stopCampaign(false);
@@ -1390,7 +1422,8 @@ void TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_
 		setTrajectoryReaderMode(Mode::TRAJECTORY);
 		set_mode_param(Mode::TRAJECTORY);
 		PX4_INFO("RC trigger: trajectory %u", static_cast<unsigned>(_traj_id));
-		return;
+		playPositiveTune();
+		return true;
 
 	case RcWorkflowSelection::IDENTIFICATION_ONLY:
 		set_campaign_param(CampaignType::IDENTIFICATION_ONLY);
@@ -1400,8 +1433,11 @@ void TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_
 		}
 		setPositionModeRef(current_pos, _pos_yaw, true);
 		set_mode_param(Mode::POSITION);
-		requestCampaignStart();
-		return;
+		if (requestCampaignStart()) {
+			playPositiveTune();
+			return true;
+		}
+		return false;
 
 	case RcWorkflowSelection::TRAJECTORY_ONLY:
 		set_campaign_param(CampaignType::TRAJECTORY_ONLY);
@@ -1411,8 +1447,11 @@ void TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_
 		}
 		setPositionModeRef(current_pos, _pos_yaw, true);
 		set_mode_param(Mode::POSITION);
-		requestCampaignStart();
-		return;
+		if (requestCampaignStart()) {
+			playPositiveTune();
+			return true;
+		}
+		return false;
 
 	case RcWorkflowSelection::FULL_STACK:
 		set_campaign_param(CampaignType::FULL_STACK);
@@ -1422,24 +1461,32 @@ void TrajectoryReader::applyRcWorkflowSelection(const matrix::Vector3f &current_
 		}
 		setPositionModeRef(current_pos, _pos_yaw, true);
 		set_mode_param(Mode::POSITION);
-		requestCampaignStart();
-		return;
+		if (requestCampaignStart()) {
+			playPositiveTune();
+			return true;
+		}
+		return false;
 
 	default:
-		return;
+		playNegativeTune();
+		return false;
 	}
 }
 
 void TrajectoryReader::handleRcWorkflowTrigger(const manual_control_setpoint_s &manual_control, const matrix::Vector3f &current_pos)
 {
 	if (_rc_start_enabled == 0) {
-		_rc_start_button_prev = false;
+		_rc_start_trigger_prev = false;
 		return;
 	}
 
-	const bool pressed = rcButtonPressed(manual_control.buttons, _rc_start_button_index);
-	const bool rising_edge = pressed && !_rc_start_button_prev;
-	_rc_start_button_prev = pressed;
+	const bool button_pressed = rcButtonPressed(manual_control.buttons, _rc_start_button_index);
+	const bool switch_pressed = (_rc_start_channel >= 1 && _rc_start_channel <= 6)
+		? rcAuxSwitchPressed(readAuxChannel(manual_control, _rc_start_channel))
+		: false;
+	const bool pressed = button_pressed || switch_pressed;
+	const bool rising_edge = pressed && !_rc_start_trigger_prev;
+	_rc_start_trigger_prev = pressed;
 
 	if (!rising_edge) {
 		return;
