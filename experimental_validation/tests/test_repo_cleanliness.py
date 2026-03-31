@@ -22,6 +22,7 @@ LATEST_CANDIDATE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_latest_
 HITL_REVIEW_BUNDLE_SCRIPT = REPO_ROOT / "experimental_validation" / "build_hitl_review_bundle.py"
 HIL_RESOURCE_REPORT_SCRIPT = REPO_ROOT / "experimental_validation" / "report_hil_resources.py"
 EXPORT_VEHICLE_PARAMS_SCRIPT = REPO_ROOT / "experimental_validation" / "export_vehicle_params.py"
+HIL_ACTUATOR_CONTROLS_PATCH_SCRIPT = REPO_ROOT / "experimental_validation" / "hil_actuator_controls_patch.py"
 TRAJECTORY_ASSET_DIR = REPO_ROOT / "assets" / "validation_trajectories"
 CALIBRATION_SNAPSHOT_SCRIPT = REPO_ROOT / "examples" / "update_vehicle_calibration_snapshot.sh"
 HIL_AIRFRAME_SCRIPT = REPO_ROOT / "overlay" / "ROMFS" / "px4fmu_common" / "init.d" / "airframes" / "1001_rc_quad_x.hil"
@@ -83,6 +84,7 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("MultiTrajectorySetpoint.msg", content)
         self.assertIn("patch_local_position_estimator_params", content)
         self.assertIn("LTEST_MODE", content)
+        self.assertIn("hil_actuator_controls_patch.py", content)
 
     def test_workspace_scripts_protect_the_shared_px4_tree(self) -> None:
         sync_content = SYNC_SCRIPT.read_text(encoding="utf-8")
@@ -106,6 +108,7 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertTrue(HITL_REVIEW_BUNDLE_SCRIPT.exists())
         self.assertTrue(HIL_RESOURCE_REPORT_SCRIPT.exists())
         self.assertTrue(EXPORT_VEHICLE_PARAMS_SCRIPT.exists())
+        self.assertTrue(HIL_ACTUATOR_CONTROLS_PATCH_SCRIPT.exists())
         self.assertTrue(CALIBRATION_SNAPSHOT_SCRIPT.exists())
         refresh_content = REFRESH_DEMO_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("validation_trajectories.py", refresh_content)
@@ -155,11 +158,11 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("export_vehicle_params.py", calibration_snapshot)
         self.assertIn("calibration_restore.py", calibration_snapshot)
 
-    def test_hil_airframe_forces_estimator_stack_needed_by_custom_controller(self) -> None:
+    def test_hil_airframe_keeps_supported_estimator_path_enabled(self) -> None:
         content = HIL_AIRFRAME_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("param set EKF2_EN 0", content)
-        self.assertIn("param set LPE_EN 1", content)
-        self.assertIn("param set ATT_EN 1", content)
+        self.assertNotIn("param set LPE_EN 1", content)
+        self.assertNotIn("param set ATT_EN 1", content)
 
     def test_primary_docs_cover_cubeorange_build_flow(self) -> None:
         docs = [

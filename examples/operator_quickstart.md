@@ -177,6 +177,10 @@ Workflow pot slots:
 
 Press the `H` button to apply the currently selected workflow.
 
+Controller pot:
+- one end selects `PX4 default`
+- the other end selects `SYSID`
+
 QGroundControl mapping check:
 - in `Vehicle Setup > Radio`, complete the normal radio calibration and note which spare controls appear as `AUX 1..6`,
 - set `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` from those `AUX` slot numbers,
@@ -194,6 +198,46 @@ Receiver in HIL:
 
 If the `H` trigger does not affect `manual_control_setpoint.buttons`, keep using the helper script or shell command to start the selected maneuver or campaign.
 
+Fast RC smoke test before HIL:
+1. Connect the board over USB and open `QGroundControl`.
+2. In `Vehicle Setup > Radio`, move the controller pot, workflow pot, item pot, and `H` button one by one.
+3. Note which spare controls appear as `AUX 1..6`, then close `QGroundControl` fully.
+4. Open an NSH shell:
+   ```bash
+   python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py <usb_cdc_device> -b 57600
+   ```
+5. Start the modules:
+   ```bash
+   custom_pos_control start
+   trajectory_reader start
+   custom_pos_control enable
+   ```
+6. Watch the live RC mapping:
+   ```bash
+   listener manual_control_setpoint 20
+   ```
+7. Move one control at a time:
+   - controller pot,
+   - workflow pot,
+   - item pot,
+   - `H` button.
+8. Confirm:
+   - the correct `auxN` field moves for each pot,
+   - `buttons` changes when `H` is pressed.
+9. Check the selected repository-side state:
+   ```bash
+   param show CST_POS_CTRL_TYP
+   param show TRJ_MODE_CMD
+   param show TRJ_CAMPAIGN
+   param show TRJ_IDENT_PROF
+   param show TRJ_ACTIVE_ID
+   ```
+10. Check the normal flight-mode switch separately:
+   ```bash
+   listener vehicle_status 10
+   ```
+   Flip `Position -> Offboard -> Position` from the transmitter and verify the nav-state change.
+
 5. Refresh the shipped figures
 ------------------------------
 ```bash
@@ -209,6 +253,12 @@ Outputs:
 -----------------------
 Use HIL only to prove that one uninterrupted campaign works in one boot and writes CSV logs to the SD card.
 
+Recommended order:
+1. Finish the RC smoke test above.
+2. Run one HIL identification maneuver.
+3. Run one HIL trajectory.
+4. Only then try `identification_only` or `full_stack`.
+
 If QGroundControl was open for SITL, close it fully before HIL.
 
 HIL order:
@@ -223,6 +273,8 @@ Warmup rule:
 - after `jMAVSim` starts, do not arm immediately
 - the helpers now wait for real `ATTITUDE` and stable `LOCAL_POSITION_NED`
 - use `--allow-missing-local-position` only as a temporary debug escape, not as the normal HIL path
+- in local NED, `z = -3` means about `3 m above` the home origin, not `3 m into the ground`
+- the HIL helper now starts from a safe `z = 0` hold and commands the `-3 m` hover target only after `OFFBOARD` is accepted
 
 Upload:
 ```bash
@@ -247,6 +299,12 @@ cd ~/px4-system-identification
 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600
 ```
 
+This is the normal visible GUI mode. Use headless only on purpose:
+```bash
+cd ~/px4-system-identification
+PX4_SYSID_HEADLESS=1 ./examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600
+```
+
 After jMAVSim is already running, QGroundControl may be opened again only in UDP-only mode.
 
 If you want to test the physical receiver in HIL:
@@ -262,8 +320,9 @@ custom_pos_control start
 trajectory_reader start
 custom_pos_control set px4_default
 custom_pos_control enable
-trajectory_reader ref 0 0 -3 0
 ```
+
+For HIL, do not push the `-3 m` target at boot time. Let the helper or RC trigger take the vehicle from the safe zero-altitude hold into the later hover target after `OFFBOARD` is already active.
 
 Then:
 1. arm in `Position`,

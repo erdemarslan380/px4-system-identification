@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 
@@ -25,6 +26,10 @@ DISARM_GUARD_SNIPPET = """\
             }
 
 """
+HIL_STATE_ALT_PATTERN = re.compile(
+    r"(?m)^(?P<indent>[ \t]*)int alt = \(int\)\(1000 \* vehicle\.position\.z\);$"
+)
+HIL_STATE_ALT_NEW = "int alt = (int)(1000 * sensors.getGlobalPosition().alt);"
 
 
 def patch_mavlink_hil_system_text(text: str) -> tuple[str, bool]:
@@ -69,6 +74,18 @@ def patch_mavlink_hil_system_text(text: str) -> tuple[str, bool]:
             changed = True
         else:
             raise RuntimeError("Could not find HIL_CONTROLS patch point in MAVLinkHILSystem.java")
+
+    if HIL_STATE_ALT_NEW in text:
+        pass
+    else:
+        def repl(match: re.Match[str]) -> str:
+            return f"{match.group('indent')}{HIL_STATE_ALT_NEW}"
+
+        patched_text, count = HIL_STATE_ALT_PATTERN.subn(repl, text, count=1)
+        if count == 0:
+            raise RuntimeError("Could not find HIL_STATE_QUATERNION altitude patch point in MAVLinkHILSystem.java")
+        text = patched_text
+        changed = True
 
     return text, changed
 

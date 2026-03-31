@@ -155,6 +155,40 @@ parameters:
         max: 255
         default: 100
 
+      TRJ_POS_ABS:
+        description:
+          short: Position mode target is absolute local NED
+          long: |
+            When enabled, the position-mode target is interpreted directly in
+            local NED coordinates. When disabled, the target is treated as an
+            offset from the current vehicle position at OFFBOARD entry.
+        type: boolean
+        default: 0
+
+      TRJ_POS_X:
+        description:
+          short: Position mode target X in local NED
+        type: float
+        default: 0.0
+
+      TRJ_POS_Y:
+        description:
+          short: Position mode target Y in local NED
+        type: float
+        default: 0.0
+
+      TRJ_POS_Z:
+        description:
+          short: Position mode target Z in local NED
+        type: float
+        default: 0.0
+
+      TRJ_POS_YAW:
+        description:
+          short: Position mode target yaw in radians
+        type: float
+        default: 0.0
+
       TRJ_ANCHOR_X:
         description:
           short: Trajectory anchor X in local NED

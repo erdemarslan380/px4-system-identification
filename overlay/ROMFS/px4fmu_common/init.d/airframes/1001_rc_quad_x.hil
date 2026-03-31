@@ -25,14 +25,14 @@ param set-default MAV_2_FORWARD 0
 # disable some checks to allow to fly
 # - without real battery
 param set-default CBRK_SUPPLY_CHK 894281
+param set-default SYS_HAS_MAG 0
+param set-default COM_ARM_HFLT_CHK 0
+param set-default COM_PREARM_MODE 2
 
-# Hardware HIL still needs PX4's own attitude/local-position estimator chain
-# to publish vehicle_attitude and vehicle_local_position for the custom
-# controller and trajectory logger. Force the legacy HIL estimator stack on
-# every HIL boot instead of relying on stale saved defaults.
+# On this CubeOrange branch HIL_STATE_QUATERNION already publishes simulated
+# vehicle attitude and local position directly. Leave EKF2 disabled here so it
+# does not overwrite that ground-truth with a second estimator solution.
 param set EKF2_EN 0
-param set LPE_EN 1
-param set ATT_EN 1
 
 # Square quadrotor X PX4 numbering
 param set-default CA_ROTOR_COUNT 4
@@ -58,6 +58,11 @@ param set-default CST_POS_CTRL_EN 1
 param set-default CST_POS_CTRL_TYP 4
 param set-default TRJ_MODE_CMD 0
 param set-default TRJ_ACTIVE_ID 100
+param set-default TRJ_POS_ABS 1
+param set-default TRJ_POS_X 0.0
+param set-default TRJ_POS_Y 0.0
+param set-default TRJ_POS_Z 0.0
+param set-default TRJ_POS_YAW 0.0
 param set-default TRJ_ANCHOR_X 0.0
 param set-default TRJ_ANCHOR_Y 0.0
 param set-default TRJ_ANCHOR_Z -3.0
@@ -66,5 +71,4 @@ custom_pos_control start
 trajectory_reader start
 custom_pos_control enable
 custom_pos_control set px4_default
-trajectory_reader abs_ref 0 0 -3 0
 trajectory_reader set_mode position

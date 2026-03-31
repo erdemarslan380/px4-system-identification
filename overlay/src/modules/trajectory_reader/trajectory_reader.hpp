@@ -278,6 +278,10 @@ private:
 	int32_t _param_campaign_cmd_cached{-1};
 	bool _param_anchor_cached_valid{false};
 	matrix::Vector3f _param_anchor_cached{};
+	bool _param_position_target_cached_valid{false};
+	matrix::Vector3f _param_position_target_cached{};
+	float _param_position_yaw_cached{0.f};
+	int32_t _param_position_absolute_cached{-1};
 	CampaignType _campaign_type{CampaignType::NONE};
 	CampaignStage _campaign_stage{CampaignStage::IDLE};
 	bool _campaign_active{false};
@@ -329,6 +333,11 @@ private:
 		(ParamInt<px4::params::TRJ_CAMPAIGN_STA>) _param_trj_campaign_sta,
 		(ParamInt<px4::params::TRJ_MODE_CMD>) _param_trj_mode_cmd,
 		(ParamInt<px4::params::TRJ_ACTIVE_ID>) _param_trj_active_id,
+		(ParamInt<px4::params::TRJ_POS_ABS>) _param_trj_pos_abs,
+		(ParamFloat<px4::params::TRJ_POS_X>) _param_trj_pos_x,
+		(ParamFloat<px4::params::TRJ_POS_Y>) _param_trj_pos_y,
+		(ParamFloat<px4::params::TRJ_POS_Z>) _param_trj_pos_z,
+		(ParamFloat<px4::params::TRJ_POS_YAW>) _param_trj_pos_yaw,
 		(ParamFloat<px4::params::TRJ_ANCHOR_X>) _param_trj_anchor_x,
 		(ParamFloat<px4::params::TRJ_ANCHOR_Y>) _param_trj_anchor_y,
 		(ParamFloat<px4::params::TRJ_ANCHOR_Z>) _param_trj_anchor_z

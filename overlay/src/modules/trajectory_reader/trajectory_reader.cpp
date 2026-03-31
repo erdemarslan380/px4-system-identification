@@ -205,6 +205,25 @@ void TrajectoryReader::parametersUpdate() {
 		setTrajectoryReaderMode(static_cast<Mode>(mode_cmd));
 	}
 
+	const int32_t position_absolute = math::constrain<int32_t>(_param_trj_pos_abs.get(), 0, 1);
+	const matrix::Vector3f position_target{
+		_param_trj_pos_x.get(),
+		_param_trj_pos_y.get(),
+		_param_trj_pos_z.get()
+	};
+	const float position_yaw = _param_trj_pos_yaw.get();
+
+	if (!_param_position_target_cached_valid
+	    || (position_target - _param_position_target_cached).norm_squared() > 1e-6f
+	    || fabsf(position_yaw - _param_position_yaw_cached) > 1e-6f
+	    || position_absolute != _param_position_absolute_cached) {
+		_param_position_target_cached = position_target;
+		_param_position_yaw_cached = position_yaw;
+		_param_position_absolute_cached = position_absolute;
+		_param_position_target_cached_valid = true;
+		setPositionModeRef(position_target, position_yaw, position_absolute == 1);
+	}
+
 	const int32_t campaign_cmd = math::constrain<int32_t>(_param_trj_campaign_cmd.get(), 0, 2);
 	if (campaign_cmd != _param_campaign_cmd_cached) {
 		_param_campaign_cmd_cached = campaign_cmd;

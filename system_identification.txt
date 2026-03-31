@@ -170,6 +170,7 @@ Before starting jMAVSim, list the live serial devices:
 
 Start jMAVSim on the current USB CDC device:
 - `~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600`
+- this is the normal visible GUI mode
 
 For a headless run:
 - `PX4_SYSID_HEADLESS=1 ~/px4-system-identification/examples/start_jmavsim_hitl.sh ~/PX4-Autopilot-Identification <usb_cdc_device> 921600`
@@ -233,6 +234,10 @@ Keep the PX4 flight-mode switch separate from the repository-specific workflow s
 - the repository RC parameters above choose one identification profile, one trajectory, or one built-in campaign.
 
 During HIL, a physical RC receiver may stay connected while `jMAVSim` is running. The simulator uses the USB CDC MAVLink link and does not replace the board's RC input wiring. This is the correct electrical smoke test for radio calibration, arming, and `Position <-> Offboard` transitions before real flight.
+
+For local-NED references, remember:
+- `z = -3` means about `3 m above` the home origin, not into the ground,
+- the HIL helper now starts from a safe zero-altitude hold and commands the `-3 m` hover target only after `OFFBOARD` is already accepted.
 
 For an RC-driven HIL mode-switch smoke test:
 - connect the receiver before boot,

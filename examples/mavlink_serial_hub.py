@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import errno
+import json
 import os
 import pty
 import selectors
@@ -20,9 +21,11 @@ import termios
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import serial
 from serial import SerialException
+from pymavlink import mavutil
 
 
 DEFAULT_SIM_PATH = Path("/tmp/px4_hitl_sim.pty")
@@ -73,12 +76,21 @@ def make_endpoint(name: str, link_path: Path) -> PtyEndpoint:
 
 
 class SerialHub:
-    def __init__(self, serial_port: str, baud: int, sim_path: Path, ctrl_path: Path) -> None:
+    def __init__(self, serial_port: str, baud: int, sim_path: Path, ctrl_path: Path, mavlink_log: Path | None = None) -> None:
         self._serial_port = serial_port
         self._baud = baud
         self._serial = self._open_serial()
         self._selector = selectors.DefaultSelector()
         self._running = True
+        self._mavlink_log_path = mavlink_log
+        self._mavlink_log_handle = None
+        if mavlink_log is not None:
+            mavlink_log.parent.mkdir(parents=True, exist_ok=True)
+            self._mavlink_log_handle = mavlink_log.open("a", encoding="utf-8")
+        self._parsers = {
+            "serial_to_ptys": make_mavlink_parser(),
+            "pty_to_serial": make_mavlink_parser(),
+        }
         self.sim = make_endpoint("sim", sim_path)
         self.ctrl = make_endpoint("ctrl", ctrl_path)
         self._endpoints = [self.sim, self.ctrl]
@@ -124,6 +136,11 @@ class SerialHub:
             self._selector.close()
         except Exception:
             pass
+        if self._mavlink_log_handle is not None:
+            try:
+                self._mavlink_log_handle.close()
+            except Exception:
+                pass
         for endpoint in self._endpoints:
             try:
                 os.close(endpoint.master_fd)
@@ -164,6 +181,7 @@ class SerialHub:
             return
         if not data:
             return
+        self._log_mavlink_messages("serial_to_ptys", data)
         for endpoint in self._endpoints:
             try:
                 os.write(endpoint.master_fd, data)
@@ -179,12 +197,60 @@ class SerialHub:
             data = os.read(endpoint.master_fd, 4096)
         except BlockingIOError:
             return
+        except OSError as exc:
+            if exc.errno in (errno.EIO, errno.EPIPE):
+                return
+            raise
         if not data:
             return
+        self._log_mavlink_messages("pty_to_serial", data)
         try:
             self._serial.write(data)
         except (OSError, SerialException):
             self._reopen_serial()
+
+    def _log_mavlink_messages(self, direction: str, data: bytes) -> None:
+        if self._mavlink_log_handle is None:
+            return
+
+        parser = self._parsers[direction]
+
+        for byte in data:
+            try:
+                message = parser.parse_char(bytes([byte]))
+            except Exception:
+                continue
+
+            if not message:
+                continue
+
+            record = {
+                "ts": time.time(),
+                "direction": direction,
+                "name": message.get_type(),
+                "msgid": int(message.get_msgId()),
+                "sysid": int(message.get_srcSystem()),
+                "compid": int(message.get_srcComponent()),
+                "fields": sanitize_for_json(message.to_dict()),
+            }
+            self._mavlink_log_handle.write(json.dumps(record, sort_keys=True) + "\n")
+            self._mavlink_log_handle.flush()
+
+
+def make_mavlink_parser():
+    parser = mavutil.mavlink.MAVLink(None)
+    parser.robust_parsing = True
+    return parser
+
+
+def sanitize_for_json(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [sanitize_for_json(v) for v in value]
+    if isinstance(value, (bytes, bytearray)):
+        return list(value)
+    return value
 
 
 def parse_args() -> argparse.Namespace:
@@ -193,12 +259,13 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--baud", type=int, default=57600)
     ap.add_argument("--sim-link", type=Path, default=DEFAULT_SIM_PATH)
     ap.add_argument("--control-link", type=Path, default=DEFAULT_CTRL_PATH)
+    ap.add_argument("--mavlink-log", type=Path, default=None)
     return ap.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    hub = SerialHub(args.serial_port, args.baud, args.sim_link, args.control_link)
+    hub = SerialHub(args.serial_port, args.baud, args.sim_link, args.control_link, args.mavlink_log)
 
     def _stop(_sig, _frame) -> None:
         hub.close()

@@ -15,16 +15,13 @@ if str(REPO_ROOT) not in sys.path:
 
 from experimental_validation.hitl_catalog import campaign_expected_duration_s
 from examples.run_hitl_udp_sequence import (
-    arm,
     encode_param_value,
-    request_message_interval,
+    prepare_hover_and_anchor,
     read_param,
     reset_mode_cmd,
-    set_offboard,
     set_param,
     start_gcs_heartbeat_thread,
     wait_for_sim_ready,
-    wait_for_hover,
     wait_heartbeat,
 )
 
@@ -55,6 +52,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--hover-timeout", type=float, default=20.0)
     parser.add_argument("--settle-seconds", type=float, default=3.0)
+    parser.add_argument(
+        "--pre-offboard-seconds",
+        type=float,
+        default=3.0,
+        help="Short dwell after arming and before OFFBOARD. Useful for HIL startup settling.",
+    )
     parser.add_argument(
         "--sim-ready-timeout",
         type=float,
@@ -204,44 +207,20 @@ def trigger_campaign_start(mav, timeout_s: float = 8.0) -> None:
 
     raise TimeoutError("Campaign trigger was not acknowledged")
 
-
-def arm_with_retries(mav, attempts: int) -> None:
-    last_error: Exception | None = None
-    for attempt in range(1, attempts + 1):
-        try:
-            arm(mav)
-            return
-        except Exception as exc:  # pragma: no cover - exercised with live vehicle only
-            last_error = exc
-            print(f"Arm attempt {attempt}/{attempts} failed: {exc}", flush=True)
-            time.sleep(2.0)
-
-    if last_error is not None:
-        raise last_error
-
-
 def prepare_hover(mav, args: argparse.Namespace) -> None:
-    wait_for_sim_ready(
+    prepare_hover_and_anchor(
         mav,
-        timeout=args.sim_ready_timeout,
-        require_local_position=not args.allow_missing_local_position,
-        min_local_samples=max(1, args.sim_ready_min_local_samples),
+        hover_z=args.hover_z,
+        hover_timeout=args.hover_timeout,
+        settle_seconds=args.settle_seconds,
+        arm_attempts=max(1, args.arm_attempts),
+        manual_control_mode=args.manual_control_mode,
+        pre_offboard_seconds=args.pre_offboard_seconds,
+        sim_ready_timeout=args.sim_ready_timeout,
+        sim_ready_min_local_samples=args.sim_ready_min_local_samples,
+        allow_missing_local_position=args.allow_missing_local_position,
+        blind_hover_seconds=args.blind_hover_seconds,
     )
-    set_param(mav, "COM_RC_IN_MODE", args.manual_control_mode, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-    arm_with_retries(mav, attempts=max(1, args.arm_attempts))
-    set_offboard(mav)
-
-    try:
-        wait_for_hover(mav, args.hover_z, args.hover_timeout)
-        time.sleep(args.settle_seconds)
-    except TimeoutError:
-        if not args.allow_missing_local_position:
-            raise
-        print(
-            f"LOCAL_POSITION_NED not available; using blind hover settle for {args.blind_hover_seconds:.1f} s",
-            flush=True,
-        )
-        time.sleep(args.blind_hover_seconds)
 
 
 def main() -> int:

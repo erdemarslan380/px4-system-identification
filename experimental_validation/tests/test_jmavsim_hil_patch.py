@@ -7,6 +7,7 @@ from pathlib import Path
 from experimental_validation.jmavsim_hil_patch import (
     DEFAULT_HIL_STATE_INTERVAL_US,
     DISARM_GUARD_SNIPPET,
+    HIL_STATE_ALT_NEW,
     patch_mavlink_hil_system_text,
     patch_px4_tree,
 )
@@ -39,6 +40,11 @@ public class MAVLinkHILSystem extends MAVLinkHILSystemBase {
         } else if ("COMMAND_LONG".equals(msg.getMsgName())) {
         }
     }
+
+    public void update() {
+        Sensors sensors = vehicle.getSensors();
+        int alt = (int)(1000 * vehicle.position.z);
+    }
 }
 """
 
@@ -69,6 +75,11 @@ class JmavsimHilPatchTest(unittest.TestCase):
         self.assertIn(DISARM_GUARD_SNIPPET.strip(), patched)
         self.assertEqual(patched.count("control.set(i, 0.0);"), 2)
 
+    def test_patch_text_uses_global_altitude_for_hil_state(self) -> None:
+        patched, _ = patch_mavlink_hil_system_text(ORIGINAL_SNIPPET)
+        self.assertIn(HIL_STATE_ALT_NEW.strip(), patched)
+        self.assertNotIn("int alt = (int)(1000 * vehicle.position.z);", patched)
+
     def test_patch_px4_tree_updates_target_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             px4_root = Path(tmpdir)
@@ -84,6 +95,7 @@ class JmavsimHilPatchTest(unittest.TestCase):
                 target.read_text(encoding="utf-8"),
             )
             self.assertIn("control.set(i, 0.0);", target.read_text(encoding="utf-8"))
+            self.assertIn(HIL_STATE_ALT_NEW.strip(), target.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -145,6 +145,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hover-timeout", type=float, default=20.0)
     parser.add_argument("--settle-seconds", type=float, default=6.0)
     parser.add_argument(
+        "--manual-control-mode",
+        type=int,
+        choices=range(0, 9),
+        default=4,
+        help=(
+            "Value written to COM_RC_IN_MODE before arming. "
+            "Default 4 disables manual control so sticks cannot interfere. "
+            "Use 0 to keep a physical RC receiver active during HIL mode-switch tests."
+        ),
+    )
+    parser.add_argument(
+        "--pre-offboard-seconds",
+        type=float,
+        default=3.0,
+        help="Short dwell after arming and before OFFBOARD. Useful for HIL startup settling.",
+    )
+    parser.add_argument(
+        "--arm-attempts",
+        type=int,
+        default=3,
+        help="How many times to retry arming before giving up.",
+    )
+    parser.add_argument(
         "--sim-ready-timeout",
         type=float,
         default=20.0,
@@ -223,6 +246,75 @@ def wait_command_ack(mav, command: int, timeout: float = 5.0) -> int:
         if msg and msg.command == command:
             return int(msg.result)
     raise TimeoutError(f"No COMMAND_ACK for {command}")
+
+
+def heartbeat_is_armed(msg) -> bool:
+    return bool(int(getattr(msg, "base_mode", 0)) & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+
+
+def heartbeat_main_mode(msg) -> int:
+    return (int(getattr(msg, "custom_mode", 0)) >> 16) & 0xFF
+
+
+def heartbeat_is_offboard(msg) -> bool:
+    return heartbeat_main_mode(msg) == 6
+
+
+def wait_for_arm_confirmation(mav, timeout: float = 8.0) -> None:
+    deadline = time.time() + timeout
+    ack_result = None
+    ack_accepted = False
+
+    while time.time() < deadline:
+        msg = mav.recv_match(type=["COMMAND_ACK", "HEARTBEAT", "STATUSTEXT"], blocking=True, timeout=0.5)
+        if not msg:
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "COMMAND_ACK" and msg.command == mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM:
+            ack_result = int(msg.result)
+            if ack_result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                ack_accepted = True
+
+        elif msg_type == "HEARTBEAT" and heartbeat_is_armed(msg):
+            return
+
+        elif msg_type == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+
+    if ack_result is not None and ack_result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+        raise RuntimeError(f"Arm rejected with ACK result {ack_result}")
+
+    if ack_accepted:
+        raise TimeoutError("Arm ACK was accepted but HEARTBEAT never reported ARMED")
+
+    raise TimeoutError("Arm command was not confirmed by ACK or ARMED HEARTBEAT")
+
+
+def wait_for_offboard_confirmation(mav, timeout: float = 8.0) -> None:
+    deadline = time.time() + timeout
+    ack_result = None
+
+    while time.time() < deadline:
+        msg = mav.recv_match(type=["COMMAND_ACK", "HEARTBEAT", "STATUSTEXT"], blocking=True, timeout=0.5)
+        if not msg:
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "COMMAND_ACK" and msg.command == mavutil.mavlink.MAV_CMD_DO_SET_MODE:
+            ack_result = int(msg.result)
+            if ack_result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                return
+
+        elif msg_type == "HEARTBEAT" and heartbeat_is_offboard(msg):
+            return
+
+        elif msg_type == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+
+    if ack_result is not None and ack_result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+        raise RuntimeError(f"OFFBOARD rejected with ACK result {ack_result}")
+    raise TimeoutError("OFFBOARD command was not confirmed by ACK or HEARTBEAT")
 
 
 def request_message_interval(
@@ -320,12 +412,31 @@ def arm(mav) -> None:
         0,
         0,
     )
-    result = wait_command_ack(mav, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM)
-    if result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
-        raise RuntimeError(f"Arm rejected with ACK result {result}")
+    wait_for_arm_confirmation(mav)
+
+
+def arm_with_retries(mav, attempts: int) -> None:
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            arm(mav)
+            return
+        except Exception as exc:  # pragma: no cover - exercised with live vehicle only
+            last_error = exc
+            print(f"Arm attempt {attempt}/{attempts} failed: {exc}", flush=True)
+            time.sleep(2.0)
+
+    if last_error is not None:
+        raise last_error
 
 
 def set_offboard(mav) -> None:
+    custom_mode = 6 << 16
+    mav.mav.set_mode_send(
+        mav.target_system,
+        mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+        custom_mode,
+    )
     mav.mav.command_long_send(
         mav.target_system,
         mav.target_component,
@@ -339,9 +450,7 @@ def set_offboard(mav) -> None:
         0,
         0,
     )
-    result = wait_command_ack(mav, mavutil.mavlink.MAV_CMD_DO_SET_MODE)
-    if result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
-        raise RuntimeError(f"OFFBOARD rejected with ACK result {result}")
+    wait_for_offboard_confirmation(mav)
 
 
 def wait_for_local_position(mav, timeout: float = 5.0):
@@ -356,6 +465,18 @@ def wait_for_local_position(mav, timeout: float = 5.0):
 def local_position_sample_is_reasonable(msg) -> bool:
     values = (float(msg.x), float(msg.y), float(msg.z))
     return all(math.isfinite(value) and abs(value) < 100.0 for value in values)
+
+
+def set_position_target_absolute(mav, x: float, y: float, z: float, yaw: float = 0.0) -> None:
+    set_param(mav, "TRJ_POS_ABS", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    set_param(mav, "TRJ_POS_X", x, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+    set_param(mav, "TRJ_POS_Y", y, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+    set_param(mav, "TRJ_POS_Z", z, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+    set_param(mav, "TRJ_POS_YAW", yaw, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+
+
+def hover_target_from_local_position(msg, hover_z: float) -> tuple[float, float, float]:
+    return float(msg.x), float(msg.y), float(msg.z) + hover_z
 
 
 def wait_for_sim_ready(
@@ -427,6 +548,20 @@ def wait_for_hover(mav, target_delta_z: float, timeout: float):
     raise TimeoutError(f"Vehicle did not reach hover band around z={target_z}")
 
 
+def wait_for_hover_target_z(mav, target_z: float, timeout: float):
+    print(f"Waiting for hover target z={target_z:.3f}", flush=True)
+    end = time.time() + timeout
+    while time.time() < end:
+        msg = mav.recv_match(type="LOCAL_POSITION_NED", blocking=True, timeout=1.0)
+        if not msg:
+            continue
+        z = float(msg.z)
+        print(f"LOCAL_POSITION_NED z={z:.3f}", flush=True)
+        if abs(z - target_z) <= 0.5:
+            return msg
+    raise TimeoutError(f"Vehicle did not reach hover band around z={target_z}")
+
+
 def set_anchor_from_position(mav, x: float, y: float, z: float) -> None:
     set_param(mav, "TRJ_ANCHOR_X", x, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
     set_param(mav, "TRJ_ANCHOR_Y", y, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
@@ -450,23 +585,50 @@ def prepare_hover_and_anchor(
     hover_z: float,
     hover_timeout: float,
     settle_seconds: float,
+    arm_attempts: int,
+    manual_control_mode: int,
+    pre_offboard_seconds: float,
     sim_ready_timeout: float,
     sim_ready_min_local_samples: int,
     allow_missing_local_position: bool,
     blind_hover_seconds: float,
 ) -> None:
-    wait_for_sim_ready(
+    sim_ready_msg = wait_for_sim_ready(
         mav,
         timeout=sim_ready_timeout,
         require_local_position=not allow_missing_local_position,
         min_local_samples=max(1, sim_ready_min_local_samples),
     )
 
-    arm(mav)
+    set_param(mav, "COM_RC_IN_MODE", manual_control_mode, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+
+    # Start HIL on a zero-altitude absolute hold. Ground-to-hover is commanded
+    # only after OFFBOARD is accepted, which avoids the problematic direct
+    # ground takeoff step at mode entry.
+    if sim_ready_msg is not None:
+        set_position_target_absolute(
+            mav,
+            float(sim_ready_msg.x),
+            float(sim_ready_msg.y),
+            float(sim_ready_msg.z),
+            0.0,
+        )
+    else:
+        set_position_target_absolute(mav, 0.0, 0.0, 0.0, 0.0)
+
+    arm_with_retries(mav, attempts=max(1, arm_attempts))
+    if pre_offboard_seconds > 0.0:
+        time.sleep(pre_offboard_seconds)
     set_offboard(mav)
+    request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
+    request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, interval_us=500_000)
 
     try:
-        wait_for_hover(mav, hover_z, hover_timeout)
+        baseline_msg = wait_for_local_position(mav, timeout=min(hover_timeout, 5.0))
+        target_x, target_y, target_z = hover_target_from_local_position(baseline_msg, hover_z)
+        set_position_target_absolute(mav, target_x, target_y, target_z, 0.0)
+        wait_for_hover_target_z(mav, target_z, hover_timeout)
         time.sleep(settle_seconds)
         anchor_msg = wait_for_local_position(mav, timeout=3.0)
     except TimeoutError:
@@ -538,6 +700,9 @@ def main() -> int:
             hover_z=args.hover_z,
             hover_timeout=args.hover_timeout,
             settle_seconds=args.settle_seconds,
+            arm_attempts=args.arm_attempts,
+            manual_control_mode=args.manual_control_mode,
+            pre_offboard_seconds=args.pre_offboard_seconds,
             sim_ready_timeout=args.sim_ready_timeout,
             sim_ready_min_local_samples=args.sim_ready_min_local_samples,
             allow_missing_local_position=args.allow_missing_local_position,

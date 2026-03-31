@@ -25,6 +25,7 @@ fi
 
 rsync -a "$repo_root/overlay/" "$px4_root/"
 python3 "$repo_root/experimental_validation/jmavsim_hil_patch.py" --px4-root "$px4_root" >/dev/null
+python3 "$repo_root/experimental_validation/hil_actuator_controls_patch.py" --px4-root "$px4_root" >/dev/null
 
 cleanup_legacy_param_sources() {
   local module_dir="$1"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import subprocess
 import sys
 import unittest
@@ -9,8 +10,12 @@ from pathlib import Path
 from pymavlink import mavutil
 
 from examples.run_hitl_udp_sequence import (
+    arm_with_retries,
     decode_param_value,
     encode_param_value,
+    heartbeat_is_armed,
+    heartbeat_is_offboard,
+    hover_target_from_local_position,
     install_pymavlink_message_store_patch,
     local_position_sample_is_reasonable,
     normalize_param_id,
@@ -18,7 +23,12 @@ from examples.run_hitl_udp_sequence import (
     prepare_hover_and_anchor,
     reset_mode_cmd,
     set_anchor_from_position,
+    set_offboard,
+    set_position_target_absolute,
     wait_heartbeat,
+    wait_for_arm_confirmation,
+    wait_for_hover_target_z,
+    wait_for_offboard_confirmation,
     wait_for_sim_ready,
 )
 
@@ -70,12 +80,42 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
         names = [call.args[1] for call in set_param_mock.call_args_list]
         self.assertEqual(names, ["TRJ_ANCHOR_X", "TRJ_ANCHOR_Y", "TRJ_ANCHOR_Z"])
 
+    def test_set_position_target_absolute_writes_five_params(self) -> None:
+        with mock.patch("examples.run_hitl_udp_sequence.set_param") as set_param_mock:
+            set_position_target_absolute(object(), 1.0, 2.0, -3.0, 0.2)
+        self.assertEqual(set_param_mock.call_count, 5)
+        names = [call.args[1] for call in set_param_mock.call_args_list]
+        self.assertEqual(names, ["TRJ_POS_ABS", "TRJ_POS_X", "TRJ_POS_Y", "TRJ_POS_Z", "TRJ_POS_YAW"])
+
+    def test_hover_target_from_local_position_uses_current_z_as_baseline(self) -> None:
+        msg = mock.Mock(x=1.5, y=-2.0, z=-0.4)
+        self.assertEqual(hover_target_from_local_position(msg, -3.0), (1.5, -2.0, -3.4))
+
+    def test_wait_for_hover_target_z_uses_absolute_target(self) -> None:
+        mav = mock.Mock()
+        mav.recv_match.side_effect = [
+            mock.Mock(z=-1.0),
+            mock.Mock(z=-2.9),
+        ]
+        msg = wait_for_hover_target_z(mav, target_z=-3.0, timeout=1.0)
+        self.assertAlmostEqual(float(msg.z), -2.9)
+
+    def test_arm_with_retries_retries_until_arm_succeeds(self) -> None:
+        with mock.patch("examples.run_hitl_udp_sequence.arm", side_effect=[RuntimeError("busy"), None]) as arm_mock:
+            with mock.patch("time.sleep") as sleep_mock:
+                arm_with_retries(object(), attempts=2)
+        self.assertEqual(arm_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(2.0)
+
     def test_prepare_hover_and_anchor_can_fall_back_to_existing_anchor(self) -> None:
         with (
-            mock.patch("examples.run_hitl_udp_sequence.wait_for_sim_ready"),
-            mock.patch("examples.run_hitl_udp_sequence.arm"),
+            mock.patch("examples.run_hitl_udp_sequence.wait_for_sim_ready", return_value=None),
+            mock.patch("examples.run_hitl_udp_sequence.set_param"),
+            mock.patch("examples.run_hitl_udp_sequence.set_position_target_absolute") as position_target_mock,
+            mock.patch("examples.run_hitl_udp_sequence.arm_with_retries"),
             mock.patch("examples.run_hitl_udp_sequence.set_offboard"),
-            mock.patch("examples.run_hitl_udp_sequence.wait_for_hover", side_effect=TimeoutError("no local position")),
+            mock.patch("examples.run_hitl_udp_sequence.request_message_interval"),
+            mock.patch("examples.run_hitl_udp_sequence.wait_for_local_position", side_effect=TimeoutError("no local position")),
             mock.patch("examples.run_hitl_udp_sequence.set_anchor_from_position") as anchor_mock,
             mock.patch("time.sleep") as sleep_mock,
         ):
@@ -84,22 +124,34 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
                 hover_z=-3.0,
                 hover_timeout=10.0,
                 settle_seconds=2.0,
+                arm_attempts=3,
+                manual_control_mode=4,
+                pre_offboard_seconds=1.5,
                 sim_ready_timeout=12.0,
                 sim_ready_min_local_samples=3,
                 allow_missing_local_position=True,
                 blind_hover_seconds=6.0,
             )
+        position_target_mock.assert_called_once_with(mock.ANY, 0.0, 0.0, 0.0, 0.0)
         anchor_mock.assert_not_called()
-        sleep_mock.assert_called_once_with(6.0)
+        self.assertEqual(sleep_mock.call_args_list, [mock.call(1.5), mock.call(6.0)])
 
     def test_prepare_hover_and_anchor_sets_anchor_when_local_position_exists(self) -> None:
+        ready_msg = mock.Mock(x=0.0, y=0.1, z=0.0)
+        baseline_msg = mock.Mock(x=0.2, y=0.3, z=0.0)
         anchor_msg = mock.Mock(x=1.0, y=2.0, z=-3.0)
         with (
-            mock.patch("examples.run_hitl_udp_sequence.wait_for_sim_ready"),
-            mock.patch("examples.run_hitl_udp_sequence.arm"),
+            mock.patch("examples.run_hitl_udp_sequence.wait_for_sim_ready", return_value=ready_msg),
+            mock.patch("examples.run_hitl_udp_sequence.set_param"),
+            mock.patch("examples.run_hitl_udp_sequence.set_position_target_absolute") as position_target_mock,
+            mock.patch("examples.run_hitl_udp_sequence.arm_with_retries"),
             mock.patch("examples.run_hitl_udp_sequence.set_offboard"),
-            mock.patch("examples.run_hitl_udp_sequence.wait_for_hover"),
-            mock.patch("examples.run_hitl_udp_sequence.wait_for_local_position", return_value=anchor_msg),
+            mock.patch("examples.run_hitl_udp_sequence.request_message_interval"),
+            mock.patch(
+                "examples.run_hitl_udp_sequence.wait_for_local_position",
+                side_effect=[baseline_msg, anchor_msg],
+            ),
+            mock.patch("examples.run_hitl_udp_sequence.wait_for_hover_target_z", return_value=anchor_msg),
             mock.patch("examples.run_hitl_udp_sequence.set_anchor_from_position") as anchor_mock,
             mock.patch("time.sleep"),
         ):
@@ -108,11 +160,16 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
                 hover_z=-3.0,
                 hover_timeout=10.0,
                 settle_seconds=2.0,
+                arm_attempts=2,
+                manual_control_mode=4,
+                pre_offboard_seconds=1.5,
                 sim_ready_timeout=12.0,
                 sim_ready_min_local_samples=3,
                 allow_missing_local_position=False,
                 blind_hover_seconds=6.0,
             )
+        self.assertEqual(position_target_mock.call_args_list[0].args[1:], (0.0, 0.1, 0.0, 0.0))
+        self.assertEqual(position_target_mock.call_args_list[1].args[1:], (0.2, 0.3, -3.0, 0.0))
         anchor_mock.assert_called_once_with(mock.ANY, 1.0, 2.0, -3.0)
 
     def test_local_position_sample_is_reasonable_rejects_runaway_values(self) -> None:
@@ -163,6 +220,56 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
         mav.recv_match.side_effect = [None, mock.Mock()]
         wait_heartbeat(mav, timeout=1.2)
         self.assertGreaterEqual(mav.mav.heartbeat_send.call_count, 2)
+
+    def test_heartbeat_helpers_decode_arm_and_offboard(self) -> None:
+        armed_msg = mock.Mock(base_mode=mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED, custom_mode=(6 << 16))
+        self.assertTrue(heartbeat_is_armed(armed_msg))
+        self.assertTrue(heartbeat_is_offboard(armed_msg))
+
+    def test_wait_for_arm_confirmation_can_fall_back_to_heartbeat(self) -> None:
+        mav = mock.Mock()
+        mav.recv_match.side_effect = [
+            mock.Mock(get_type=mock.Mock(return_value="STATUSTEXT"), text="arming"),
+            mock.Mock(
+                get_type=mock.Mock(return_value="HEARTBEAT"),
+                base_mode=mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED,
+                custom_mode=0,
+            ),
+        ]
+        wait_for_arm_confirmation(mav, timeout=1.0)
+
+    def test_wait_for_arm_confirmation_requires_armed_heartbeat_after_ack(self) -> None:
+        mav = mock.Mock()
+        mav.recv_match.side_effect = itertools.chain([
+            mock.Mock(
+                get_type=mock.Mock(return_value="COMMAND_ACK"),
+                command=mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                result=mavutil.mavlink.MAV_RESULT_ACCEPTED,
+            ),
+        ], itertools.repeat(None))
+        with self.assertRaisesRegex(TimeoutError, "HEARTBEAT never reported ARMED"):
+            wait_for_arm_confirmation(mav, timeout=0.3)
+
+    def test_wait_for_offboard_confirmation_can_fall_back_to_heartbeat(self) -> None:
+        mav = mock.Mock()
+        mav.recv_match.side_effect = [
+            mock.Mock(
+                get_type=mock.Mock(return_value="HEARTBEAT"),
+                base_mode=0,
+                custom_mode=(6 << 16),
+            ),
+        ]
+        wait_for_offboard_confirmation(mav, timeout=1.0)
+
+    def test_set_offboard_sends_set_mode_and_command_long(self) -> None:
+        mav = mock.Mock()
+        mav.target_system = 1
+        mav.target_component = 1
+        with mock.patch("examples.run_hitl_udp_sequence.wait_for_offboard_confirmation") as wait_mock:
+            set_offboard(mav)
+        mav.mav.set_mode_send.assert_called_once()
+        mav.mav.command_long_send.assert_called_once()
+        wait_mock.assert_called_once_with(mav)
 
 
 if __name__ == "__main__":
