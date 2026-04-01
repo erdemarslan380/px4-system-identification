@@ -33,13 +33,13 @@ inline bool rcButtonPressed(uint16_t buttons, int button_index)
 	return (buttons & (1u << (button_index - 1))) != 0;
 }
 
-inline bool rcAuxSwitchPressed(float aux_value, float threshold = 0.5f)
+inline bool rcAuxSwitchPressed(float aux_value, float threshold = 0.5f, bool inverted = false)
 {
 	if (!std::isfinite(static_cast<double>(aux_value))) {
 		return false;
 	}
 
-	return aux_value >= threshold;
+	return inverted ? (aux_value <= -threshold) : (aux_value >= threshold);
 }
 
 inline int32_t trajectorySelectionSlotCount(int32_t min_id, int32_t max_id)

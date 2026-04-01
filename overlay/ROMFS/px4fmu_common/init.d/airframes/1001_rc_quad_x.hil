@@ -29,10 +29,10 @@ param set-default SYS_HAS_MAG 0
 param set-default COM_ARM_HFLT_CHK 0
 param set-default COM_PREARM_MODE 2
 
-# On this CubeOrange branch HIL_STATE_QUATERNION already publishes simulated
-# vehicle attitude and local position directly. Leave EKF2 disabled here so it
-# does not overwrite that ground-truth with a second estimator solution.
-param set EKF2_EN 0
+# Keep EKF2 enabled on this branch. In current HIL runs the commander can
+# otherwise trip preflight sensor checks intermittently (for example gyro
+# missing) before the simulated IMU pipeline settles.
+param set EKF2_EN 1
 
 # Square quadrotor X PX4 numbering
 param set-default CA_ROTOR_COUNT 4

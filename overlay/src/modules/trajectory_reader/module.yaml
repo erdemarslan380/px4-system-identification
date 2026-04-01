@@ -75,6 +75,16 @@ parameters:
         max: 6
         default: 0
 
+      TRJ_RC_START_INV:
+        description:
+          short: Invert the RC AUX trigger switch polarity
+          long: |
+            When enabled, the AUX trigger is treated as active in the negative
+            direction. Use this when the selected transmitter switch or slider
+            reports its pressed position near -1 instead of +1.
+        type: boolean
+        default: 0
+
       TRJ_RC_START_BTN:
         description:
           short: One-based RC button index used as the workflow trigger

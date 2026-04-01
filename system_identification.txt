@@ -194,18 +194,33 @@ The practical SITL order is:
 
 RC-assisted operator workflow
 -----------------------------
-For HIL or real-flight operation, the RC path can select controller, workflow, and item independently:
-- `CST_RC_SEL_EN = 1`
-- `CST_RC_CTRL_CH = <controller_pot>`
+For HIL or real-flight operation, use the RC-only path. The preferred setup is:
+- load `examples/rc_only_workflow.params` once from `QGroundControl > Parameters > Tools > Load from file`,
+- keep `QGroundControl` closed during the actual run,
+- use only the transmitter in the field or on the bench.
+
+That profile assumes:
+- `CH6 -> workflow selector`,
+- `CH8 -> item selector`,
+- `CH7 -> trigger`,
+- `TRJ_RC_START_INV = 1`, so the active trigger side is the negative side of the channel.
+
+If you need to set the parameters manually instead, use:
+- `COM_RC_IN_MODE = 0`
+- `CST_POS_CTRL_EN = 1`
+- `CST_RC_SEL_EN = 0`
+- `RC_MAP_AUX1 = 6`
+- `RC_MAP_AUX2 = 8`
+- `RC_MAP_AUX3 = 7`
 - `TRJ_RC_MODE_EN = 1`
-- `TRJ_RC_MODE_CH = <workflow_pot>`
+- `TRJ_RC_MODE_CH = 1`
 - `TRJ_RC_SEL_EN = 1`
-- `TRJ_RC_SEL_CH = <item_pot>`
+- `TRJ_RC_SEL_CH = 2`
 - `TRJ_RC_MIN_ID = 100`
 - `TRJ_RC_MAX_ID = 104`
 - `TRJ_RC_START_EN = 1`
-- `TRJ_RC_START_CH = <H_switch_aux>`
-- `TRJ_RC_START_BTN = <H_button_index>`
+- `TRJ_RC_START_CH = 3`
+- `TRJ_RC_START_INV = 1`
 
 Workflow slots:
 - `0`: hold position
@@ -215,19 +230,25 @@ Workflow slots:
 - `4`: `trajectory_only`
 - `5`: `full_stack`
 
-The `H` button applies the currently selected workflow. In single-identification mode the item pot selects one of the `9` identification profiles. In single-trajectory mode the item pot selects one trajectory id in `100..104` by default.
+Controller selection is automatic:
+- `single ident` and `identification_only` use `SYSID`,
+- `single trajectory`, `trajectory_only`, and hold use `PX4 default`,
+- `full_stack` runs its identification half with `SYSID` and its trajectory half with `PX4 default`.
+
+The trigger applies the currently selected workflow. With the shipped profile and this transmitter, use `CH7 down -> up` for one trigger edge. In single-identification mode the item pot selects one of the `9` identification profiles. In single-trajectory mode the item pot selects one trajectory id in `100..104` by default.
 
 QGroundControl calibration notes:
 - use `Vehicle Setup > Radio` first and complete the normal radio calibration,
 - while calibrating, note which spare controls show up as `AUX 1..6`,
-- `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` use those `AUX 1..6` numbers and therefore map to `manual_control_setpoint.aux1..aux6`,
-- if the `H` switch behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`,
-- if the `H` trigger is coming from a QGroundControl joystick/manual-control button, use the resulting one-based button index for `TRJ_RC_START_BTN`,
+- `TRJ_RC_MODE_CH`, `TRJ_RC_SEL_CH`, and `TRJ_RC_START_CH` use those `AUX 1..6` numbers and therefore map to `manual_control_setpoint.aux1..aux6`,
+- if the trigger behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`,
+- if the active trigger side reports near `-1`, set `TRJ_RC_START_INV = 1`,
+- if the trigger is coming from a QGroundControl joystick/manual-control button, use the resulting one-based button index for `TRJ_RC_START_BTN`,
 - verify the live mapping with `listener manual_control_setpoint` before flight.
 
 The required live checks are:
 - the chosen pots move the intended `auxN` fields,
-- the `H` trigger either toggles `manual_control_setpoint.buttons` or drives one `auxN` high.
+- the trigger either toggles `manual_control_setpoint.buttons` or drives one `auxN` high.
 
 If the button path does not toggle `buttons`, use `TRJ_RC_START_CH` with the matching `auxN` switch slot instead.
 

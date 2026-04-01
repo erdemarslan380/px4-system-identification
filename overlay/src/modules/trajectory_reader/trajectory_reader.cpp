@@ -183,6 +183,7 @@ void TrajectoryReader::parametersUpdate() {
 	_rc_selector_max_traj_id = math::max<int32_t>(_rc_selector_min_traj_id, _rc_selector_max_traj_id);
 	_rc_start_enabled = _param_trj_rc_start_en.get();
 	_rc_start_channel = math::constrain<int32_t>(_param_trj_rc_start_ch.get(), 0, 6);
+	_rc_start_inverted = _param_trj_rc_start_inv.get() != 0;
 	_rc_start_button_index = math::constrain<int32_t>(_param_trj_rc_start_btn.get(), 1, 16);
 
 	const int32_t ident_profile = math::constrain<int32_t>(_param_trj_ident_prof.get(), 0, 8);
@@ -1482,7 +1483,7 @@ void TrajectoryReader::handleRcWorkflowTrigger(const manual_control_setpoint_s &
 
 	const bool button_pressed = rcButtonPressed(manual_control.buttons, _rc_start_button_index);
 	const bool switch_pressed = (_rc_start_channel >= 1 && _rc_start_channel <= 6)
-		? rcAuxSwitchPressed(readAuxChannel(manual_control, _rc_start_channel))
+		? rcAuxSwitchPressed(readAuxChannel(manual_control, _rc_start_channel), 0.5f, _rc_start_inverted)
 		: false;
 	const bool pressed = button_pressed || switch_pressed;
 	const bool rising_edge = pressed && !_rc_start_trigger_prev;

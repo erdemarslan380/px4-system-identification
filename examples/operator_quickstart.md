@@ -155,18 +155,35 @@ python3 experimental_validation/build_latest_x500_candidate.py \
 
 RC workflow option
 ------------------
-If you want to run HIL or real flight from the transmitter instead of a helper script, configure:
-- `CST_RC_SEL_EN = 1`
-- `CST_RC_CTRL_CH = <controller_pot>`
+If you want to run SITL, HIL, or real flight from the transmitter instead of a helper script, use the RC-only path.
+
+Preferred setup:
+1. In `QGroundControl > Parameters > Tools > Load from file`, load [rc_only_workflow.params](/home/earsub/px4-system-identification/examples/rc_only_workflow.params).
+2. Keep `QGroundControl` closed during the actual run.
+3. Use only the transmitter in the field or on the bench.
+
+That file assumes:
+- `CH6 -> workflow selector`
+- `CH8 -> item selector`
+- `CH7 -> trigger`
+- `TRJ_RC_START_INV = 1`, so the active trigger side is the negative side of the channel
+
+If you set the parameters manually instead, configure:
+- `COM_RC_IN_MODE = 0`
+- `CST_POS_CTRL_EN = 1`
+- `CST_RC_SEL_EN = 0`
+- `RC_MAP_AUX1 = 6`
+- `RC_MAP_AUX2 = 8`
+- `RC_MAP_AUX3 = 7`
 - `TRJ_RC_MODE_EN = 1`
-- `TRJ_RC_MODE_CH = <workflow_pot>`
+- `TRJ_RC_MODE_CH = 1`
 - `TRJ_RC_SEL_EN = 1`
-- `TRJ_RC_SEL_CH = <item_pot>`
+- `TRJ_RC_SEL_CH = 2`
 - `TRJ_RC_MIN_ID = 100`
 - `TRJ_RC_MAX_ID = 104`
 - `TRJ_RC_START_EN = 1`
-- `TRJ_RC_START_CH = <H_switch_aux>`
-- `TRJ_RC_START_BTN = <H_button_index>`
+- `TRJ_RC_START_CH = 3`
+- `TRJ_RC_START_INV = 1`
 
 Workflow pot slots:
 - `0`: hold position
@@ -176,21 +193,24 @@ Workflow pot slots:
 - `4`: `trajectory_only`
 - `5`: `full_stack`
 
-Press the `H` button to apply the currently selected workflow.
-- trigger accepted: positive tune
-- cancel or invalid trigger: negative tune
-- pot movement alone: no tune
+Controller selection is automatic:
+- `single ident` and `identification_only` use `SYSID`
+- `single trajectory`, `trajectory_only`, and hold use `PX4 default`
+- `full_stack` runs its identification half with `SYSID` and its trajectory half with `PX4 default`
 
-Controller pot:
-- one end selects `PX4 default`
-- the other end selects `SYSID`
+Trigger behavior:
+- return `CH7` to the non-active side first
+- flick `CH7` into the active side once to apply the current workflow
+- with the shipped profile and this transmitter, that means `down -> up`
+- if the airframe has no buzzer, ignore positive/negative tunes
 
 QGroundControl mapping check:
 - in `Vehicle Setup > Radio`, complete the normal radio calibration and note which spare controls appear as `AUX 1..6`,
-- set `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` from those `AUX` slot numbers,
-- if the `H` switch behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`,
+- set `TRJ_RC_MODE_CH`, `TRJ_RC_SEL_CH`, and `TRJ_RC_START_CH` from those `AUX` slot numbers,
+- if the trigger switch behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`,
+- if the active trigger side reports near `-1`, set `TRJ_RC_START_INV = 1`,
 - only use `TRJ_RC_START_BTN` when the trigger really comes through `manual_control_setpoint.buttons`,
-- verify the final mapping with `listener manual_control_setpoint`: the pots should move the expected `auxN` field and the `H` trigger should either toggle `buttons` or drive one `auxN` high.
+- verify the final mapping with `listener manual_control_setpoint`: the pots should move the expected `auxN` field and the trigger should either toggle `buttons` or drive one `auxN` high.
 
 Keep these separate:
 - `Vehicle Setup > Flight Modes`: normal PX4 mode switch such as `Position` and `Offboard`
@@ -201,42 +221,42 @@ Receiver in HIL:
 - `jMAVSim` uses the USB CDC simulator link, not the RC input pins,
 - this is the right way to test electrical mode-switch behavior before real flight.
 
-If the `H` switch does not affect `manual_control_setpoint.buttons`, that is normal for many receivers. Use `TRJ_RC_START_CH` instead.
+If the trigger switch does not affect `manual_control_setpoint.buttons`, that is normal for many receivers. Use `TRJ_RC_START_CH` instead.
 
 Fast RC smoke test before HIL:
 1. Connect the board over USB and open `QGroundControl`.
-2. In `Vehicle Setup > Radio`, move the controller pot, workflow pot, item pot, and `H` button one by one.
-3. Note which spare controls appear as `AUX 1..6`, then close `QGroundControl` fully.
-4. Open an NSH shell:
+2. In `Vehicle Setup > Radio`, move the workflow pot, item pot, and trigger switch one by one.
+3. Either load [rc_only_workflow.params](/home/earsub/px4-system-identification/examples/rc_only_workflow.params) or note the matching `AUX 1..6` slots and set the parameters manually.
+4. Close `QGroundControl` fully.
+5. Open an NSH shell:
    ```bash
    python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py <usb_cdc_device> -b 57600
    ```
-5. Start the modules:
+6. Start the modules:
    ```bash
    custom_pos_control start
    trajectory_reader start
    custom_pos_control enable
    ```
-6. Watch the live RC mapping:
+7. Watch the live RC mapping:
    ```bash
    listener manual_control_setpoint 20
    ```
-7. Move one control at a time:
-   - controller pot,
+8. Move one control at a time:
    - workflow pot,
    - item pot,
-   - `H` button.
-8. Confirm:
+   - trigger switch.
+9. Confirm:
    - the correct `auxN` field moves for each pot,
-   - either `buttons` changes when `H` is pressed, or one `auxN` jumps high.
+   - either `buttons` changes when the trigger is pressed, or one `auxN` jumps high.
 9. Check the selected repository-side state:
    ```bash
-   param show CST_POS_CTRL_TYP
    param show TRJ_MODE_CMD
    param show TRJ_CAMPAIGN
    param show TRJ_IDENT_PROF
    param show TRJ_ACTIVE_ID
    param show TRJ_RC_START_CH
+   param show TRJ_RC_START_INV
    ```
 10. Check the normal flight-mode switch separately:
    ```bash

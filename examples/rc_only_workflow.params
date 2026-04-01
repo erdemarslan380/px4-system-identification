@@ -1,0 +1,28 @@
+# QGroundControl parameter import for the RC-only operator workflow used in this repo.
+# Load this once from QGC: Parameters > Tools > Load from file.
+# Assumed transmitter mapping for the current platform:
+#   CH6 -> workflow selector
+#   CH8 -> item selector
+#   CH7 -> start trigger (inverted polarity)
+1	1	COM_RC_IN_MODE	0	6
+1	1	CST_POS_CTRL_EN	1	6
+1	1	CST_RC_SEL_EN	0	6
+1	1	RC_MAP_AUX1	6	6
+1	1	RC_MAP_AUX2	8	6
+1	1	RC_MAP_AUX3	7	6
+1	1	RC_MAP_AUX4	0	6
+1	1	RC_MAP_AUX5	0	6
+1	1	RC_MAP_AUX6	0	6
+1	1	TRJ_RC_MODE_EN	1	6
+1	1	TRJ_RC_MODE_CH	1	6
+1	1	TRJ_RC_SEL_EN	1	6
+1	1	TRJ_RC_SEL_CH	2	6
+1	1	TRJ_RC_MIN_ID	100	6
+1	1	TRJ_RC_MAX_ID	104	6
+1	1	TRJ_RC_START_EN	1	6
+1	1	TRJ_RC_START_CH	3	6
+1	1	TRJ_RC_START_INV	1	6
+1	1	TRJ_MODE_CMD	0	6
+1	1	TRJ_CAMPAIGN	0	6
+1	1	TRJ_ACTIVE_ID	100	6
+1	1	TRJ_IDENT_PROF	0	6

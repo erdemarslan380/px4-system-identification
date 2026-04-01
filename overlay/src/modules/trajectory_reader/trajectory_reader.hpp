@@ -267,6 +267,7 @@ private:
 	int32_t _rc_workflow_selected_slot{-1};
 	int32_t _rc_start_enabled{0};
 	int32_t _rc_start_channel{0};
+	bool _rc_start_inverted{false};
 	int32_t _rc_start_button_index{1};
 	bool _rc_start_trigger_prev{false};
 	bool _manual_control_cached_valid{false};
@@ -328,6 +329,7 @@ private:
 		(ParamInt<px4::params::TRJ_RC_MAX_ID>) _param_trj_rc_max_id,
 		(ParamInt<px4::params::TRJ_RC_START_EN>) _param_trj_rc_start_en,
 		(ParamInt<px4::params::TRJ_RC_START_CH>) _param_trj_rc_start_ch,
+		(ParamInt<px4::params::TRJ_RC_START_INV>) _param_trj_rc_start_inv,
 		(ParamInt<px4::params::TRJ_RC_START_BTN>) _param_trj_rc_start_btn,
 		(ParamInt<px4::params::TRJ_IDENT_PROF>) _param_trj_ident_prof,
 		(ParamInt<px4::params::TRJ_CAMPAIGN>) _param_trj_campaign,

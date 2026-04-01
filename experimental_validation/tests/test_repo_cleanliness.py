@@ -26,6 +26,7 @@ HIL_ACTUATOR_CONTROLS_PATCH_SCRIPT = REPO_ROOT / "experimental_validation" / "hi
 TRAJECTORY_ASSET_DIR = REPO_ROOT / "assets" / "validation_trajectories"
 CALIBRATION_SNAPSHOT_SCRIPT = REPO_ROOT / "examples" / "update_vehicle_calibration_snapshot.sh"
 HIL_AIRFRAME_SCRIPT = REPO_ROOT / "overlay" / "ROMFS" / "px4fmu_common" / "init.d" / "airframes" / "1001_rc_quad_x.hil"
+RC_ONLY_WORKFLOW_PARAMS = REPO_ROOT / "examples" / "rc_only_workflow.params"
 
 
 class RepoCleanlinessTests(unittest.TestCase):
@@ -110,6 +111,7 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertTrue(EXPORT_VEHICLE_PARAMS_SCRIPT.exists())
         self.assertTrue(HIL_ACTUATOR_CONTROLS_PATCH_SCRIPT.exists())
         self.assertTrue(CALIBRATION_SNAPSHOT_SCRIPT.exists())
+        self.assertTrue(RC_ONLY_WORKFLOW_PARAMS.exists())
         refresh_content = REFRESH_DEMO_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("validation_trajectories.py", refresh_content)
         self.assertIn("generate_sitl_validation_bundle.py", refresh_content)
@@ -160,7 +162,7 @@ class RepoCleanlinessTests(unittest.TestCase):
 
     def test_hil_airframe_keeps_supported_estimator_path_enabled(self) -> None:
         content = HIL_AIRFRAME_SCRIPT.read_text(encoding="utf-8")
-        self.assertIn("param set EKF2_EN 0", content)
+        self.assertIn("param set EKF2_EN 1", content)
         self.assertNotIn("param set LPE_EN 1", content)
         self.assertNotIn("param set ATT_EN 1", content)
 
@@ -212,6 +214,7 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("TRJ_RC_MODE_EN", module_yaml)
         self.assertIn("TRJ_RC_MIN_ID", module_yaml)
         self.assertIn("TRJ_RC_START_CH", module_yaml)
+        self.assertIn("TRJ_RC_START_INV", module_yaml)
         self.assertIn("TRJ_RC_START_BTN", module_yaml)
         self.assertIn("manual_control_setpoint.buttons", module_yaml)
 
@@ -220,12 +223,14 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("rcButtonPressed(manual_control.buttons", content)
         self.assertIn("TUNE_ID_NOTIFY_POSITIVE", content)
         self.assertIn("TUNE_ID_NOTIFY_NEGATIVE", content)
-        self.assertIn("rcAuxSwitchPressed(readAuxChannel(manual_control, _rc_start_channel))", content)
+        self.assertIn("rcAuxSwitchPressed(readAuxChannel(manual_control, _rc_start_channel), 0.5f, _rc_start_inverted)", content)
         self.assertIn("trajectoryIdFromSelectionSlot", content)
 
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("TRJ_RC_START_CH", readme)
+        self.assertIn("TRJ_RC_START_INV", readme)
         self.assertIn("TRJ_RC_START_BTN", readme)
+        self.assertIn("rc_only_workflow.params", readme)
         self.assertIn("workflow pot slots", readme.lower())
         self.assertIn("Vehicle Setup > Radio", readme)
         self.assertIn("listener manual_control_setpoint", readme)

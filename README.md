@@ -214,20 +214,39 @@ python3 experimental_validation/build_latest_x500_candidate.py   --rootfs ~/PX4-
 
 7. RC-assisted workflow selection
 ---------------------------------
-Use RC only after normal radio calibration is complete.
+Use RC only after normal radio calibration is complete. The preferred operator path is:
 
-Required parameters:
-- `CST_RC_SEL_EN = 1`
-- `CST_RC_CTRL_CH = <controller_pot>`
+1. load [rc_only_workflow.params](/home/earsub/px4-system-identification/examples/rc_only_workflow.params) once in `QGroundControl > Parameters > Tools > Load from file`
+2. keep `QGroundControl` closed during SITL/HIL execution unless you explicitly need it for maintenance
+3. fly the workflow only from the transmitter
+
+The shipped RC profile assumes:
+- `CH6 -> workflow selector`
+- `CH8 -> item selector`
+- `CH7 -> start trigger`
+- `TRJ_RC_START_INV = 1`, so the trigger is treated as active in the negative direction
+
+Required parameters if you set them manually instead of loading the file:
+- `COM_RC_IN_MODE = 0`
+- `CST_POS_CTRL_EN = 1`
+- `CST_RC_SEL_EN = 0`
+- `RC_MAP_AUX1 = 6`
+- `RC_MAP_AUX2 = 8`
+- `RC_MAP_AUX3 = 7`
 - `TRJ_RC_MODE_EN = 1`
-- `TRJ_RC_MODE_CH = <workflow_pot>`
+- `TRJ_RC_MODE_CH = 1`
 - `TRJ_RC_SEL_EN = 1`
-- `TRJ_RC_SEL_CH = <item_pot>`
+- `TRJ_RC_SEL_CH = 2`
 - `TRJ_RC_MIN_ID = 100`
 - `TRJ_RC_MAX_ID = 104`
 - `TRJ_RC_START_EN = 1`
-- `TRJ_RC_START_CH = <H_switch_aux>`
-- `TRJ_RC_START_BTN = <H_button_index>`
+- `TRJ_RC_START_CH = 3`
+- `TRJ_RC_START_INV = 1`
+
+The workflow itself chooses the controller automatically:
+- `single ident` and `identification_only` use `SYSID`
+- `single trajectory`, `trajectory_only`, and hold use `PX4 default`
+- `full_stack` uses `SYSID` for the first 9 maneuvers, then `PX4 default` for the 5 validation trajectories
 
 workflow pot slots:
 - `0`: hold position
@@ -241,63 +260,57 @@ Item pot:
 - workflow `1`: select one of the 9 identification profiles
 - workflow `2`: select one trajectory id in `100..104`
 
-Trigger button:
-- press `H` in slot `0`: return to hold
-- press `H` in slot `1`: start the selected identification profile
-- press `H` in slot `2`: start the selected trajectory
-- press `H` in slot `3`, `4`, or `5`: start the selected campaign
-- trigger accepted: positive tune
-- cancel or invalid trigger: negative tune
-- pot movement alone: no tune
-
-Controller pot:
-- one end selects `PX4 default`
-- the other end selects `SYSID`
+Trigger switch:
+- return `CH7` to the non-active side first
+- flick `CH7` into the active side once to apply the currently selected workflow
+- with the shipped profile and this transmitter, that means `down -> up`
+- if the airframe has no buzzer, ignore positive/negative tunes; the workflow still runs
 
 QGroundControl mapping:
 - in `Vehicle Setup > Radio`, finish normal calibration first
 - note which spare controls move `AUX 1..6`
-- `CST_RC_CTRL_CH`, `TRJ_RC_MODE_CH`, and `TRJ_RC_SEL_CH` use those `AUX 1..6` slots and map to `manual_control_setpoint.aux1..aux6`
-- if the `H` switch behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`
+- `TRJ_RC_MODE_CH`, `TRJ_RC_SEL_CH`, and `TRJ_RC_START_CH` use those `AUX 1..6` slots and map to `manual_control_setpoint.aux1..aux6`
+- if the trigger switch behaves like a normal AUX channel, use that `auxN` slot for `TRJ_RC_START_CH`
+- if the trigger active side reports near `-1`, set `TRJ_RC_START_INV = 1`
 - use `TRJ_RC_START_BTN` only if the trigger really appears in `manual_control_setpoint.buttons`
 - verify the final mapping on the vehicle with `listener manual_control_setpoint`
 
 Keep these paths separate:
 - `Vehicle Setup > Flight Modes`: normal PX4 mode switch such as `Position` and `Offboard`
-- RC pots plus `H`: this repository's maneuver, trajectory, and campaign selection
+- RC `CH6/CH8/CH7`: this repository's maneuver, trajectory, and campaign selection
 
-If the `H` switch does not change `manual_control_setpoint.buttons`, that is fine. Set `TRJ_RC_START_CH` to the matching `auxN` slot instead.
+If the trigger does not change `manual_control_setpoint.buttons`, that is fine. Set `TRJ_RC_START_CH` to the matching `auxN` slot instead.
 
 Fast RC bench check before any HIL campaign:
 1. Connect the board over USB and open `QGroundControl`.
-2. In `Vehicle Setup > Radio`, move the controller pot, workflow pot, item pot, and `H` button one by one.
-3. Write down which spare controls appear as `AUX 1..6`, then close `QGroundControl` fully.
-4. Open an NSH shell:
+2. In `Vehicle Setup > Radio`, move the workflow pot, item pot, and trigger switch one by one.
+3. Either load [rc_only_workflow.params](/home/earsub/px4-system-identification/examples/rc_only_workflow.params) or note the matching `AUX 1..6` slots and set the parameters manually.
+4. Close `QGroundControl` fully.
+5. Open an NSH shell:
    ```bash
    python3 ~/PX4-Autopilot-Identification/Tools/mavlink_shell.py <usb_cdc_device> -b 57600
    ```
-5. Start the modules:
+6. Start the modules:
    ```bash
    custom_pos_control start
    trajectory_reader start
    custom_pos_control enable
    ```
-6. In NSH, watch the receiver mapping:
+7. In NSH, watch the receiver mapping:
    ```bash
    listener manual_control_setpoint 20
    ```
-7. Move only the controller pot and confirm the expected `auxN` changes.
 8. Move only the workflow pot and confirm the expected `auxN` changes.
 9. Move only the item pot and confirm the expected `auxN` changes.
-10. Press `H` and confirm either `buttons` changes or one `auxN` jumps high.
+10. Flip only the trigger switch and confirm either `buttons` changes or one `auxN` crosses the expected threshold.
 11. Check the selected repo-side state:
    ```bash
-   param show CST_POS_CTRL_TYP
    param show TRJ_MODE_CMD
    param show TRJ_CAMPAIGN
    param show TRJ_IDENT_PROF
    param show TRJ_ACTIVE_ID
    param show TRJ_RC_START_CH
+   param show TRJ_RC_START_INV
    ```
 12. Check the normal PX4 mode switch separately:
    ```bash
@@ -311,6 +324,12 @@ Use HIL only as a smoke test:
 - one uninterrupted campaign in one boot
 - RAM and CPU remain healthy
 - one CSV per maneuver or trajectory is written to the SD card
+
+Preferred operator flow:
+- `QGroundControl` closed
+- one `jMAVSim`
+- pilot uses only RC for arm, `Position <-> Offboard`, workflow selection, item selection, and trigger
+- use MAVLink helpers only for debugging or scripted lab runs
 
 Keep the transport split simple:
 - USB CDC device, for example `/dev/ttyACM0`: `jMAVSim`
