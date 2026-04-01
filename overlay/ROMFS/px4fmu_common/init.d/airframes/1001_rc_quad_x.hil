@@ -29,10 +29,11 @@ param set-default SYS_HAS_MAG 0
 param set-default COM_ARM_HFLT_CHK 0
 param set-default COM_PREARM_MODE 2
 
-# Keep EKF2 enabled on this branch. In current HIL runs the commander can
-# otherwise trip preflight sensor checks intermittently (for example gyro
-# missing) before the simulated IMU pipeline settles.
-param set EKF2_EN 1
+# In hardware HIL the simulator already provides attitude/global/local state
+# over MAVLink. Running EKF2 on top of that has been causing the local position
+# to diverge before arm, so keep EKF2 disabled and consume the simulator state
+# directly.
+param set EKF2_EN 0
 
 # Square quadrotor X PX4 numbering
 param set-default CA_ROTOR_COUNT 4
@@ -52,20 +53,26 @@ param set-default HIL_ACT_FUNC2 102
 param set-default HIL_ACT_FUNC3 103
 param set-default HIL_ACT_FUNC4 104
 
-# Start the identification modules automatically in HIL so QGroundControl can
-# drive the test flow using only parameters and mode changes.
-param set-default CST_POS_CTRL_EN 1
-param set-default CST_POS_CTRL_TYP 4
-param set-default TRJ_MODE_CMD 0
-param set-default TRJ_ACTIVE_ID 100
-param set-default TRJ_POS_ABS 1
-param set-default TRJ_POS_X 0.0
-param set-default TRJ_POS_Y 0.0
-param set-default TRJ_POS_Z 0.0
-param set-default TRJ_POS_YAW 0.0
-param set-default TRJ_ANCHOR_X 0.0
-param set-default TRJ_ANCHOR_Y 0.0
-param set-default TRJ_ANCHOR_Z -3.0
+# Start the identification modules automatically in HIL so the operator can
+# drive the workflow from the RC transmitter only. Use deterministic runtime
+# values instead of set-default here so stale saved params from prior sessions
+# cannot arm the vehicle with an unexpected absolute position target.
+param set CST_POS_CTRL_EN 1
+param set CST_POS_CTRL_TYP 4
+param set COM_RC_IN_MODE 0
+param set TRJ_MODE_CMD 0
+param set TRJ_ACTIVE_ID 100
+param set TRJ_IDENT_PROF 0
+param set TRJ_CAMPAIGN 0
+param set TRJ_CAMPAIGN_CMD 0
+param set TRJ_POS_ABS 0
+param set TRJ_POS_X 0.0
+param set TRJ_POS_Y 0.0
+param set TRJ_POS_Z 0.0
+param set TRJ_POS_YAW 0.0
+param set TRJ_ANCHOR_X 0.0
+param set TRJ_ANCHOR_Y 0.0
+param set TRJ_ANCHOR_Z -3.0
 
 custom_pos_control start
 trajectory_reader start

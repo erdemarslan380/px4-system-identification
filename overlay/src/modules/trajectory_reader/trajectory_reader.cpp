@@ -135,7 +135,10 @@ const CampaignDefinitionItem *campaignDefinition(CampaignType type, size_t &coun
 ModuleBase::Descriptor TrajectoryReader::desc{task_spawn, custom_command, print_usage};
 
 TrajectoryReader::TrajectoryReader() :
-    ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
+    // Keep trajectory_reader off nav_and_controllers in HIL. The armed path
+    // rolls out a 20-step horizon and was exhausting that queue's tighter
+    // stack budget on CubeOrange, which manifested as an arm-time reset.
+    ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::hp_default),
     ModuleParams(nullptr)
 {
     PX4_INFO("TrajectoryReader constructed");
@@ -1643,58 +1646,57 @@ void TrajectoryReader::publishSetpoint(const matrix::Vector3f &current_pos) {
         return;
     }
 
-    multi_trajectory_setpoint_s ref{};
-
-    ref.timestamp = hrt_absolute_time();
-    ref.horizon_length = MAX_HORIZON;
-    ref.valid = true;
+    _published_ref_msg = {};
+    _published_ref_msg.timestamp = hrt_absolute_time();
+    _published_ref_msg.horizon_length = MAX_HORIZON;
+    _published_ref_msg.valid = true;
 
     for (size_t i = 0; i < MAX_HORIZON; ++i) {
         const TrajSample &s = _buffer[i];
 
-        ref.position_x[i] = s.px;
-        ref.position_y[i] = s.py;
-        ref.position_z[i] = s.pz;
+        _published_ref_msg.position_x[i] = s.px;
+        _published_ref_msg.position_y[i] = s.py;
+        _published_ref_msg.position_z[i] = s.pz;
 
 		if (_mode == Mode::TRAJECTORY && _traj_offset_valid) {
-			ref.position_x[i] += _traj_offset(0);
-			ref.position_y[i] += _traj_offset(1);
-			ref.position_z[i] += _traj_offset(2);
+			_published_ref_msg.position_x[i] += _traj_offset(0);
+			_published_ref_msg.position_y[i] += _traj_offset(1);
+			_published_ref_msg.position_z[i] += _traj_offset(2);
 		}
 
-        ref.velocity_x[i] = s.vx;
-        ref.velocity_y[i] = s.vy;
-        ref.velocity_z[i] = s.vz;
+        _published_ref_msg.velocity_x[i] = s.vx;
+        _published_ref_msg.velocity_y[i] = s.vy;
+        _published_ref_msg.velocity_z[i] = s.vz;
 
-        ref.accel_x[i] = s.ax;
-        ref.accel_y[i] = s.ay;
-        ref.accel_z[i] = s.az;
+        _published_ref_msg.accel_x[i] = s.ax;
+        _published_ref_msg.accel_y[i] = s.ay;
+        _published_ref_msg.accel_z[i] = s.az;
 
-        ref.yaw[i] = s.yaw;
-        ref.yawspeed[i] = s.yawspeed;
+        _published_ref_msg.yaw[i] = s.yaw;
+        _published_ref_msg.yawspeed[i] = s.yawspeed;
     }
 
-	_pub.publish(ref);
+	_pub.publish(_published_ref_msg);
 
 	if (_mode == Mode::TRAJECTORY || _mode == Mode::IDENTIFICATION) {
 		if (_start_new_tracking_log && !_finalize_tracking_log) {
-			if (startTrajectoryTrackingLog(ref.timestamp)) {
+			if (startTrajectoryTrackingLog(_published_ref_msg.timestamp)) {
 				_start_new_tracking_log = false;
 			}
 		}
 
 		if (_mode == Mode::IDENTIFICATION && _ident_log_fd < 0 && !_ident_finalize_log) {
-			startIdentificationLog(ref.timestamp);
+			startIdentificationLog(_published_ref_msg.timestamp);
 		}
 
 		const matrix::Vector3f first_ref_pos{
-			ref.position_x[0],
-			ref.position_y[0],
-			ref.position_z[0]
+			_published_ref_msg.position_x[0],
+			_published_ref_msg.position_y[0],
+			_published_ref_msg.position_z[0]
 		};
 
 		if (!_finalize_tracking_log && _tracking_log_fd >= 0) {
-			queueTrackingLogSample(first_ref_pos, ref.timestamp);
+			queueTrackingLogSample(first_ref_pos, _published_ref_msg.timestamp);
 		}
 
 		flushTrackingLogSamples(current_pos, hrt_absolute_time());

@@ -192,6 +192,9 @@ private:
 	uORB::Subscription _esc_status_sub{ORB_ID(esc_status)};
 	uORB::Subscription _hover_thrust_sub{ORB_ID(hover_thrust_estimate)};
 	uORB::Publication<multi_trajectory_setpoint_s> _pub{ORB_ID(multi_trajectory_setpoint)};
+	// Reuse the uORB message buffer instead of allocating ~1 KB on the work
+	// queue stack every 20 ms in armed HIL operation.
+	multi_trajectory_setpoint_s _published_ref_msg{};
 
 	// smoothers
 	PositionSmoothing _position_smoothing;
