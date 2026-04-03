@@ -8,6 +8,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -98,6 +99,10 @@ SITL_TRAJECTORY_TAIL_SECONDS = 10.0
 SITL_ESC_MIN_DEFAULT = 0
 SITL_START_ATTEMPTS = 3
 SITL_START_RETRY_DELAY_SECONDS = 3.0
+VISUAL_FOLLOW_OFFSET_X = 0.0
+VISUAL_FOLLOW_OFFSET_Y = 0.0
+VISUAL_FOLLOW_OFFSET_Z = 10.0
+SITL_CONSOLE_WINDOW_TITLE = "PX4 SITL Log (read-only)"
 
 
 def _apply_x500_esc_scaling(session: "Px4SitlSession", *, min_value: int, max_value: int) -> None:
@@ -335,6 +340,53 @@ def _prepare_model_override(px4_root: Path, model_name: str, override_models_roo
     _inject_truth_logger_plugin(target_dir / "model.sdf")
 
 
+def _close_window_by_title(title: str) -> None:
+    if not shutil.which("wmctrl"):
+        return
+    subprocess.run(
+        ["wmctrl", "-c", title],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    time.sleep(0.5)
+
+
+def _open_console_window(console_log: Path, *, title: str = SITL_CONSOLE_WINDOW_TITLE) -> None:
+    terminal = shutil.which("gnome-terminal")
+    if terminal is None:
+        return
+
+    console_log.parent.mkdir(parents=True, exist_ok=True)
+    console_log.touch(exist_ok=True)
+    _close_window_by_title(title)
+
+    subprocess.Popen(
+        [
+            terminal,
+            f"--title={title}",
+            "--maximize",
+            "--",
+            "bash",
+            "-ic",
+            f"tail -n +1 -f {shlex.quote(str(console_log))}",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    time.sleep(1.0)
+
+    if shutil.which("wmctrl"):
+        subprocess.run(
+            ["wmctrl", "-a", title],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+
 def _build_px4_env(px4_root: Path, build_dir: Path, run_rootfs: Path, override_models_root: Path, model_name: str, headless: bool) -> dict[str, str]:
     env = os.environ.copy()
     models = px4_root / "Tools" / "simulation" / "gz" / "models"
@@ -355,6 +407,11 @@ def _build_px4_env(px4_root: Path, build_dir: Path, run_rootfs: Path, override_m
     env["GZ_SIM_SERVER_CONFIG_PATH"] = str(server_config.resolve())
     env["PX4_SYSID_LOG_DIR"] = str((run_rootfs / "sysid_truth_logs").resolve())
     env["PX4_SYSID_LOG_SLOT"] = run_rootfs.name
+    if not headless:
+        # Keep the visual workflow on a fixed near-top-down follow view unless the caller overrides it.
+        env.setdefault("PX4_GZ_FOLLOW_OFFSET_X", str(VISUAL_FOLLOW_OFFSET_X))
+        env.setdefault("PX4_GZ_FOLLOW_OFFSET_Y", str(VISUAL_FOLLOW_OFFSET_Y))
+        env.setdefault("PX4_GZ_FOLLOW_OFFSET_Z", str(VISUAL_FOLLOW_OFFSET_Z))
     return env
 
 
@@ -655,6 +712,7 @@ def run_validation_model(
     sitl_esc_min: int = SITL_ESC_MIN_DEFAULT,
     sitl_esc_max: int | None = None,
     headless: bool = True,
+    show_console: bool = False,
 ) -> dict:
     px4_root = Path(px4_root).expanduser().resolve()
     out_root = Path(out_root).expanduser().resolve()
@@ -668,6 +726,8 @@ def run_validation_model(
     result_root = out_root / model_spec.label
 
     _prepare_run_rootfs(base_rootfs, run_rootfs)
+    if show_console and not headless:
+        _open_console_window(run_rootfs / "px4_console.log")
     export_manifest = export_validation_trajectories(run_rootfs / "trajectories")
     _prepare_model_override(px4_root, model_spec.gz_model, override_models_root)
     env = _build_px4_env(px4_root, build_dir, run_rootfs, override_models_root, model_spec.gz_model, headless)
@@ -893,6 +953,7 @@ def run_validation_suite(
     sitl_esc_min: int = SITL_ESC_MIN_DEFAULT,
     sitl_esc_max: int | None = None,
     headless: bool = True,
+    show_console: bool = False,
 ) -> dict:
     px4_root = Path(px4_root).expanduser().resolve()
     out_root = Path(out_root).expanduser().resolve()
@@ -913,6 +974,7 @@ def run_validation_suite(
                 sitl_esc_min=sitl_esc_min,
                 sitl_esc_max=sitl_esc_max,
                 headless=headless,
+                show_console=show_console,
             )
         )
 
@@ -954,6 +1016,11 @@ def main() -> int:
         help="Override SIM_GZ_EC_MIN[1-4] when --sitl-esc-max is provided. Default: 0.",
     )
     ap.add_argument("--visual", action="store_true", help="Launch Gazebo with GUI instead of headless mode.")
+    ap.add_argument(
+        "--show-console",
+        action="store_true",
+        help="Open a visible read-only PX4 log window alongside Gazebo in visual mode.",
+    )
     args = ap.parse_args()
 
     trajectory_names = [item.strip() for item in args.trajectory_names.split(",") if item.strip()] or None
@@ -968,6 +1035,7 @@ def main() -> int:
         sitl_esc_min=args.sitl_esc_min,
         sitl_esc_max=args.sitl_esc_max,
         headless=not args.visual,
+        show_console=args.show_console,
     )
     print(json.dumps(summary, indent=2))
     return 0

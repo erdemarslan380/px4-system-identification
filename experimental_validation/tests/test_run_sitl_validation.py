@@ -47,6 +47,21 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn('--sitl-esc-max', main_source)
         self.assertIn('--sitl-esc-min', main_source)
 
+    def test_visual_mode_can_show_console_and_fix_topdown_camera(self) -> None:
+        env_source = inspect.getsource(sitl_validation._build_px4_env)
+        model_source = inspect.getsource(sitl_validation.run_validation_model)
+        helper_source = inspect.getsource(sitl_validation._open_console_window)
+        main_source = inspect.getsource(sitl_validation.main)
+
+        self.assertIn('env.setdefault("PX4_GZ_FOLLOW_OFFSET_X"', env_source)
+        self.assertIn('env.setdefault("PX4_GZ_FOLLOW_OFFSET_Y"', env_source)
+        self.assertIn('env.setdefault("PX4_GZ_FOLLOW_OFFSET_Z"', env_source)
+        self.assertIn("_open_console_window(run_rootfs / \"px4_console.log\")", model_source)
+        self.assertIn("if show_console and not headless:", model_source)
+        self.assertIn("gnome-terminal", helper_source)
+        self.assertIn("wmctrl", helper_source)
+        self.assertIn("--show-console", main_source)
+
 
 if __name__ == "__main__":
     unittest.main()
