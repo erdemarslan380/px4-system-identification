@@ -9,6 +9,54 @@ SIM_PTY_LINK="${PX4_HIL_SIM_PTY:-/tmp/px4_hitl_sim.pty}"
 CTRL_PTY_LINK="${PX4_HIL_CTRL_PTY:-/tmp/px4_hitl_ctrl.pty}"
 USE_SERIAL_HUB="${PX4_HIL_USE_SERIAL_HUB:-1}"
 MAVLINK_LOG_PATH="${PX4_HIL_MAVLINK_LOG:-}"
+PIN_CPUS="${PX4_HIL_PIN_CPUS:-1}"
+USE_RT="${PX4_HIL_USE_RT:-1}"
+RT_PRIO_HUB="${PX4_HIL_RT_PRIO_HUB:-15}"
+RT_PRIO_SIM="${PX4_HIL_RT_PRIO_SIM:-20}"
+
+CPU_COUNT="$(nproc 2>/dev/null || echo 1)"
+if [[ "$CPU_COUNT" -ge 4 ]]; then
+  DEFAULT_HUB_CPU="$((CPU_COUNT - 2))"
+  DEFAULT_SIM_CPU="$((CPU_COUNT - 1))"
+else
+  DEFAULT_HUB_CPU=""
+  DEFAULT_SIM_CPU=""
+fi
+
+HUB_CPUSET="${PX4_HIL_HUB_CPUSET:-$DEFAULT_HUB_CPU}"
+SIM_CPUSET="${PX4_HIL_SIM_CPUSET:-$DEFAULT_SIM_CPU}"
+RT_AVAILABLE=0
+
+if [[ "$USE_RT" == "1" ]] && command -v chrt >/dev/null 2>&1; then
+  if chrt -r 1 /bin/true >/dev/null 2>&1; then
+    RT_AVAILABLE=1
+  else
+    echo "Realtime scheduling not permitted for this user; falling back to taskset+ionice." >&2
+  fi
+fi
+
+run_with_optional_sched() {
+  local cpuset="$1"
+  local rtprio="$2"
+  shift
+  shift
+
+  local -a cmd=("$@")
+
+  if [[ "$PIN_CPUS" == "1" ]] && [[ -n "$cpuset" ]] && command -v taskset >/dev/null 2>&1; then
+    cmd=(taskset -c "$cpuset" "${cmd[@]}")
+  fi
+
+  if command -v ionice >/dev/null 2>&1; then
+    cmd=(ionice -c2 -n0 "${cmd[@]}")
+  fi
+
+  if [[ "$RT_AVAILABLE" == "1" ]] && [[ -n "$rtprio" ]]; then
+    cmd=(chrt -r "$rtprio" "${cmd[@]}")
+  fi
+
+  "${cmd[@]}"
+}
 
 if [[ "${PX4_SYSID_HEADLESS:-0}" == "1" ]]; then
   export HEADLESS=1
@@ -50,6 +98,7 @@ if [[ "$RESOLVED_DEVICE" == /dev/ttyACM* ]]; then
   # Prevent Linux hangup-on-close behavior from bouncing the CubeOrange USB CDC
   # port to a new ttyACM index while jMAVSim is trying to open it.
   stty -F "$RESOLVED_DEVICE" -hupcl || true
+  DEVICE="$RESOLVED_DEVICE"
 fi
 
 if command -v lsof >/dev/null 2>&1; then
@@ -79,7 +128,7 @@ if [[ "$USE_SERIAL_HUB" == "1" ]]; then
     HUB_CMD+=(--mavlink-log "$MAVLINK_LOG_PATH")
   fi
 
-  "${HUB_CMD[@]}" &
+  run_with_optional_sched "$HUB_CPUSET" "$RT_PRIO_HUB" "${HUB_CMD[@]}" &
   HUB_PID=$!
 
   cleanup() {
@@ -103,7 +152,9 @@ if [[ "$USE_SERIAL_HUB" == "1" ]]; then
     exit 3
   fi
 
-  ./Tools/simulation/jmavsim/jmavsim_run.sh -q -s -d "$SIM_PTY_LINK" -b "$BAUDRATE" -r "$ACTUATOR_RATE_HZ"
+  run_with_optional_sched "$SIM_CPUSET" "$RT_PRIO_SIM" \
+    ./Tools/simulation/jmavsim/jmavsim_run.sh -q -s -d "$SIM_PTY_LINK" -b "$BAUDRATE" -r "$ACTUATOR_RATE_HZ"
 else
-  ./Tools/simulation/jmavsim/jmavsim_run.sh -q -s -d "$DEVICE" -b "$BAUDRATE" -r "$ACTUATOR_RATE_HZ"
+  run_with_optional_sched "$SIM_CPUSET" "$RT_PRIO_SIM" \
+    ./Tools/simulation/jmavsim/jmavsim_run.sh -q -s -d "$DEVICE" -b "$BAUDRATE" -r "$ACTUATOR_RATE_HZ"
 fi

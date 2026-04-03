@@ -38,6 +38,23 @@ float readAuxChannel(const manual_control_setpoint_s &manual_control, int channe
 	}
 }
 
+static float identificationStartPhaseS(IdentificationProfile profile)
+{
+	switch (profile) {
+	case IdentificationProfile::ROLL_SWEEP:
+		return 6.4080236f;
+	case IdentificationProfile::PITCH_SWEEP:
+		return 6.457f;
+	case IdentificationProfile::YAW_SWEEP:
+		// Start from a near-zero yaw-rate phase. The yaw sweep is intentionally
+		// slower and milder than the original profile because the previous
+		// waveform systematically injected large pitch weave in HIL.
+		return 10.7646f;
+	default:
+		return 0.0f;
+	}
+}
+
 float squaref(float value)
 {
 	return value * value;
@@ -874,6 +891,7 @@ void TrajectoryReader::resetIdentificationState()
 {
 	_ident_origin_valid = false;
 	_ident_origin = {};
+	_ident_origin_yaw = 0.0f;
 	_ident_start_time = 0;
 	_ident_started = false;
 	_ident_finalize_log = false;
@@ -921,6 +939,8 @@ bool TrajectoryReader::startIdentificationLog(hrt_abstime setpoint_timestamp)
 		"ref_yaw,ref_yawspeed,pos_x,pos_y,pos_z,vx,vy,vz,ax,ay,az,roll,pitch,yaw,p,q,r,"
 		"att_sp_q0,att_sp_q1,att_sp_q2,att_sp_q3,att_sp_thrust_x,att_sp_thrust_y,att_sp_thrust_z,"
 		"rate_sp_roll,rate_sp_pitch,rate_sp_yaw,rate_sp_thrust_x,rate_sp_thrust_y,rate_sp_thrust_z,"
+		"torque_sp_roll,torque_sp_pitch,torque_sp_yaw,"
+		"alloc_unalloc_roll,alloc_unalloc_pitch,alloc_unalloc_yaw,alloc_torque_achieved,"
 		"motor_0,motor_1,motor_2,motor_3,"
 		"esc_0_rpm,esc_1_rpm,esc_2_rpm,esc_3_rpm,"
 		"esc_0_voltage,esc_1_voltage,esc_2_voltage,esc_3_voltage,"
@@ -986,19 +1006,27 @@ matrix::Vector3f TrajectoryReader::identificationRelativePosition(Identification
 			0.0f,
 			0.35f * sinf(two_pi * 0.12f * t_s) + 0.18f * sinf(two_pi * 0.27f * t_s));
 	case IdentificationProfile::ROLL_SWEEP:
-		return matrix::Vector3f(
-			0.0f,
-			0.60f * sinf(two_pi * 0.09f * t_s)
-				+ 0.28f * sinf(two_pi * 0.19f * t_s)
-				+ 0.12f * sinf(two_pi * 0.31f * t_s),
-			0.0f);
+		{
+			const float phase_s = identificationStartPhaseS(profile);
+			const float s0 = 0.60f * sinf(two_pi * 0.09f * phase_s)
+				+ 0.28f * sinf(two_pi * 0.19f * phase_s)
+				+ 0.12f * sinf(two_pi * 0.31f * phase_s);
+			const float s = 0.60f * sinf(two_pi * 0.09f * (t_s + phase_s))
+				+ 0.28f * sinf(two_pi * 0.19f * (t_s + phase_s))
+				+ 0.12f * sinf(two_pi * 0.31f * (t_s + phase_s));
+			return matrix::Vector3f(0.0f, s - s0, 0.0f);
+		}
 	case IdentificationProfile::PITCH_SWEEP:
-		return matrix::Vector3f(
-			0.60f * sinf(two_pi * 0.09f * t_s)
-				+ 0.28f * sinf(two_pi * 0.19f * t_s)
-				+ 0.12f * sinf(two_pi * 0.31f * t_s),
-			0.0f,
-			0.0f);
+		{
+			const float phase_s = identificationStartPhaseS(profile);
+			const float s0 = 0.60f * sinf(two_pi * 0.09f * phase_s)
+				+ 0.28f * sinf(two_pi * 0.19f * phase_s)
+				+ 0.12f * sinf(two_pi * 0.31f * phase_s);
+			const float s = 0.60f * sinf(two_pi * 0.09f * (t_s + phase_s))
+				+ 0.28f * sinf(two_pi * 0.19f * (t_s + phase_s))
+				+ 0.12f * sinf(two_pi * 0.31f * (t_s + phase_s));
+			return matrix::Vector3f(s - s0, 0.0f, 0.0f);
+		}
 	case IdentificationProfile::YAW_SWEEP:
 		return matrix::Vector3f(0.0f, 0.0f, 0.0f);
 	case IdentificationProfile::DRAG_X:
@@ -1039,8 +1067,12 @@ matrix::Vector3f TrajectoryReader::identificationRelativePosition(Identification
 float TrajectoryReader::identificationRelativeYaw(IdentificationProfile profile, float t_s) const
 {
 	if (profile == IdentificationProfile::YAW_SWEEP) {
-		return 0.55f * sinf(2.0f * M_PI_F * 0.07f * t_s)
-			+ 0.22f * sinf(2.0f * M_PI_F * 0.15f * t_s);
+		const float phase_s = identificationStartPhaseS(profile);
+		const float y0 = 0.35f * sinf(2.0f * M_PI_F * 0.04f * phase_s)
+			+ 0.15f * sinf(2.0f * M_PI_F * 0.09f * phase_s);
+		const float y = 0.35f * sinf(2.0f * M_PI_F * 0.04f * (t_s + phase_s))
+			+ 0.15f * sinf(2.0f * M_PI_F * 0.09f * (t_s + phase_s));
+		return y - y0;
 	}
 	return 0.0f;
 }
@@ -1048,8 +1080,9 @@ float TrajectoryReader::identificationRelativeYaw(IdentificationProfile profile,
 float TrajectoryReader::identificationRelativeYawRate(IdentificationProfile profile, float t_s) const
 {
 	if (profile == IdentificationProfile::YAW_SWEEP) {
-		return 0.55f * 2.0f * M_PI_F * 0.07f * cosf(2.0f * M_PI_F * 0.07f * t_s)
-			+ 0.22f * 2.0f * M_PI_F * 0.15f * cosf(2.0f * M_PI_F * 0.15f * t_s);
+		const float phase_s = identificationStartPhaseS(profile);
+		return 0.35f * 2.0f * M_PI_F * 0.04f * cosf(2.0f * M_PI_F * 0.04f * (t_s + phase_s))
+			+ 0.15f * 2.0f * M_PI_F * 0.09f * cosf(2.0f * M_PI_F * 0.09f * (t_s + phase_s));
 	}
 	return 0.0f;
 }
@@ -1064,28 +1097,76 @@ void TrajectoryReader::identificationKinematics(
 	float &yawspeed) const
 {
 	const float dt = 0.02f;
-	const matrix::Vector3f pm = identificationRelativePosition(profile, math::max(0.0f, t_s - dt));
-	const matrix::Vector3f p0 = identificationRelativePosition(profile, t_s);
-	const matrix::Vector3f pp = identificationRelativePosition(profile, t_s + dt);
+	const float duration_s = identificationDurationS(profile);
+	const float t0 = math::constrain(t_s, 0.0f, duration_s);
+	const matrix::Vector3f p0 = identificationRelativePosition(profile, t0);
+
+	float tm = t0 - dt;
+	float tp = t0 + dt;
+	bool use_forward_diff = false;
+	bool use_backward_diff = false;
+
+	if (tm < 0.0f) {
+		tm = 0.0f;
+		tp = math::min(duration_s, t0 + dt);
+		use_forward_diff = true;
+	}
+
+	if (tp > duration_s) {
+		tp = duration_s;
+		tm = math::max(0.0f, t0 - dt);
+		use_backward_diff = true;
+		use_forward_diff = false;
+	}
+
+	const matrix::Vector3f pm = identificationRelativePosition(profile, tm);
+	const matrix::Vector3f pp = identificationRelativePosition(profile, tp);
 
 	position = p0;
-	velocity = (pp - pm) / (2.0f * dt);
-	acceleration = (pp - 2.0f * p0 + pm) / squaref(dt);
 
-	const float ym = identificationRelativeYaw(profile, math::max(0.0f, t_s - dt));
-	const float y0 = identificationRelativeYaw(profile, t_s);
-	const float yp = identificationRelativeYaw(profile, t_s + dt);
+	if (use_forward_diff) {
+		const float tpp = math::min(duration_s, t0 + 2.0f * dt);
+		const matrix::Vector3f ppp = identificationRelativePosition(profile, tpp);
+		velocity = (pp - p0) / dt;
+		acceleration = (ppp - 2.0f * pp + p0) / squaref(dt);
+
+	} else if (use_backward_diff) {
+		const float tmm = math::max(0.0f, t0 - 2.0f * dt);
+		const matrix::Vector3f pmm = identificationRelativePosition(profile, tmm);
+		velocity = (p0 - pm) / dt;
+		acceleration = (p0 - 2.0f * pm + pmm) / squaref(dt);
+
+	} else {
+		velocity = (pp - pm) / (2.0f * dt);
+		acceleration = (pp - 2.0f * p0 + pm) / squaref(dt);
+	}
+
+	const float ym = identificationRelativeYaw(profile, tm);
+	const float y0 = identificationRelativeYaw(profile, t0);
+	const float yp = identificationRelativeYaw(profile, tp);
 	yaw = y0;
 	yawspeed = identificationRelativeYawRate(profile, t_s);
 	if (!PX4_ISFINITE(yawspeed)) {
-		yawspeed = (yp - ym) / (2.0f * dt);
+		if (use_forward_diff) {
+			yawspeed = (yp - y0) / dt;
+
+		} else if (use_backward_diff) {
+			yawspeed = (y0 - ym) / dt;
+
+		} else {
+			yawspeed = (yp - ym) / (2.0f * dt);
+		}
 	}
 }
 
-void TrajectoryReader::fillIdentificationBuffer(const matrix::Vector3f &current_pos, hrt_abstime now)
+void TrajectoryReader::fillIdentificationBuffer(const matrix::Vector3f &current_pos, float current_yaw, hrt_abstime now)
 {
 	if (!_ident_origin_valid) {
-		_ident_origin = _traj_anchor_valid ? _traj_anchor : current_pos;
+		// Identification maneuvers should start from the live hover point.
+		// Reusing a stale trajectory anchor here can pull the vehicle toward an
+		// old takeoff/trajectory origin when the ident profile begins.
+		_ident_origin = current_pos;
+		_ident_origin_yaw = current_yaw;
 		_ident_origin_valid = true;
 	}
 
@@ -1120,7 +1201,23 @@ void TrajectoryReader::fillIdentificationBuffer(const matrix::Vector3f &current_
 		float rel_yawspeed = 0.0f;
 		identificationKinematics(_ident_profile, sample_time_s, rel_pos, rel_vel, rel_acc, rel_yaw, rel_yawspeed);
 
-		const matrix::Vector3f pos = _ident_origin + rel_pos;
+		matrix::Vector3f pos = _ident_origin + rel_pos;
+
+		if (_ident_profile == IdentificationProfile::YAW_SWEEP) {
+			// Keep the yaw-only maneuver laterally co-moving with the live hover
+			// point. Holding a fixed world-frame XY anchor while exciting yaw
+			// causes the position loop to inject large pitch corrections in HIL,
+			// which contaminates the yaw-identification data. The yaw excitation
+			// and altitude hold remain intact; only the lateral anchor is allowed
+			// to follow the current hover position.
+			pos(0) = current_pos(0);
+			pos(1) = current_pos(1);
+			rel_vel(0) = 0.0f;
+			rel_vel(1) = 0.0f;
+			rel_acc(0) = 0.0f;
+			rel_acc(1) = 0.0f;
+		}
+
 		_buffer[i].px = pos(0);
 		_buffer[i].py = pos(1);
 		_buffer[i].pz = pos(2);
@@ -1130,7 +1227,7 @@ void TrajectoryReader::fillIdentificationBuffer(const matrix::Vector3f &current_
 		_buffer[i].ax = rel_acc(0);
 		_buffer[i].ay = rel_acc(1);
 		_buffer[i].az = rel_acc(2);
-		_buffer[i].yaw = rel_yaw;
+		_buffer[i].yaw = matrix::wrap_pi(_ident_origin_yaw + rel_yaw);
 		_buffer[i].yawspeed = rel_yawspeed;
 	}
 
@@ -1154,51 +1251,49 @@ void TrajectoryReader::writeIdentificationLogSample(const matrix::Vector3f &curr
 		return;
 	}
 
-	vehicle_attitude_s attitude{};
-	_attitude_sub.copy(&attitude);
-	vehicle_angular_velocity_s angular_velocity{};
-	_angular_velocity_sub.copy(&angular_velocity);
-	vehicle_attitude_setpoint_s attitude_sp{};
-	_attitude_sp_sub.copy(&attitude_sp);
-	vehicle_rates_setpoint_s rates_sp{};
-	_rates_sp_sub.copy(&rates_sp);
-	actuator_motors_s actuator_motors{};
-	_actuator_motors_sub.copy(&actuator_motors);
-	esc_status_s esc_status{};
-	_esc_status_sub.copy(&esc_status);
-	hover_thrust_estimate_s hover{};
-	_hover_thrust_sub.copy(&hover);
-	vehicle_local_position_s local_pos{};
-	_local_pos_sub.copy(&local_pos);
+	_attitude_sub.copy(&_ident_log_attitude);
+	_angular_velocity_sub.copy(&_ident_log_angular_velocity);
+	_attitude_sp_sub.copy(&_ident_log_attitude_sp);
+	_rates_sp_sub.copy(&_ident_log_rates_sp);
+	_torque_sp_sub.copy(&_ident_log_torque_sp);
+	_control_allocator_status_sub.copy(&_ident_log_control_allocator_status);
+	_actuator_motors_sub.copy(&_ident_log_actuator_motors);
+	_esc_status_sub.copy(&_ident_log_esc_status);
+	_hover_thrust_sub.copy(&_ident_log_hover);
+	_local_pos_sub.copy(&_ident_log_local_pos);
 
-	double esc_rpm[4] = {NAN, NAN, NAN, NAN};
-	double esc_voltage[4] = {NAN, NAN, NAN, NAN};
-	double esc_current[4] = {NAN, NAN, NAN, NAN};
-	const uint8_t esc_count = math::min<uint8_t>(4, esc_status.esc_count);
+	for (int i = 0; i < 4; ++i) {
+		_ident_log_esc_rpm[i] = NAN;
+		_ident_log_esc_voltage[i] = NAN;
+		_ident_log_esc_current[i] = NAN;
+	}
+
+	const uint8_t esc_count = math::min<uint8_t>(4, _ident_log_esc_status.esc_count);
 	for (uint8_t i = 0; i < esc_count; ++i) {
-		esc_rpm[i] = static_cast<double>(esc_status.esc[i].esc_rpm);
-		esc_voltage[i] = static_cast<double>(esc_status.esc[i].esc_voltage);
-		esc_current[i] = static_cast<double>(esc_status.esc[i].esc_current);
+		_ident_log_esc_rpm[i] = static_cast<double>(_ident_log_esc_status.esc[i].esc_rpm);
+		_ident_log_esc_voltage[i] = static_cast<double>(_ident_log_esc_status.esc[i].esc_voltage);
+		_ident_log_esc_current[i] = static_cast<double>(_ident_log_esc_status.esc[i].esc_current);
 	}
 
 	float roll = NAN;
 	float pitch = NAN;
 	float yaw = NAN;
-	if (PX4_ISFINITE(attitude.q[0]) && PX4_ISFINITE(attitude.q[1]) &&
-	    PX4_ISFINITE(attitude.q[2]) && PX4_ISFINITE(attitude.q[3])) {
-		const matrix::Eulerf euler(matrix::Quatf(attitude.q));
+	if (PX4_ISFINITE(_ident_log_attitude.q[0]) && PX4_ISFINITE(_ident_log_attitude.q[1]) &&
+	    PX4_ISFINITE(_ident_log_attitude.q[2]) && PX4_ISFINITE(_ident_log_attitude.q[3])) {
+		const matrix::Eulerf euler(matrix::Quatf(_ident_log_attitude.q));
 		roll = euler.phi();
 		pitch = euler.theta();
 		yaw = euler.psi();
 	}
 
-	const auto write_chunk = [&](const char *fmt, auto... values) -> bool {
-		return dprintf(_ident_log_fd, fmt, values...) >= 0;
-	};
-
-	if (!write_chunk(
+	const int line_len = snprintf(
+		_ident_log_row,
+		sizeof(_ident_log_row),
 		"%llu,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
-		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,",
+		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
+		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
+		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
+		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%s\n",
 		static_cast<unsigned long long>(now),
 		identProfileToString(_ident_profile),
 		static_cast<double>(_buffer[0].px),
@@ -1215,53 +1310,59 @@ void TrajectoryReader::writeIdentificationLogSample(const matrix::Vector3f &curr
 		static_cast<double>(current_pos(0)),
 		static_cast<double>(current_pos(1)),
 		static_cast<double>(current_pos(2)),
-		static_cast<double>(local_pos.vx),
-		static_cast<double>(local_pos.vy),
-		static_cast<double>(local_pos.vz),
-		static_cast<double>(local_pos.ax),
-		static_cast<double>(local_pos.ay),
-		static_cast<double>(local_pos.az),
+		static_cast<double>(_ident_log_local_pos.vx),
+		static_cast<double>(_ident_log_local_pos.vy),
+		static_cast<double>(_ident_log_local_pos.vz),
+		static_cast<double>(_ident_log_local_pos.ax),
+		static_cast<double>(_ident_log_local_pos.ay),
+		static_cast<double>(_ident_log_local_pos.az),
 		static_cast<double>(roll),
 		static_cast<double>(pitch),
 		static_cast<double>(yaw),
-		static_cast<double>(angular_velocity.xyz[0]),
-		static_cast<double>(angular_velocity.xyz[1]),
-		static_cast<double>(angular_velocity.xyz[2]))
-		|| !write_chunk(
-		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,",
-		static_cast<double>(attitude_sp.q_d[0]),
-		static_cast<double>(attitude_sp.q_d[1]),
-		static_cast<double>(attitude_sp.q_d[2]),
-		static_cast<double>(attitude_sp.q_d[3]),
-		static_cast<double>(attitude_sp.thrust_body[0]),
-		static_cast<double>(attitude_sp.thrust_body[1]),
-		static_cast<double>(attitude_sp.thrust_body[2]),
-		static_cast<double>(rates_sp.roll),
-		static_cast<double>(rates_sp.pitch),
-		static_cast<double>(rates_sp.yaw),
-		static_cast<double>(rates_sp.thrust_body[0]),
-		static_cast<double>(rates_sp.thrust_body[1]),
-		static_cast<double>(rates_sp.thrust_body[2]),
-		static_cast<double>(actuator_motors.control[0]),
-		static_cast<double>(actuator_motors.control[1]),
-		static_cast<double>(actuator_motors.control[2]))
-		|| !write_chunk(
-		"%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%s\n",
-		static_cast<double>(actuator_motors.control[3]),
-		esc_rpm[0],
-		esc_rpm[1],
-		esc_rpm[2],
-		esc_rpm[3],
-		esc_voltage[0],
-		esc_voltage[1],
-		esc_voltage[2],
-		esc_voltage[3],
-		esc_current[0],
-		esc_current[1],
-		esc_current[2],
-		esc_current[3],
-		static_cast<double>(hover.hover_thrust),
-		controllerTypeToString(_controller_type_cached))) {
+		static_cast<double>(_ident_log_angular_velocity.xyz[0]),
+		static_cast<double>(_ident_log_angular_velocity.xyz[1]),
+		static_cast<double>(_ident_log_angular_velocity.xyz[2]),
+		static_cast<double>(_ident_log_attitude_sp.q_d[0]),
+		static_cast<double>(_ident_log_attitude_sp.q_d[1]),
+		static_cast<double>(_ident_log_attitude_sp.q_d[2]),
+		static_cast<double>(_ident_log_attitude_sp.q_d[3]),
+		static_cast<double>(_ident_log_attitude_sp.thrust_body[0]),
+		static_cast<double>(_ident_log_attitude_sp.thrust_body[1]),
+		static_cast<double>(_ident_log_attitude_sp.thrust_body[2]),
+		static_cast<double>(_ident_log_rates_sp.roll),
+		static_cast<double>(_ident_log_rates_sp.pitch),
+		static_cast<double>(_ident_log_rates_sp.yaw),
+		static_cast<double>(_ident_log_rates_sp.thrust_body[0]),
+		static_cast<double>(_ident_log_rates_sp.thrust_body[1]),
+		static_cast<double>(_ident_log_rates_sp.thrust_body[2]),
+		static_cast<double>(_ident_log_torque_sp.xyz[0]),
+		static_cast<double>(_ident_log_torque_sp.xyz[1]),
+		static_cast<double>(_ident_log_torque_sp.xyz[2]),
+		static_cast<double>(_ident_log_control_allocator_status.unallocated_torque[0]),
+		static_cast<double>(_ident_log_control_allocator_status.unallocated_torque[1]),
+		static_cast<double>(_ident_log_control_allocator_status.unallocated_torque[2]),
+		static_cast<double>(_ident_log_control_allocator_status.torque_setpoint_achieved ? 1 : 0),
+		static_cast<double>(_ident_log_actuator_motors.control[0]),
+		static_cast<double>(_ident_log_actuator_motors.control[1]),
+		static_cast<double>(_ident_log_actuator_motors.control[2]),
+		static_cast<double>(_ident_log_actuator_motors.control[3]),
+		_ident_log_esc_rpm[0],
+		_ident_log_esc_rpm[1],
+		_ident_log_esc_rpm[2],
+		_ident_log_esc_rpm[3],
+		_ident_log_esc_voltage[0],
+		_ident_log_esc_voltage[1],
+		_ident_log_esc_voltage[2],
+		_ident_log_esc_voltage[3],
+		_ident_log_esc_current[0],
+		_ident_log_esc_current[1],
+		_ident_log_esc_current[2],
+		_ident_log_esc_current[3],
+		static_cast<double>(_ident_log_hover.hover_thrust),
+		controllerTypeToString(_controller_type_cached));
+
+	if (line_len <= 0 || line_len >= static_cast<int>(sizeof(_ident_log_row))
+	    || write(_ident_log_fd, _ident_log_row, line_len) != line_len) {
 		PX4_ERR("Failed writing identification log row");
 		stopIdentificationLog();
 		return;
@@ -2018,7 +2119,8 @@ void TrajectoryReader::Run()
 	}
 
 	if (_mode == Mode::IDENTIFICATION) {
-		fillIdentificationBuffer(current_pos, now);
+		const float current_yaw = vehicle_local_position.heading_good_for_control ? vehicle_local_position.heading : _pos_yaw;
+		fillIdentificationBuffer(current_pos, current_yaw, now);
 		publishSetpoint(current_pos);
 
 		if (_eof) {

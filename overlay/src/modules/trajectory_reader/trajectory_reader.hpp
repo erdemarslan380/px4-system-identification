@@ -30,6 +30,8 @@
 #include <uORB/topics/vehicle_angular_velocity.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_rates_setpoint.h>
+#include <uORB/topics/vehicle_torque_setpoint.h>
+#include <uORB/topics/control_allocator_status.h>
 #include <uORB/topics/actuator_motors.h>
 #include <uORB/topics/esc_status.h>
 #include <uORB/topics/hover_thrust_estimate.h>
@@ -159,7 +161,7 @@ private:
 	bool startIdentificationLog(hrt_abstime setpoint_timestamp);
 	void stopIdentificationLog();
 	void writeIdentificationLogSample(const matrix::Vector3f &current_pos, hrt_abstime now);
-	void fillIdentificationBuffer(const matrix::Vector3f &current_pos, hrt_abstime now);
+	void fillIdentificationBuffer(const matrix::Vector3f &current_pos, float current_yaw, hrt_abstime now);
 	matrix::Vector3f identificationRelativePosition(IdentificationProfile profile, float t_s) const;
 	float identificationRelativeYaw(IdentificationProfile profile, float t_s) const;
 	float identificationRelativeYawRate(IdentificationProfile profile, float t_s) const;
@@ -188,6 +190,8 @@ private:
 	uORB::Subscription _angular_velocity_sub{ORB_ID(vehicle_angular_velocity)};
 	uORB::Subscription _attitude_sp_sub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::Subscription _rates_sp_sub{ORB_ID(vehicle_rates_setpoint)};
+	uORB::Subscription _torque_sp_sub{ORB_ID(vehicle_torque_setpoint)};
+	uORB::Subscription _control_allocator_status_sub{ORB_ID(control_allocator_status)};
 	uORB::Subscription _actuator_motors_sub{ORB_ID(actuator_motors)};
 	uORB::Subscription _esc_status_sub{ORB_ID(esc_status)};
 	uORB::Subscription _hover_thrust_sub{ORB_ID(hover_thrust_estimate)};
@@ -195,6 +199,23 @@ private:
 	// Reuse the uORB message buffer instead of allocating ~1 KB on the work
 	// queue stack every 20 ms in armed HIL operation.
 	multi_trajectory_setpoint_s _published_ref_msg{};
+	// Keep identification log snapshots off the work-queue stack. The ident
+	// path samples several large uORB structs and formats a long CSV row every
+	// cycle; doing that on-stack can destabilize HIL on Cube hardware.
+	vehicle_attitude_s _ident_log_attitude{};
+	vehicle_angular_velocity_s _ident_log_angular_velocity{};
+	vehicle_attitude_setpoint_s _ident_log_attitude_sp{};
+	vehicle_rates_setpoint_s _ident_log_rates_sp{};
+	vehicle_torque_setpoint_s _ident_log_torque_sp{};
+	control_allocator_status_s _ident_log_control_allocator_status{};
+	actuator_motors_s _ident_log_actuator_motors{};
+	esc_status_s _ident_log_esc_status{};
+	hover_thrust_estimate_s _ident_log_hover{};
+	vehicle_local_position_s _ident_log_local_pos{};
+	double _ident_log_esc_rpm[4]{};
+	double _ident_log_esc_voltage[4]{};
+	double _ident_log_esc_current[4]{};
+	char _ident_log_row[2048]{};
 
 	// smoothers
 	PositionSmoothing _position_smoothing;
@@ -255,6 +276,7 @@ private:
 	bool _pos_ref_absolute{false};
 	bool _ident_origin_valid{false};
 	matrix::Vector3f _ident_origin{};
+	float _ident_origin_yaw{0.0f};
 	hrt_abstime _ident_start_time{0};
 	bool _ident_started{false};
 	bool _ident_finalize_log{false};

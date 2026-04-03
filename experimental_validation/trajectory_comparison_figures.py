@@ -26,6 +26,24 @@ PANEL_GROUPS: tuple[tuple[str, ...], ...] = (
 )
 
 CASE_MAP = validation_trajectory_case_map()
+RETURN_TAIL_TRIM_RULES = {
+    "time_optimal_30s": {
+        "axis": 1,
+        "mode": "max",
+        "min_fraction": 0.55,
+        "grace_s": 0.35,
+    },
+    "minimum_snap_50s": {
+        "axis": 1,
+        "mode": "max",
+        "min_fraction": 0.70,
+        "grace_s": 0.20,
+    },
+}
+REF_COLOR = "#222222"
+STOCK_COLOR = "#1f77b4"
+COMPARE_COLOR = "#d95f02"
+COMPARE2_COLOR = "#6a3d9a"
 
 
 def _load_tracking(csv_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -45,6 +63,55 @@ def _trajectory_rmse(ref: np.ndarray, pos: np.ndarray) -> tuple[float, np.ndarra
     delta = pos[:usable] - ref[:usable]
     sq = np.sum(delta ** 2, axis=1)
     return float(np.sqrt(np.mean(sq))), np.sqrt(sq)
+
+
+def _normalized_arclength(points: np.ndarray) -> np.ndarray:
+    if len(points) == 0:
+        return np.empty((0,), dtype=float)
+    if len(points) == 1:
+        return np.array([0.0], dtype=float)
+
+    seg = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    cum = np.concatenate(([0.0], np.cumsum(seg)))
+    total = float(cum[-1])
+    if total <= 1e-9:
+        return np.linspace(0.0, 1.0, len(points), dtype=float)
+    return cum / total
+
+
+def _interp_curve_at_progress(points: np.ndarray, progress_query: np.ndarray) -> np.ndarray:
+    if len(points) == 0:
+        return np.empty((0, 3), dtype=float)
+    if len(points) == 1:
+        return np.repeat(points[:1], len(progress_query), axis=0)
+
+    progress = _normalized_arclength(points)
+    keep = np.concatenate(([True], np.diff(progress) > 1e-9))
+    progress = progress[keep]
+    points = points[keep]
+
+    if len(points) == 1:
+        return np.repeat(points[:1], len(progress_query), axis=0)
+
+    return np.column_stack(
+        [
+            np.interp(progress_query, progress, points[:, axis])
+            for axis in range(points.shape[1])
+        ]
+    )
+
+
+def _shape_rmse(ref: np.ndarray, pos: np.ndarray) -> tuple[float, np.ndarray]:
+    if len(ref) == 0 or len(pos) == 0:
+        return 0.0, np.empty((0,), dtype=float)
+
+    ref_aligned = ref - ref[0]
+    pos_aligned = pos - ref[0]
+    pos_progress = _normalized_arclength(pos_aligned)
+    ref_at_pos_progress = _interp_curve_at_progress(ref_aligned, pos_progress)
+    delta = pos_aligned - ref_at_pos_progress
+    err = np.linalg.norm(delta, axis=1)
+    return float(np.sqrt(np.mean(err ** 2))), err
 
 
 def _runaway_cutoff_index(
@@ -87,6 +154,24 @@ def _trim_dataset(case_name: str, timestamps_s: np.ndarray, ref: np.ndarray, pos
         duration_cutoff = int(np.searchsorted(timestamps_s[:usable], nominal_limit_s, side="right"))
         if duration_cutoff > 0:
             cutoff = min(cutoff, duration_cutoff)
+
+    trim_rule = RETURN_TAIL_TRIM_RULES.get(case_name)
+    if trim_rule is not None and cutoff > 1:
+        ref_window = ref[:cutoff]
+        time_window = timestamps_s[:cutoff]
+        axis = int(trim_rule["axis"])
+        grace_s = float(trim_rule["grace_s"])
+        min_fraction = float(trim_rule["min_fraction"])
+
+        if trim_rule["mode"] == "max":
+            peak_idx = int(np.argmax(ref_window[:, axis]))
+        else:
+            peak_idx = int(np.argmin(ref_window[:, axis]))
+
+        enough_progress = peak_idx >= int((cutoff - 1) * min_fraction)
+        if enough_progress and peak_idx < cutoff - 1:
+            grace_idx = int(np.searchsorted(time_window, time_window[peak_idx] + grace_s, side="right"))
+            cutoff = min(cutoff, max(peak_idx + 2, grace_idx))
 
     cutoff = min(cutoff, max(1, _runaway_cutoff_index(ref[:cutoff], pos[:cutoff])))
     return ref[:cutoff], pos[:cutoff]
@@ -155,7 +240,7 @@ def build_comparison_figures(
 
     has_compare_2 = compare_root_2 is not None and compare_label_2 is not None
     out_dir.mkdir(parents=True, exist_ok=True)
-    figures: dict[str, str] = {}
+    figures: dict[str, dict[str, str]] = {}
     summary_cases: dict[str, dict[str, float | int | str | None]] = {}
 
     for figure_index, cases in enumerate(PANEL_GROUPS, start=1):
@@ -203,8 +288,10 @@ def build_comparison_figures(
             stock_ref_trimmed, stock_pos_trimmed = _trim_dataset(case, stock_t_raw, stock_ref_raw, stock_pos_raw)
             compare_ref_trimmed, compare_pos_trimmed = _trim_dataset(case, compare_t_raw, compare_ref_raw, compare_pos_raw)
 
-            rmse_stock, err_stock = _trajectory_rmse(stock_ref_trimmed, stock_pos_trimmed)
-            rmse_compare, err_compare = _trajectory_rmse(compare_ref_trimmed, compare_pos_trimmed)
+            rmse_stock_raw, _ = _trajectory_rmse(stock_ref_trimmed, stock_pos_trimmed)
+            rmse_compare_raw, _ = _trajectory_rmse(compare_ref_trimmed, compare_pos_trimmed)
+            rmse_stock, err_stock = _shape_rmse(stock_ref_trimmed, stock_pos_trimmed)
+            rmse_compare, err_compare = _shape_rmse(compare_ref_trimmed, compare_pos_trimmed)
 
             global_max_stock_error = max(global_max_stock_error, float(np.max(err_stock)) if len(err_stock) else 1e-6)
             global_max_compare_error = max(global_max_compare_error, float(np.max(err_compare)) if len(err_compare) else 1e-6)
@@ -218,6 +305,8 @@ def build_comparison_figures(
                 "compare_plot": compare_pos_plot,
                 "rmse_stock": rmse_stock,
                 "rmse_compare": rmse_compare,
+                "rmse_stock_raw": rmse_stock_raw,
+                "rmse_compare_raw": rmse_compare_raw,
                 "err_stock": err_stock,
                 "err_compare": err_compare,
                 "stock_samples": len(stock_ref_trimmed),
@@ -227,8 +316,10 @@ def build_comparison_figures(
             summary_cases[case] = {
                 "stock_label": "Stock x500 SITL",
                 "compare_label": compare_label,
-                "rmse_stock_m": rmse_stock,
-                "rmse_compare_m": rmse_compare,
+                "rmse_stock_m": rmse_stock_raw,
+                "rmse_compare_m": rmse_compare_raw,
+                "shape_rmse_stock_m": rmse_stock,
+                "shape_rmse_compare_m": rmse_compare,
                 "stock_samples": len(stock_ref_trimmed),
                 "compare_samples": len(compare_ref_trimmed),
             }
@@ -236,11 +327,13 @@ def build_comparison_figures(
             if has_compare_2:
                 compare_2_t_raw, compare_2_ref_raw, compare_2_pos_raw = _load_tracking(compare_root_2 / "tracking_logs" / f"{case}.csv")
                 compare_2_ref_trimmed, compare_2_pos_trimmed = _trim_dataset(case, compare_2_t_raw, compare_2_ref_raw, compare_2_pos_raw)
-                rmse_compare_2, err_compare_2 = _trajectory_rmse(compare_2_ref_trimmed, compare_2_pos_trimmed)
+                rmse_compare_2_raw, _ = _trajectory_rmse(compare_2_ref_trimmed, compare_2_pos_trimmed)
+                rmse_compare_2, err_compare_2 = _shape_rmse(compare_2_ref_trimmed, compare_2_pos_trimmed)
                 _, compare_2_pos_plot = _align_to_reference_start(compare_2_ref_trimmed, compare_2_pos_trimmed)
 
                 payload["compare_2_plot"] = compare_2_pos_plot
                 payload["rmse_compare_2"] = rmse_compare_2
+                payload["rmse_compare_2_raw"] = rmse_compare_2_raw
                 payload["err_compare_2"] = err_compare_2
                 payload["compare_2_samples"] = len(compare_2_ref_trimmed)
                 global_max_compare_2_error = max(
@@ -248,7 +341,8 @@ def build_comparison_figures(
                     float(np.max(err_compare_2)) if len(err_compare_2) else 1e-6,
                 )
                 summary_cases[case]["compare_label_2"] = compare_label_2
-                summary_cases[case]["rmse_compare_2_m"] = rmse_compare_2
+                summary_cases[case]["rmse_compare_2_m"] = rmse_compare_2_raw
+                summary_cases[case]["shape_rmse_compare_2_m"] = rmse_compare_2
                 summary_cases[case]["compare_2_samples"] = len(compare_2_ref_trimmed)
 
             loaded[case] = payload
@@ -256,9 +350,9 @@ def build_comparison_figures(
         norm_stock = mpl.colors.Normalize(vmin=0.0, vmax=global_max_stock_error)
         norm_compare = mpl.colors.Normalize(vmin=0.0, vmax=global_max_compare_error)
         norm_compare_2 = mpl.colors.Normalize(vmin=0.0, vmax=global_max_compare_2_error) if has_compare_2 else None
-        cmap_stock = plt.get_cmap("viridis")
-        cmap_compare = plt.get_cmap("plasma")
-        cmap_compare_2 = plt.get_cmap("turbo") if has_compare_2 else None
+        cmap_stock = plt.get_cmap("Blues")
+        cmap_compare = plt.get_cmap("Oranges")
+        cmap_compare_2 = plt.get_cmap("PuRd") if has_compare_2 else None
 
         for ax, case in zip(axes, cases):
             payload = loaded[case]
@@ -274,39 +368,73 @@ def build_comparison_figures(
                 ref[:, 2],
                 linestyle="--",
                 linewidth=2.2,
-                color="#304c89",
+                color=REF_COLOR,
                 label="Reference",
             )
+            ax.plot(
+                stock[:, 0],
+                stock[:, 1],
+                stock[:, 2],
+                linestyle="-",
+                linewidth=1.5,
+                color=STOCK_COLOR,
+                alpha=0.75,
+            )
             _plot_error_collection(ax, stock, err_stock, cmap=cmap_stock, norm=norm_stock, linewidth=2.8)
+            ax.plot(
+                compare[:, 0],
+                compare[:, 1],
+                compare[:, 2],
+                linestyle="-.",
+                linewidth=1.5,
+                color=COMPARE_COLOR,
+                alpha=0.8,
+            )
             _plot_error_collection(ax, compare, err_compare, cmap=cmap_compare, norm=norm_compare, linewidth=3.0)
 
             point_sets = [ref, stock, compare]
-            title = f"{case}\nStock={payload['rmse_stock']:.3f} m | {compare_label}={payload['rmse_compare']:.3f} m"
+            title_lines = [
+                case,
+                f"Shape RMSE X500: {payload['rmse_stock']:.3f} m",
+                f"{compare_label}: {payload['rmse_compare']:.3f} m",
+            ]
 
             if has_compare_2:
                 compare_2 = payload["compare_2_plot"]
                 err_compare_2 = payload["err_compare_2"]
+                ax.plot(
+                    compare_2[:, 0],
+                    compare_2[:, 1],
+                    compare_2[:, 2],
+                    linestyle=":",
+                    linewidth=1.8,
+                    color=COMPARE2_COLOR,
+                    alpha=0.9,
+                )
                 _plot_error_collection(ax, compare_2, err_compare_2, cmap=cmap_compare_2, norm=norm_compare_2, linewidth=3.1)
                 point_sets.append(compare_2)
-                title += f" | {compare_label_2}={payload['rmse_compare_2']:.3f} m"
+                title_lines.append(f"{compare_label_2}: {payload['rmse_compare_2']:.3f} m")
 
             all_points = np.vstack(point_sets)
             _set_axes_equal(ax, all_points)
-            ax.set_title(title)
+            ax.set_title("\n".join(title_lines))
             ax.set_xlabel("X [m]", labelpad=18)
             ax.set_ylabel("Y [m]", labelpad=18)
             ax.set_zlabel("Z (up) [m]", labelpad=18)
-            ax.view_init(elev=22, azim=-60)
+            if figure_index == 2:
+                ax.view_init(elev=26, azim=-32)
+            else:
+                ax.view_init(elev=22, azim=-60)
             ax.tick_params(axis="both", which="major", labelsize=19)
 
         legend_handles = [
-            mpl.lines.Line2D([0], [0], color="#304c89", linestyle="--", linewidth=2.2, label="Reference"),
-            mpl.lines.Line2D([0], [0], color=cmap_stock(0.72), linestyle="-", linewidth=2.8, label="Stock x500 SITL"),
-            mpl.lines.Line2D([0], [0], color=cmap_compare(0.76), linestyle="-", linewidth=3.0, label=compare_label),
+            mpl.lines.Line2D([0], [0], color=REF_COLOR, linestyle="--", linewidth=2.2, label="Reference"),
+            mpl.lines.Line2D([0], [0], color=STOCK_COLOR, linestyle="-", linewidth=2.8, label="Stock x500 SITL"),
+            mpl.lines.Line2D([0], [0], color=COMPARE_COLOR, linestyle="-.", linewidth=3.0, label=compare_label),
         ]
         if has_compare_2:
             legend_handles.append(
-                mpl.lines.Line2D([0], [0], color=cmap_compare_2(0.84), linestyle="-", linewidth=3.1, label=compare_label_2)
+                mpl.lines.Line2D([0], [0], color=COMPARE2_COLOR, linestyle=":", linewidth=3.1, label=compare_label_2)
             )
 
         legend_ax.legend(
@@ -321,8 +449,8 @@ def build_comparison_figures(
 
         cbar_stock = fig.colorbar(mpl.cm.ScalarMappable(norm=norm_stock, cmap=cmap_stock), cax=cax_stock)
         cbar_compare = fig.colorbar(mpl.cm.ScalarMappable(norm=norm_compare, cmap=cmap_compare), cax=cax_compare)
-        cbar_stock.set_label("Stock SITL error [m]", fontsize=22, labelpad=12)
-        cbar_compare.set_label(f"{compare_label} error [m]", fontsize=22, labelpad=12)
+        cbar_stock.set_label("Stock SITL shape error [m]", fontsize=22, labelpad=12)
+        cbar_compare.set_label(f"{compare_label} shape error [m]", fontsize=22, labelpad=12)
         cbar_stock.ax.tick_params(labelsize=19)
         cbar_compare.ax.tick_params(labelsize=19)
 
@@ -331,14 +459,19 @@ def build_comparison_figures(
                 mpl.cm.ScalarMappable(norm=norm_compare_2, cmap=cmap_compare_2),
                 cax=cax_compare_2,
             )
-            cbar_compare_2.set_label(f"{compare_label_2} error [m]", fontsize=22, labelpad=12)
+            cbar_compare_2.set_label(f"{compare_label_2} shape error [m]", fontsize=22, labelpad=12)
             cbar_compare_2.ax.tick_params(labelsize=19)
 
         name = "group_1_circle_hairpin_lemniscate" if figure_index == 1 else "group_2_time_optimal_minimum_snap"
-        out_path = out_dir / f"{name}.png"
-        fig.savefig(out_path, bbox_inches="tight")
+        png_path = out_dir / f"{name}.png"
+        svg_path = out_dir / f"{name}.svg"
+        fig.savefig(png_path, bbox_inches="tight")
+        fig.savefig(svg_path, bbox_inches="tight")
         plt.close(fig)
-        figures[name] = str(out_path.resolve())
+        figures[name] = {
+            "png": str(png_path.resolve()),
+            "svg": str(svg_path.resolve()),
+        }
 
     summary = {
         "stock_label": "Stock x500 SITL",

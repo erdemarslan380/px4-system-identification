@@ -80,6 +80,8 @@ class SerialHub:
         self._serial_port = serial_port
         self._baud = baud
         self._serial = self._open_serial()
+        self._last_serial_rx = time.monotonic()
+        self._idle_reopen_s = 2.0
         self._selector = selectors.DefaultSelector()
         self._running = True
         self._mavlink_log_path = mavlink_log
@@ -171,6 +173,14 @@ class SerialHub:
                 else:
                     self._handle_pty(endpoint)
 
+            # HIL serial traffic should be continuous. If the CubeOrange USB CDC
+            # path renumerates after an arm/reset event, the old fd can go quiet
+            # without an immediate read error. Reopen proactively so the PTYs
+            # keep following the current /dev/serial/by-id target.
+            if time.monotonic() - self._last_serial_rx > self._idle_reopen_s:
+                self._reopen_serial()
+                self._last_serial_rx = time.monotonic()
+
         return 0
 
     def _handle_serial(self) -> None:
@@ -181,6 +191,7 @@ class SerialHub:
             return
         if not data:
             return
+        self._last_serial_rx = time.monotonic()
         self._log_mavlink_messages("serial_to_ptys", data)
         for endpoint in self._endpoints:
             try:

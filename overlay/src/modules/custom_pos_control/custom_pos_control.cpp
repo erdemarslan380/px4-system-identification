@@ -210,6 +210,9 @@ void CustomPosControl::publishOffboardControlMode(const hrt_abstime now)
 	ocm.position = true;
 	ocm.velocity = false;
 	ocm.acceleration = false;
+	// trajectory_setpoint already carries yaw / yawspeed. Advertising
+	// attitude/body-rate control here changes the offboard task selection and
+	// destabilizes Gazebo SITL transitions.
 	ocm.attitude = false;
 	ocm.body_rate = false;
 	_offboard_control_mode_pub.publish(ocm);

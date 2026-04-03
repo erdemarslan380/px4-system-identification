@@ -1,0 +1,322 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import math
+import sys
+import time
+from pathlib import Path
+
+from pymavlink import mavutil
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from run_hitl_udp_sequence import (
+    arm_with_retries,
+    decode_statustext,
+    request_message_interval,
+    robust_ground_baseline,
+    set_offboard,
+    set_param,
+    start_gcs_heartbeat_thread,
+    wait_for_ground_quiet,
+    wait_for_sim_ready,
+    wait_heartbeat,
+)
+from run_hitl_px4_trajectory_reader_position_step_minimal import execute_staged_hover_entry
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Minimal baseline -> custom_pos_control -> SYSID hold handover test.")
+    p.add_argument("--endpoint", default="udpin:127.0.0.1:14550")
+    p.add_argument("--baud", type=int, default=57600)
+    p.add_argument("--hover-z", type=float, default=-3.0)
+    p.add_argument("--ramp-seconds", type=float, default=8.0)
+    p.add_argument("--settle-seconds", type=float, default=2.0)
+    p.add_argument("--custom-hold-seconds", type=float, default=6.0)
+    p.add_argument("--sysid-hold-seconds", type=float, default=6.0)
+    p.add_argument("--pre-offboard-seconds", type=float, default=2.0)
+    p.add_argument("--setpoint-period", type=float, default=0.05)
+    p.add_argument("--report-period", type=float, default=0.5)
+    p.add_argument("--arm-attempts", type=int, default=3)
+    p.add_argument("--xy-limit", type=float, default=0.20)
+    p.add_argument("--direct-z-tolerance", type=float, default=0.50)
+    p.add_argument("--z-tolerance", type=float, default=0.20)
+    p.add_argument("--tilt-limit-deg", type=float, default=6.0)
+    p.add_argument("--ground-xy-window", type=float, default=0.25)
+    p.add_argument("--ground-z-window", type=float, default=0.25)
+    return p.parse_args()
+
+
+def disarm(mav) -> None:
+    mav.mav.command_long_send(
+        mav.target_system,
+        mav.target_component,
+        mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+        0,
+        0,
+        21196,
+        0, 0, 0, 0, 0,
+    )
+
+
+def send_position_target_local_ned(mav, x: float, y: float, z: float, yaw: float) -> None:
+    type_mask = (
+        mavutil.mavlink.POSITION_TARGET_TYPEMASK_VX_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_VY_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_VZ_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AX_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AY_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AZ_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE
+    )
+    mav.mav.set_position_target_local_ned_send(
+        0,
+        mav.target_system,
+        mav.target_component,
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED,
+        type_mask,
+        x, y, z,
+        0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0,
+        yaw,
+        0.0,
+    )
+
+
+def observe_phase(
+    mav,
+    *,
+    label: str,
+    duration_s: float,
+    report_period: float,
+    ref_x: float,
+    ref_y: float,
+    ref_z: float,
+    send_direct_setpoint: bool = False,
+    yaw: float = 0.0,
+) -> tuple[object, object, float, float, float, bool]:
+    end = time.time() + duration_s
+    latest_lpos = None
+    latest_att = None
+    next_report = 0.0
+    max_xy = 0.0
+    max_z_err = 0.0
+    max_tilt = 0.0
+    failsafe_seen = False
+
+    while time.time() < end:
+        if send_direct_setpoint:
+            send_position_target_local_ned(mav, ref_x, ref_y, ref_z, yaw)
+        msg = mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.2)
+        if not msg:
+            continue
+        mtype = msg.get_type()
+        if mtype == "STATUSTEXT":
+            text = decode_statustext(msg)
+            print(text, flush=True)
+            if "Failsafe activated" in text or "Flight termination active" in text:
+                failsafe_seen = True
+            continue
+        if mtype == "LOCAL_POSITION_NED":
+            latest_lpos = msg
+            max_xy = max(max_xy, math.hypot(float(msg.x - ref_x), float(msg.y - ref_y)))
+            max_z_err = max(max_z_err, abs(float(msg.z - ref_z)))
+        elif mtype == "ATTITUDE":
+            latest_att = msg
+            max_tilt = max(max_tilt, math.degrees(max(abs(float(msg.roll)), abs(float(msg.pitch)))))
+        now = time.time()
+        if now >= next_report and latest_lpos and latest_att:
+            print(
+                f"{label} x={float(latest_lpos.x):.3f} y={float(latest_lpos.y):.3f} z={float(latest_lpos.z):.3f} "
+                f"vx={float(latest_lpos.vx):.3f} vy={float(latest_lpos.vy):.3f} vz={float(latest_lpos.vz):.3f} "
+                f"roll={math.degrees(float(latest_att.roll)):.2f} pitch={math.degrees(float(latest_att.pitch)):.2f}",
+                flush=True,
+            )
+            next_report = now + report_period
+
+    if latest_lpos is None or latest_att is None:
+        raise RuntimeError(f"No LOCAL_POSITION_NED/ATTITUDE data during {label}")
+    return latest_lpos, latest_att, max_xy, max_z_err, max_tilt, failsafe_seen
+
+
+def main() -> int:
+    args = parse_args()
+    kwargs = {"autoreconnect": False}
+    if args.endpoint.startswith("/dev/"):
+        kwargs["baud"] = args.baud
+
+    mav = mavutil.mavlink_connection(args.endpoint, **kwargs)
+    wait_heartbeat(mav)
+    stop_heartbeats, heartbeat_thread = start_gcs_heartbeat_thread(mav)
+
+    try:
+        request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
+        request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE)
+        request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, interval_us=500_000)
+
+        set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "TRJ_POS_ABS", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "TRJ_POS_X", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "TRJ_POS_Y", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "TRJ_POS_Z", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "TRJ_POS_YAW", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+
+        wait_for_sim_ready(mav, timeout=20.0, require_local_position=True, min_local_samples=3)
+        wait_for_ground_quiet(mav, duration_s=2.0, timeout=10.0)
+        baseline_x, baseline_y, baseline_z = robust_ground_baseline(mav)
+        ground_xy = math.hypot(baseline_x, baseline_y)
+        if ground_xy > args.ground_xy_window or abs(baseline_z) > args.ground_z_window:
+            raise RuntimeError(
+                f"Dirty ground baseline: x={baseline_x:.3f} y={baseline_y:.3f} z={baseline_z:.3f}. "
+                "Restart HIL clean before running SYSID handover."
+            )
+
+        yaw0 = 0.0
+        for _ in range(10):
+            msg = mav.recv_match(type=["ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.5)
+            if not msg:
+                continue
+            if msg.get_type() == "STATUSTEXT":
+                print(decode_statustext(msg), flush=True)
+                continue
+            yaw0 = float(msg.yaw)
+            break
+
+        target_x, target_y, target_z = baseline_x, baseline_y, baseline_z + args.hover_z
+        print(
+            f"SYSID handover target x={target_x:.3f} y={target_y:.3f} z={target_z:.3f} yaw={math.degrees(yaw0):.1f}deg",
+            flush=True,
+        )
+
+        arm_with_retries(mav, attempts=max(1, args.arm_attempts))
+
+        t_pre = time.time() + max(0.5, args.pre_offboard_seconds)
+        while time.time() < t_pre:
+            send_position_target_local_ned(mav, target_x, target_y, baseline_z, yaw0)
+            time.sleep(args.setpoint_period)
+
+        set_offboard(mav)
+        print("OFFBOARD accepted", flush=True)
+
+        latest_lpos, latest_att, direct_max_xy, direct_max_z_err, direct_max_tilt, direct_failsafe = execute_staged_hover_entry(
+            mav,
+            baseline_x=baseline_x,
+            baseline_y=baseline_y,
+            baseline_z=baseline_z,
+            target_x=target_x,
+            target_y=target_y,
+            target_z=target_z,
+            yaw=yaw0,
+            ramp_seconds=args.ramp_seconds,
+            direct_settle_seconds=args.settle_seconds,
+            setpoint_period=args.setpoint_period,
+            report_period=args.report_period,
+            direct_xy_limit=args.xy_limit,
+            direct_z_tolerance=args.direct_z_tolerance,
+            direct_tilt_limit_deg=args.tilt_limit_deg,
+        )
+
+        set_param(mav, "TRJ_POS_ABS", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "TRJ_POS_X", float(latest_lpos.x), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "TRJ_POS_Y", float(latest_lpos.y), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "TRJ_POS_Z", float(latest_lpos.z), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "TRJ_POS_YAW", float(latest_att.yaw), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        print("custom_pos_control enabled", flush=True)
+
+        hold_ref_x = float(latest_lpos.x)
+        hold_ref_y = float(latest_lpos.y)
+        hold_ref_z = float(latest_lpos.z)
+
+        latest_lpos, latest_att, custom_max_xy, custom_max_z_err, custom_max_tilt, custom_failsafe = observe_phase(
+            mav,
+            label="Custom hold",
+            duration_s=args.custom_hold_seconds,
+            report_period=args.report_period,
+            ref_x=hold_ref_x,
+            ref_y=hold_ref_y,
+            ref_z=hold_ref_z,
+        )
+        custom_final_xy = math.hypot(float(latest_lpos.x) - hold_ref_x, float(latest_lpos.y) - hold_ref_y)
+        custom_final_z_err = abs(float(latest_lpos.z) - hold_ref_z)
+        if (
+            custom_failsafe
+            or custom_max_xy > args.xy_limit
+            or custom_max_z_err > args.z_tolerance
+            or custom_final_xy > args.xy_limit
+            or custom_final_z_err > args.z_tolerance
+            or custom_max_tilt > args.tilt_limit_deg
+        ):
+            raise RuntimeError(
+                f"Custom hold unstable: max_xy={custom_max_xy:.3f}m final_xy={custom_final_xy:.3f}m "
+                f"max_z_err={custom_max_z_err:.3f}m final_z_err={custom_final_z_err:.3f}m "
+                f"max_tilt={custom_max_tilt:.2f}deg failsafe={custom_failsafe}"
+            )
+
+        set_param(mav, "CST_POS_CTRL_TYP", 6, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        print("SYSID controller enabled", flush=True)
+
+        latest_lpos, latest_att, sysid_max_xy, sysid_max_z_err, sysid_max_tilt, sysid_failsafe = observe_phase(
+            mav,
+            label="SYSID hold",
+            duration_s=args.sysid_hold_seconds,
+            report_period=args.report_period,
+            ref_x=hold_ref_x,
+            ref_y=hold_ref_y,
+            ref_z=hold_ref_z,
+        )
+
+        final_xy = math.hypot(float(latest_lpos.x) - hold_ref_x, float(latest_lpos.y) - hold_ref_y)
+        final_z_err = abs(float(latest_lpos.z) - hold_ref_z)
+        final_tilt = math.degrees(max(abs(float(latest_att.roll)), abs(float(latest_att.pitch))))
+        print(
+            f"SYSID hold summary: max_xy={sysid_max_xy:.3f}m max_z_err={sysid_max_z_err:.3f}m "
+            f"max_tilt={sysid_max_tilt:.2f}deg final_xy={final_xy:.3f}m final_z_err={final_z_err:.3f}m "
+            f"final_tilt={final_tilt:.2f}deg failsafe={sysid_failsafe}",
+            flush=True,
+        )
+
+        if (
+            sysid_failsafe
+            or sysid_max_xy > args.xy_limit
+            or sysid_max_z_err > args.z_tolerance
+            or final_xy > args.xy_limit
+            or final_z_err > args.z_tolerance
+            or sysid_max_tilt > args.tilt_limit_deg
+            or final_tilt > args.tilt_limit_deg
+        ):
+            raise RuntimeError(
+                f"SYSID hold unstable: max_xy={sysid_max_xy:.3f}m final_xy={final_xy:.3f}m "
+                f"max_z_err={sysid_max_z_err:.3f}m final_z_err={final_z_err:.3f}m "
+                f"max_tilt={sysid_max_tilt:.2f}deg final_tilt={final_tilt:.2f}deg failsafe={sysid_failsafe}"
+            )
+
+        set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        mav.mav.set_mode_send(mav.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 3 << 16)
+        disarm(mav)
+        print("SYSID hold stable", flush=True)
+        return 0
+    finally:
+        try:
+            set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        except Exception:
+            pass
+        try:
+            set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        except Exception:
+            pass
+        stop_heartbeats.set()
+        heartbeat_thread.join(timeout=1.0)
+        mav.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

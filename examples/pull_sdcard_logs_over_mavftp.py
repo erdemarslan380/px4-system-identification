@@ -406,6 +406,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Filename suffix to pull, for example .csv or .ulg. Repeat for multiple suffixes.",
     )
     parser.add_argument(
+        "--name-prefix",
+        action="append",
+        default=[],
+        help="Optional filename prefix filter. Repeat to allow multiple prefixes.",
+    )
+    parser.add_argument(
+        "--latest-only",
+        action="store_true",
+        help="For each group, keep only the last matching remote entry after prefix/suffix filtering.",
+    )
+    parser.add_argument(
         "--download-timeout",
         type=float,
         default=30.0,
@@ -479,6 +490,21 @@ def main() -> int:
             remote_groups,
             suffixes,
         )
+
+        if args.name_prefix:
+            prefixes = tuple(args.name_prefix)
+            filtered_remote_files: dict[str, list[tuple[str, int | None]]] = {}
+            for local_group, files in remote_files.items():
+                filtered = [item for item in files if item[0].startswith(prefixes)]
+                if args.latest_only and filtered:
+                    filtered = [filtered[-1]]
+                filtered_remote_files[local_group] = filtered
+            remote_files = filtered_remote_files
+        elif args.latest_only:
+            remote_files = {
+                local_group: ([files[-1]] if files else [])
+                for local_group, files in remote_files.items()
+            }
 
         pulled: dict[str, list[Path]] = {}
         skipped: dict[str, list[Path]] = {}

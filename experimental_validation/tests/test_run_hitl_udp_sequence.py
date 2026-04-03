@@ -22,9 +22,11 @@ from examples.run_hitl_udp_sequence import (
     param_value_matches,
     prepare_hover_and_anchor,
     reset_mode_cmd,
+    send_nav_takeoff,
     set_anchor_from_position,
     set_offboard,
     set_position_target_absolute,
+    set_position_target_relative,
     wait_heartbeat,
     wait_for_arm_confirmation,
     wait_for_hover_target_z,
@@ -87,6 +89,14 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
         names = [call.args[1] for call in set_param_mock.call_args_list]
         self.assertEqual(names, ["TRJ_POS_ABS", "TRJ_POS_X", "TRJ_POS_Y", "TRJ_POS_Z", "TRJ_POS_YAW"])
 
+    def test_set_position_target_relative_writes_five_params(self) -> None:
+        with mock.patch("examples.run_hitl_udp_sequence.set_param") as set_param_mock:
+            set_position_target_relative(object(), 0.0, 0.0, -3.0, 0.0)
+        self.assertEqual(set_param_mock.call_count, 5)
+        names = [call.args[1] for call in set_param_mock.call_args_list]
+        self.assertEqual(names, ["TRJ_POS_ABS", "TRJ_POS_X", "TRJ_POS_Y", "TRJ_POS_Z", "TRJ_POS_YAW"])
+        self.assertEqual(set_param_mock.call_args_list[0].args[2], 0)
+
     def test_hover_target_from_local_position_uses_current_z_as_baseline(self) -> None:
         msg = mock.Mock(x=1.5, y=-2.0, z=-0.4)
         self.assertEqual(hover_target_from_local_position(msg, -3.0), (1.5, -2.0, -3.4))
@@ -107,11 +117,23 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
         self.assertEqual(arm_mock.call_count, 2)
         sleep_mock.assert_called_once_with(2.0)
 
+    def test_send_nav_takeoff_sends_nan_default_params(self) -> None:
+        mav = mock.Mock()
+        mav.target_system = 1
+        mav.target_component = 1
+        with mock.patch("examples.run_hitl_udp_sequence.wait_for_command_ack") as ack_mock:
+            send_nav_takeoff(mav)
+        args = mav.mav.command_long_send.call_args.args
+        self.assertEqual(args[2], mavutil.mavlink.MAV_CMD_NAV_TAKEOFF)
+        self.assertTrue(all(str(value) == "nan" for value in args[4:11]))
+        ack_mock.assert_called_once_with(mav, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF)
+
     def test_prepare_hover_and_anchor_can_fall_back_to_existing_anchor(self) -> None:
         with (
             mock.patch("examples.run_hitl_udp_sequence.wait_for_sim_ready", return_value=None),
             mock.patch("examples.run_hitl_udp_sequence.set_param"),
-            mock.patch("examples.run_hitl_udp_sequence.set_position_target_absolute") as position_target_mock,
+            mock.patch("examples.run_hitl_udp_sequence.set_position_target_relative") as position_target_mock,
+            mock.patch("examples.run_hitl_udp_sequence.send_nav_takeoff"),
             mock.patch("examples.run_hitl_udp_sequence.arm_with_retries"),
             mock.patch("examples.run_hitl_udp_sequence.set_offboard"),
             mock.patch("examples.run_hitl_udp_sequence.request_message_interval"),
@@ -134,22 +156,22 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
             )
         position_target_mock.assert_called_once_with(mock.ANY, 0.0, 0.0, 0.0, 0.0)
         anchor_mock.assert_not_called()
-        self.assertEqual(sleep_mock.call_args_list, [mock.call(1.5), mock.call(6.0)])
+        self.assertEqual(sleep_mock.call_args_list, [mock.call(6.0), mock.call(1.5)])
 
     def test_prepare_hover_and_anchor_sets_anchor_when_local_position_exists(self) -> None:
         ready_msg = mock.Mock(x=0.0, y=0.1, z=0.0)
-        baseline_msg = mock.Mock(x=0.2, y=0.3, z=0.0)
         anchor_msg = mock.Mock(x=1.0, y=2.0, z=-3.0)
         with (
             mock.patch("examples.run_hitl_udp_sequence.wait_for_sim_ready", return_value=ready_msg),
             mock.patch("examples.run_hitl_udp_sequence.set_param"),
-            mock.patch("examples.run_hitl_udp_sequence.set_position_target_absolute") as position_target_mock,
+            mock.patch("examples.run_hitl_udp_sequence.set_position_target_relative") as position_target_mock,
+            mock.patch("examples.run_hitl_udp_sequence.send_nav_takeoff"),
             mock.patch("examples.run_hitl_udp_sequence.arm_with_retries"),
             mock.patch("examples.run_hitl_udp_sequence.set_offboard"),
             mock.patch("examples.run_hitl_udp_sequence.request_message_interval"),
             mock.patch(
                 "examples.run_hitl_udp_sequence.wait_for_local_position",
-                side_effect=[baseline_msg, anchor_msg],
+                side_effect=[anchor_msg],
             ),
             mock.patch("examples.run_hitl_udp_sequence.wait_for_hover_target_z", return_value=anchor_msg),
             mock.patch("examples.run_hitl_udp_sequence.set_anchor_from_position") as anchor_mock,
@@ -168,9 +190,9 @@ class RunHitlUdpSequenceScriptTest(unittest.TestCase):
                 allow_missing_local_position=False,
                 blind_hover_seconds=6.0,
             )
-        self.assertEqual(position_target_mock.call_args_list[0].args[1:], (0.0, 0.1, 0.0, 0.0))
-        self.assertEqual(position_target_mock.call_args_list[1].args[1:], (0.2, 0.3, -3.0, 0.0))
-        anchor_mock.assert_called_once_with(mock.ANY, 1.0, 2.0, -3.0)
+        self.assertEqual(position_target_mock.call_args_list[0].args[1:], (0.0, 0.0, 0.0, 0.0))
+        self.assertEqual(position_target_mock.call_count, 1)
+        anchor_mock.assert_called_once_with(mock.ANY, 0.0, 0.1, -3.0)
 
     def test_local_position_sample_is_reasonable_rejects_runaway_values(self) -> None:
         self.assertTrue(local_position_sample_is_reasonable(mock.Mock(x=0.1, y=-0.2, z=-3.0)))

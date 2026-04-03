@@ -85,7 +85,12 @@ def prepare_identified_model(px4_root: str | Path, candidate_dir: str | Path, *,
     if include_uri is not None:
         include_uri.text = f"model://{model_name}_base"
 
-    plugin_paths = wrapper_root.findall("./model/plugin")
+    plugin_paths = [
+        plugin
+        for plugin in wrapper_root.findall("./model/plugin")
+        if plugin.attrib.get("name") == "gz::sim::systems::MulticopterMotorModel"
+        or plugin.attrib.get("filename") == "gz-sim-multicopter-motor-model-system"
+    ]
     for plugin in plugin_paths:
         _set_text(plugin, "timeConstantUp", params["time_constant_up_s"])
         _set_text(plugin, "timeConstantDown", params["time_constant_down_s"])

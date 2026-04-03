@@ -30,6 +30,7 @@ HIL_STATE_ALT_PATTERN = re.compile(
     r"(?m)^(?P<indent>[ \t]*)int alt = \(int\)\(1000 \* vehicle\.position\.z\);$"
 )
 HIL_STATE_ALT_NEW = "int alt = (int)(1000 * sensors.getGlobalPosition().alt);"
+HIL_STATE_ALT_CURRENT = 'msg_hil_state.set("alt", (int)Math.round(-1000.0 * vehicle.position.z));'
 
 
 def patch_mavlink_hil_system_text(text: str) -> tuple[str, bool]:
@@ -75,7 +76,7 @@ def patch_mavlink_hil_system_text(text: str) -> tuple[str, bool]:
         else:
             raise RuntimeError("Could not find HIL_CONTROLS patch point in MAVLinkHILSystem.java")
 
-    if HIL_STATE_ALT_NEW in text:
+    if HIL_STATE_ALT_NEW in text or HIL_STATE_ALT_CURRENT in text:
         pass
     else:
         def repl(match: re.Match[str]) -> str:

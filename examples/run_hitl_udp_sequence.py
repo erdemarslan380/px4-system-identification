@@ -430,6 +430,56 @@ def arm_with_retries(mav, attempts: int) -> None:
         raise last_error
 
 
+def wait_for_command_ack(
+    mav,
+    command: int,
+    *,
+    timeout: float = 8.0,
+    accepted_results: tuple[int, ...] = (
+        mavutil.mavlink.MAV_RESULT_ACCEPTED,
+        mavutil.mavlink.MAV_RESULT_IN_PROGRESS,
+    ),
+) -> int:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        msg = mav.recv_match(type=["COMMAND_ACK", "STATUSTEXT"], blocking=True, timeout=0.5)
+        if not msg:
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+            continue
+
+        if int(getattr(msg, "command", -1)) != int(command):
+            continue
+
+        result = int(getattr(msg, "result", mavutil.mavlink.MAV_RESULT_FAILED))
+        if result not in accepted_results:
+            raise RuntimeError(f"Command {command} was rejected with ACK result {result}")
+        return result
+
+    raise TimeoutError(f"Command {command} was not acknowledged within {timeout:.1f} s")
+
+
+def send_nav_takeoff(mav) -> None:
+    nan = float("nan")
+    mav.mav.command_long_send(
+        mav.target_system,
+        mav.target_component,
+        mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+        0,
+        nan,
+        nan,
+        nan,
+        nan,
+        nan,
+        nan,
+        nan,
+    )
+    wait_for_command_ack(mav, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF)
+
+
 def set_offboard(mav) -> None:
     custom_mode = 6 << 16
     mav.mav.set_mode_send(
@@ -464,11 +514,122 @@ def wait_for_local_position(mav, timeout: float = 5.0):
 
 def local_position_sample_is_reasonable(msg) -> bool:
     values = (float(msg.x), float(msg.y), float(msg.z))
-    return all(math.isfinite(value) and abs(value) < 100.0 for value in values)
+    # Before takeoff in HIL we expect the estimator to settle near the ground origin.
+    # Reject large startup spikes so we don't lock an obviously bad hover baseline.
+    return (
+        all(math.isfinite(value) for value in values)
+        and abs(float(msg.x)) < 5.0
+        and abs(float(msg.y)) < 5.0
+        and abs(float(msg.z)) < 5.0
+    )
+
+
+def collect_reasonable_local_position_samples(mav, duration_s: float = 3.0):
+    deadline = time.time() + duration_s
+    samples = []
+
+    while time.time() < deadline:
+        msg = mav.recv_match(type=["LOCAL_POSITION_NED", "STATUSTEXT"], blocking=True, timeout=0.5)
+
+        if not msg:
+            continue
+
+        if msg.get_type() == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+            continue
+
+        if local_position_sample_is_reasonable(msg):
+            samples.append((float(msg.x), float(msg.y), float(msg.z)))
+
+    return samples
+
+
+def robust_ground_baseline(mav) -> tuple[float, float, float]:
+    samples = collect_reasonable_local_position_samples(mav, duration_s=3.0)
+
+    if len(samples) < 5:
+        return 0.0, 0.0, 0.0
+
+    xs = sorted(sample[0] for sample in samples)
+    ys = sorted(sample[1] for sample in samples)
+    zs = sorted(sample[2] for sample in samples)
+    mid = len(samples) // 2
+    return xs[mid], ys[mid], zs[mid]
+
+
+def wait_for_ground_quiet(
+    mav,
+    *,
+    duration_s: float = 2.0,
+    timeout: float = 10.0,
+    pos_window_xy: float = 0.25,
+    pos_window_z: float = 0.25,
+    speed_window: float = 0.10,
+    tilt_limit_deg: float = 5.0,
+):
+    baseline_x, baseline_y, baseline_z = robust_ground_baseline(mav)
+    deadline = time.time() + timeout
+    quiet_since = None
+    latest_local_position = None
+    latest_attitude = None
+
+    while time.time() < deadline:
+        msg = mav.recv_match(
+            type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"],
+            blocking=True,
+            timeout=0.5,
+        )
+        if not msg:
+            quiet_since = None
+            continue
+
+        mtype = msg.get_type()
+        if mtype == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+            continue
+        if mtype == "LOCAL_POSITION_NED":
+            latest_local_position = msg
+        elif mtype == "ATTITUDE":
+            latest_attitude = msg
+
+        if latest_local_position is None or latest_attitude is None:
+            quiet_since = None
+            continue
+
+        lp = latest_local_position
+        att = latest_attitude
+        rel_x = float(lp.x) - baseline_x
+        rel_y = float(lp.y) - baseline_y
+        rel_z = float(lp.z) - baseline_z
+        quiet = (
+            local_position_sample_is_reasonable(lp)
+            and math.hypot(rel_x, rel_y) <= pos_window_xy
+            and abs(rel_z) <= pos_window_z
+            and math.hypot(float(lp.vx), float(lp.vy)) <= speed_window
+            and abs(float(lp.vz)) <= speed_window
+            and math.degrees(max(abs(float(att.roll)), abs(float(att.pitch)))) <= tilt_limit_deg
+        )
+
+        if quiet:
+            quiet_since = quiet_since or time.time()
+            if (time.time() - quiet_since) >= duration_s:
+                return latest_local_position, latest_attitude
+        else:
+            quiet_since = None
+
+    raise TimeoutError("Simulation never settled into a quiet ground state")
 
 
 def set_position_target_absolute(mav, x: float, y: float, z: float, yaw: float = 0.0) -> None:
     set_param(mav, "TRJ_POS_ABS", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    set_param(mav, "TRJ_POS_X", x, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+    set_param(mav, "TRJ_POS_Y", y, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+    set_param(mav, "TRJ_POS_Z", z, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+    set_param(mav, "TRJ_POS_YAW", yaw, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+
+
+def set_position_target_relative(mav, x: float, y: float, z: float, yaw: float = 0.0) -> None:
+    set_param(mav, "TRJ_POS_ABS", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
     set_param(mav, "TRJ_POS_X", x, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
     set_param(mav, "TRJ_POS_Y", y, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
     set_param(mav, "TRJ_POS_Z", z, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
@@ -601,33 +762,29 @@ def prepare_hover_and_anchor(
     )
 
     set_param(mav, "COM_RC_IN_MODE", manual_control_mode, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    set_param(mav, "COM_CPU_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+    set_param(mav, "COM_RAM_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
     set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    set_param(mav, "MIS_TAKEOFF_ALT", max(0.5, abs(float(hover_z))), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
 
-    # Start HIL on a zero-altitude absolute hold. Ground-to-hover is commanded
-    # only after OFFBOARD is accepted, which avoids the problematic direct
-    # ground takeoff step at mode entry.
-    if sim_ready_msg is not None:
-        set_position_target_absolute(
-            mav,
-            float(sim_ready_msg.x),
-            float(sim_ready_msg.y),
-            float(sim_ready_msg.z),
-            0.0,
-        )
-    else:
-        set_position_target_absolute(mav, 0.0, 0.0, 0.0, 0.0)
-
-    arm_with_retries(mav, attempts=max(1, arm_attempts))
-    if pre_offboard_seconds > 0.0:
-        time.sleep(pre_offboard_seconds)
-    set_offboard(mav)
     request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
     request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, interval_us=500_000)
 
+    send_nav_takeoff(mav)
+    arm_with_retries(mav, attempts=max(1, arm_attempts))
+
     try:
-        baseline_msg = wait_for_local_position(mav, timeout=min(hover_timeout, 5.0))
-        target_x, target_y, target_z = hover_target_from_local_position(baseline_msg, hover_z)
-        set_position_target_absolute(mav, target_x, target_y, target_z, 0.0)
+        baseline_x, baseline_y, baseline_z = robust_ground_baseline(mav)
+        if baseline_x == baseline_y == baseline_z == 0.0 and sim_ready_msg is not None and local_position_sample_is_reasonable(sim_ready_msg):
+            baseline_x = float(sim_ready_msg.x)
+            baseline_y = float(sim_ready_msg.y)
+            baseline_z = float(sim_ready_msg.z)
+
+        target_x, target_y, target_z = baseline_x, baseline_y, baseline_z + hover_z
+        print(
+            f"Ground baseline x={baseline_x:.3f}, y={baseline_y:.3f}, z={baseline_z:.3f} -> hover target z={target_z:.3f}",
+            flush=True,
+        )
         wait_for_hover_target_z(mav, target_z, hover_timeout)
         time.sleep(settle_seconds)
         anchor_msg = wait_for_local_position(mav, timeout=3.0)
@@ -639,14 +796,22 @@ def prepare_hover_and_anchor(
             flush=True,
         )
         time.sleep(blind_hover_seconds)
+        if pre_offboard_seconds > 0.0:
+            time.sleep(pre_offboard_seconds)
+        set_position_target_relative(mav, 0.0, 0.0, 0.0, 0.0)
+        set_offboard(mav)
         return
 
-    set_anchor_from_position(mav, float(anchor_msg.x), float(anchor_msg.y), float(anchor_msg.z))
+    set_anchor_from_position(mav, float(target_x), float(target_y), float(anchor_msg.z))
+    set_position_target_relative(mav, 0.0, 0.0, 0.0, 0.0)
     print(
-        f"Anchor set from LOCAL_POSITION_NED: x={float(anchor_msg.x):.3f}, "
-        f"y={float(anchor_msg.y):.3f}, z={float(anchor_msg.z):.3f}",
+        f"Anchor set from takeoff hover: x={float(target_x):.3f}, "
+        f"y={float(target_y):.3f}, z={float(anchor_msg.z):.3f}",
         flush=True,
     )
+    if pre_offboard_seconds > 0.0:
+        time.sleep(pre_offboard_seconds)
+    set_offboard(mav)
 
 
 def wait_run_window(mav, duration_s: float) -> None:
@@ -671,6 +836,8 @@ def main() -> int:
 
     try:
         set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "COM_CPU_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "COM_RAM_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
 
         if args.kind == "trajectory":

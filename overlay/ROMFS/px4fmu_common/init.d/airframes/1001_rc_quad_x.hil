@@ -15,13 +15,6 @@ param set SYS_HITL 1
 
 param set UAVCAN_ENABLE 0
 
-# Keep the simulator serial link clean. The HIL simulator already bridges QGC
-# and offboard traffic over UDP, so serial forwarding only increases the chance
-# of corrupting the jMAVSim byte stream on hardware.
-param set-default MAV_0_FORWARD 0
-param set-default MAV_1_FORWARD 0
-param set-default MAV_2_FORWARD 0
-
 # disable some checks to allow to fly
 # - without real battery
 param set-default CBRK_SUPPLY_CHK 894281
@@ -29,10 +22,9 @@ param set-default SYS_HAS_MAG 0
 param set-default COM_ARM_HFLT_CHK 0
 param set-default COM_PREARM_MODE 2
 
-# In hardware HIL the simulator already provides attitude/global/local state
-# over MAVLink. Running EKF2 on top of that has been causing the local position
-# to diverge before arm, so keep EKF2 disabled and consume the simulator state
-# directly.
+# In hardware HIL the simulator already provides attitude/global/local state.
+# Keep EKF2 out of the loop here so OFFBOARD setpoints are not fighting
+# estimator-origin resets during takeoff.
 param set EKF2_EN 0
 
 # Square quadrotor X PX4 numbering
@@ -53,29 +45,7 @@ param set-default HIL_ACT_FUNC2 102
 param set-default HIL_ACT_FUNC3 103
 param set-default HIL_ACT_FUNC4 104
 
-# Start the identification modules automatically in HIL so the operator can
-# drive the workflow from the RC transmitter only. Use deterministic runtime
-# values instead of set-default here so stale saved params from prior sessions
-# cannot arm the vehicle with an unexpected absolute position target.
-param set CST_POS_CTRL_EN 1
-param set CST_POS_CTRL_TYP 4
-param set COM_RC_IN_MODE 0
-param set TRJ_MODE_CMD 0
-param set TRJ_ACTIVE_ID 100
-param set TRJ_IDENT_PROF 0
-param set TRJ_CAMPAIGN 0
-param set TRJ_CAMPAIGN_CMD 0
-param set TRJ_POS_ABS 0
-param set TRJ_POS_X 0.0
-param set TRJ_POS_Y 0.0
-param set TRJ_POS_Z 0.0
-param set TRJ_POS_YAW 0.0
-param set TRJ_ANCHOR_X 0.0
-param set TRJ_ANCHOR_Y 0.0
-param set TRJ_ANCHOR_Z -3.0
-
+# Enable the internal hold stack for HIL handover tests. OFFBOARD still
+# needs a producer; these modules provide the internal hold/setpoint chain.
 custom_pos_control start
 trajectory_reader start
-custom_pos_control enable
-custom_pos_control set px4_default
-trajectory_reader set_mode position

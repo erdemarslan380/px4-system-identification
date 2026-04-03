@@ -378,6 +378,67 @@ old = 'mavlink stream -d /dev/ttyACM0 -s HIL_ACTUATOR_CONTROLS -r 200'
 new = 'mavlink stream -d /dev/ttyACM0 -s HIL_ACTUATOR_CONTROLS -r 50'
 if old in text:
     text = text.replace(old, new, 1)
+
+marker = (
+    '\t# The USB CDC MAVLink instance only exists after the USB autostart block\\n'
+    '\t# above. Start the HIL actuator stream here so jMAVSim actually receives\\n'
+    '\t# motor commands on hardware HITL.\\n'
+    '\tif param greater SYS_HITL 0\\n'
+    '\tthen\\n'
+    '\t\tif [ -c /dev/ttyACM0 ]\\n'
+    '\t\tthen\\n'
+    '\t\t\tmavlink stream -d /dev/ttyACM0 -s HIL_ACTUATOR_CONTROLS -r 50\\n'
+    '\t\tfi\\n'
+    '\tfi\\n'
+)
+
+anchor = (
+    '\tif param greater -s SYS_USB_AUTO -1\\n'
+    '\tthen\\n'
+    '\t\tif ! cdcacm_autostart start\\n'
+    '\t\tthen\\n'
+    '\t\t\tsercon\\n'
+    '\t\t\techo \"Starting MAVLink on /dev/ttyACM0\"\\n'
+    '\t\t\tmavlink start -d /dev/ttyACM0\\n'
+    '\t\tfi\\n'
+    '\tfi\\n'
+)
+
+if marker not in text and anchor in text:
+    text = text.replace(anchor, anchor + '\\n' + marker, 1)
+
+path.write_text(text, encoding='utf-8')
+PY
+}
+
+patch_rcs_hil_runtime_startup() {
+  local rcS_path="$1"
+  [ -f "$rcS_path" ] || return 0
+  python3 - "$rcS_path" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+
+old_ekf2 = (
+    '\tif ! param greater SYS_HITL 0\n'
+    '\tthen\n'
+    '\t\tif param compare -s EKF2_EN 1\n'
+    '\t\tthen\n'
+    '\t\t\tekf2 start &\n'
+    '\t\tfi\n'
+    '\tfi\n'
+)
+new_ekf2 = (
+    '\tif param compare -s EKF2_EN 1\n'
+    '\tthen\n'
+    '\t\tekf2 start &\n'
+    '\tfi\n'
+)
+if old_ekf2 in text:
+    text = text.replace(old_ekf2, new_ekf2, 1)
+
 path.write_text(text, encoding='utf-8')
 PY
 }
@@ -406,6 +467,7 @@ patch_gz_bridge_gimbal \
   "$px4_root/src/modules/simulation/gz_bridge/GZBridge.cpp"
 patch_local_position_estimator_params "$px4_root/src/modules/local_position_estimator/params.yaml"
 patch_rcs_hil_usb_stream_rate "$px4_root/ROMFS/px4fmu_common/init.d/rcS"
+patch_rcs_hil_runtime_startup "$px4_root/ROMFS/px4fmu_common/init.d/rcS"
 patch_hil_airframe_startup "$px4_root/ROMFS/px4fmu_common/init.d/airframes/1001_rc_quad_x.hil"
 cleanup_legacy_param_sources "$px4_root/src/modules/custom_pos_control"
 cleanup_legacy_param_sources "$px4_root/src/modules/trajectory_reader"
@@ -419,6 +481,7 @@ echo "uORB message list patched for MultiTrajectorySetpoint.msg"
 echo "gz_bridge patched to tolerate missing simulated gimbal topics"
 echo "local_position_estimator params.yaml patched for LTEST_MODE compatibility"
 echo "rcS patched to lower USB HIL_ACTUATOR_CONTROLS stream rate for CDC-based HITL"
+echo "rcS patched so HIL still starts EKF2 and PX4IO for RC + local-position"
 echo "1001_rc_quad_x.hil patched to use relative hover setup for HITL"
 echo "Legacy params.c overlays removed in favor of module.yaml"
 echo "Next step: build SITL with 'make px4_sitl gz_x500' or your target board build."

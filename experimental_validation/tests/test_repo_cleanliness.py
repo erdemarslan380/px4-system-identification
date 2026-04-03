@@ -160,9 +160,9 @@ class RepoCleanlinessTests(unittest.TestCase):
         self.assertIn("export_vehicle_params.py", calibration_snapshot)
         self.assertIn("calibration_restore.py", calibration_snapshot)
 
-    def test_hil_airframe_pins_the_current_hil_estimator_strategy(self) -> None:
+    def test_hil_airframe_enables_ekf2_for_local_position(self) -> None:
         content = HIL_AIRFRAME_SCRIPT.read_text(encoding="utf-8")
-        self.assertIn("param set EKF2_EN 0", content)
+        self.assertIn("param set EKF2_EN 1", content)
         self.assertNotIn("param set LPE_EN 1", content)
         self.assertNotIn("param set ATT_EN 1", content)
 

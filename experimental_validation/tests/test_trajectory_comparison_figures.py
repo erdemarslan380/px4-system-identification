@@ -94,10 +94,14 @@ class TrajectoryComparisonFiguresTests(unittest.TestCase):
             )
 
             self.assertTrue((out_dir / "group_1_circle_hairpin_lemniscate.png").exists())
+            self.assertTrue((out_dir / "group_1_circle_hairpin_lemniscate.svg").exists())
             self.assertTrue((out_dir / "group_2_time_optimal_minimum_snap.png").exists())
+            self.assertTrue((out_dir / "group_2_time_optimal_minimum_snap.svg").exists())
             self.assertTrue((out_dir / "comparison_summary.json").exists())
             self.assertEqual(summary["compare_label"], "Real flight baseline PID")
             self.assertIn("circle", summary["cases"])
+            self.assertIn("png", summary["figures"]["group_1_circle_hairpin_lemniscate"])
+            self.assertIn("svg", summary["figures"]["group_1_circle_hairpin_lemniscate"])
 
     def test_build_comparison_figures_supports_second_comparison_dataset(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -140,7 +144,9 @@ class TrajectoryComparisonFiguresTests(unittest.TestCase):
             )
 
             self.assertTrue((out_dir / "group_1_circle_hairpin_lemniscate.png").exists())
+            self.assertTrue((out_dir / "group_1_circle_hairpin_lemniscate.svg").exists())
             self.assertTrue((out_dir / "group_2_time_optimal_minimum_snap.png").exists())
+            self.assertTrue((out_dir / "group_2_time_optimal_minimum_snap.svg").exists())
             self.assertEqual(summary["compare_label"], "Identified SITL")
             self.assertEqual(summary["compare_label_2"], "Real flight results")
             self.assertIn("rmse_compare_2_m", summary["cases"]["circle"])
