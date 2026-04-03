@@ -83,9 +83,10 @@ graceful_stop_pattern() {
 
 close_windows_by_regex() {
   local regex="$1"
+  local -a win_ids=()
   if command -v wmctrl >/dev/null 2>&1; then
     mapfile -t win_ids < <(wmctrl -lx 2>/dev/null | awk "tolower(\$0) ~ /$regex/ {print \$1}")
-    if [[ ${#win_ids[@]:-0} -gt 0 ]]; then
+    if ((${#win_ids[@]} > 0)); then
       echo "Closing windows via wmctrl: ${win_ids[*]}"
       for wid in "${win_ids[@]}"; do
         wmctrl -ic "$wid" || true
@@ -96,7 +97,7 @@ close_windows_by_regex() {
 
   if command -v xdotool >/dev/null 2>&1; then
     mapfile -t win_ids < <(xdotool search --all --name "$regex" 2>/dev/null || true)
-    if [[ ${#win_ids[@]:-0} -gt 0 ]]; then
+    if ((${#win_ids[@]} > 0)); then
       echo "Closing windows via xdotool: ${win_ids[*]}"
       for wid in "${win_ids[@]}"; do
         xdotool windowclose "$wid" || true
