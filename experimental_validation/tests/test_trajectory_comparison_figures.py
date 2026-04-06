@@ -63,6 +63,31 @@ def _write_tracking_csv_with_tail(path: Path, *, total_rows: int, total_duration
 
 
 class TrajectoryComparisonFiguresTests(unittest.TestCase):
+    def test_build_comparison_figures_supports_stock_only_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stock_root = root / "stock"
+            out_dir = root / "out"
+            (stock_root / "tracking_logs").mkdir(parents=True)
+
+            for case_index, case in enumerate(CASES):
+                _write_tracking_csv(
+                    stock_root / "tracking_logs" / f"{case}.csv",
+                    offset_x=0.0,
+                    offset_y=0.0,
+                    error_scale=1.0 + case_index * 0.1,
+                )
+
+            summary = build_comparison_figures(
+                stock_root=stock_root,
+                out_dir=out_dir,
+            )
+
+            self.assertTrue((out_dir / "group_1_circle_hairpin_lemniscate.png").exists())
+            self.assertTrue((out_dir / "group_2_time_optimal_minimum_snap.png").exists())
+            self.assertIsNone(summary["compare_label"])
+            self.assertNotIn("rmse_compare_m", summary["cases"]["circle"])
+
     def test_build_comparison_figures_writes_grouped_outputs_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

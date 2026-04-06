@@ -55,11 +55,26 @@ def collect_tracking_dataset(
     tracking_root = dataset_root / "tracking_logs"
     tracking_root.mkdir(parents=True, exist_ok=True)
 
+    mode_label = "visual" if not headless else "headless"
+    print(
+        f"Collecting {len(trajectories)} trajectory runs for {model_spec.display_name} in {mode_label} mode.",
+        flush=True,
+    )
+    if not headless:
+        print(
+            "Gazebo will reopen sequentially for each trajectory in the suite.",
+            flush=True,
+        )
+
     cases: list[dict[str, object]] = []
-    for entry in trajectories:
+    for case_index, entry in enumerate(trajectories, start=1):
         case_root = out_root / "cases" / entry.name
         error_text: str | None = None
         copied_log: str | None = None
+        print(
+            f"[{case_index}/{len(trajectories)}] Starting trajectory: {entry.name}",
+            flush=True,
+        )
 
         try:
             manifest = run_validation_model(
@@ -76,8 +91,16 @@ def collect_tracking_dataset(
             )
             if manifest.get("results"):
                 copied_log = _copy(Path(manifest["results"][0]["tracking_log"]), tracking_root / f"{entry.name}.csv")
+                print(
+                    f"[{case_index}/{len(trajectories)}] Completed: {entry.name}",
+                    flush=True,
+                )
         except Exception as exc:
             error_text = str(exc)
+            print(
+                f"[{case_index}/{len(trajectories)}] Finished with gate/error: {entry.name}: {error_text}",
+                flush=True,
+            )
             run_rootfs = case_root / "runtime" / model_spec.label / "rootfs"
             latest = _latest_tracking_log(run_rootfs)
             if latest is not None:

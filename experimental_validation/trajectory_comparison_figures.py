@@ -217,8 +217,8 @@ def _plot_error_collection(
 def build_comparison_figures(
     *,
     stock_root: Path,
-    compare_root: Path,
-    compare_label: str,
+    compare_root: Path | None = None,
+    compare_label: str | None = None,
     out_dir: Path,
     compare_root_2: Path | None = None,
     compare_label_2: str | None = None,
@@ -238,15 +238,24 @@ def build_comparison_figures(
     )
     plt.style.use("seaborn-v0_8-whitegrid")
 
+    has_compare = compare_root is not None and compare_label is not None
     has_compare_2 = compare_root_2 is not None and compare_label_2 is not None
+    if not has_compare and (compare_root is not None or compare_label is not None):
+        raise ValueError("--compare-root and --compare-label must be provided together")
+    if has_compare_2 and not has_compare:
+        raise ValueError("second comparison dataset requires the first comparison dataset")
     out_dir.mkdir(parents=True, exist_ok=True)
     figures: dict[str, dict[str, str]] = {}
     summary_cases: dict[str, dict[str, float | int | str | None]] = {}
 
     for figure_index, cases in enumerate(PANEL_GROUPS, start=1):
         cols = len(cases)
-        fig = plt.figure(figsize=(12.2 * cols + (12.6 if has_compare_2 else 9.8), 13.2))
-        gs = fig.add_gridspec(1, cols + 1, width_ratios=[1.0] * cols + ([0.88] if has_compare_2 else [0.66]))
+        fig = plt.figure(figsize=(12.2 * cols + (12.6 if has_compare_2 else 9.8 if has_compare else 7.9), 13.2))
+        gs = fig.add_gridspec(
+            1,
+            cols + 1,
+            width_ratios=[1.0] * cols + ([0.88] if has_compare_2 else [0.66] if has_compare else [0.56]),
+        )
         axes = [fig.add_subplot(gs[0, idx], projection="3d") for idx in range(cols)]
 
         if has_compare_2:
@@ -258,7 +267,7 @@ def build_comparison_figures(
                 hspace=0.08,
                 wspace=0.70,
             )
-        else:
+        elif has_compare:
             side = gs[0, cols].subgridspec(
                 2,
                 3,
@@ -267,11 +276,20 @@ def build_comparison_figures(
                 hspace=0.08,
                 wspace=0.55,
             )
+        else:
+            side = gs[0, cols].subgridspec(
+                2,
+                2,
+                height_ratios=[0.34, 0.66],
+                width_ratios=[0.68, 0.32],
+                hspace=0.08,
+                wspace=0.35,
+            )
 
         legend_ax = fig.add_subplot(side[0, :])
         spacer_ax = fig.add_subplot(side[1, 0])
         cax_stock = fig.add_subplot(side[1, 1])
-        cax_compare = fig.add_subplot(side[1, 2])
+        cax_compare = fig.add_subplot(side[1, 2]) if has_compare else None
         cax_compare_2 = fig.add_subplot(side[1, 3]) if has_compare_2 else None
         legend_ax.axis("off")
         spacer_ax.axis("off")
@@ -283,48 +301,54 @@ def build_comparison_figures(
 
         for case in cases:
             stock_t_raw, stock_ref_raw, stock_pos_raw = _load_tracking(stock_root / "tracking_logs" / f"{case}.csv")
-            compare_t_raw, compare_ref_raw, compare_pos_raw = _load_tracking(compare_root / "tracking_logs" / f"{case}.csv")
 
             stock_ref_trimmed, stock_pos_trimmed = _trim_dataset(case, stock_t_raw, stock_ref_raw, stock_pos_raw)
-            compare_ref_trimmed, compare_pos_trimmed = _trim_dataset(case, compare_t_raw, compare_ref_raw, compare_pos_raw)
 
             rmse_stock_raw, _ = _trajectory_rmse(stock_ref_trimmed, stock_pos_trimmed)
-            rmse_compare_raw, _ = _trajectory_rmse(compare_ref_trimmed, compare_pos_trimmed)
             rmse_stock, err_stock = _shape_rmse(stock_ref_trimmed, stock_pos_trimmed)
-            rmse_compare, err_compare = _shape_rmse(compare_ref_trimmed, compare_pos_trimmed)
 
             global_max_stock_error = max(global_max_stock_error, float(np.max(err_stock)) if len(err_stock) else 1e-6)
-            global_max_compare_error = max(global_max_compare_error, float(np.max(err_compare)) if len(err_compare) else 1e-6)
 
             stock_ref_plot, stock_pos_plot = _align_to_reference_start(stock_ref_trimmed, stock_pos_trimmed)
-            _, compare_pos_plot = _align_to_reference_start(compare_ref_trimmed, compare_pos_trimmed)
 
             payload: dict[str, object] = {
                 "ref_plot": stock_ref_plot,
                 "stock_plot": stock_pos_plot,
-                "compare_plot": compare_pos_plot,
                 "rmse_stock": rmse_stock,
-                "rmse_compare": rmse_compare,
                 "rmse_stock_raw": rmse_stock_raw,
-                "rmse_compare_raw": rmse_compare_raw,
                 "err_stock": err_stock,
-                "err_compare": err_compare,
                 "stock_samples": len(stock_ref_trimmed),
-                "compare_samples": len(compare_ref_trimmed),
             }
 
             summary_cases[case] = {
                 "stock_label": "Stock x500 SITL",
-                "compare_label": compare_label,
+                "compare_label": compare_label if has_compare else None,
                 "rmse_stock_m": rmse_stock_raw,
-                "rmse_compare_m": rmse_compare_raw,
                 "shape_rmse_stock_m": rmse_stock,
-                "shape_rmse_compare_m": rmse_compare,
                 "stock_samples": len(stock_ref_trimmed),
-                "compare_samples": len(compare_ref_trimmed),
             }
 
+            if has_compare:
+                assert compare_root is not None
+                compare_t_raw, compare_ref_raw, compare_pos_raw = _load_tracking(compare_root / "tracking_logs" / f"{case}.csv")
+                compare_ref_trimmed, compare_pos_trimmed = _trim_dataset(case, compare_t_raw, compare_ref_raw, compare_pos_raw)
+                rmse_compare_raw, _ = _trajectory_rmse(compare_ref_trimmed, compare_pos_trimmed)
+                rmse_compare, err_compare = _shape_rmse(compare_ref_trimmed, compare_pos_trimmed)
+                _, compare_pos_plot = _align_to_reference_start(compare_ref_trimmed, compare_pos_trimmed)
+
+                payload["compare_plot"] = compare_pos_plot
+                payload["rmse_compare"] = rmse_compare
+                payload["rmse_compare_raw"] = rmse_compare_raw
+                payload["err_compare"] = err_compare
+                payload["compare_samples"] = len(compare_ref_trimmed)
+                global_max_compare_error = max(global_max_compare_error, float(np.max(err_compare)) if len(err_compare) else 1e-6)
+
+                summary_cases[case]["rmse_compare_m"] = rmse_compare_raw
+                summary_cases[case]["shape_rmse_compare_m"] = rmse_compare
+                summary_cases[case]["compare_samples"] = len(compare_ref_trimmed)
+
             if has_compare_2:
+                assert compare_root_2 is not None
                 compare_2_t_raw, compare_2_ref_raw, compare_2_pos_raw = _load_tracking(compare_root_2 / "tracking_logs" / f"{case}.csv")
                 compare_2_ref_trimmed, compare_2_pos_trimmed = _trim_dataset(case, compare_2_t_raw, compare_2_ref_raw, compare_2_pos_raw)
                 rmse_compare_2_raw, _ = _trajectory_rmse(compare_2_ref_trimmed, compare_2_pos_trimmed)
@@ -358,9 +382,7 @@ def build_comparison_figures(
             payload = loaded[case]
             ref = payload["ref_plot"]
             stock = payload["stock_plot"]
-            compare = payload["compare_plot"]
             err_stock = payload["err_stock"]
-            err_compare = payload["err_compare"]
 
             ax.plot(
                 ref[:, 0],
@@ -381,23 +403,28 @@ def build_comparison_figures(
                 alpha=0.75,
             )
             _plot_error_collection(ax, stock, err_stock, cmap=cmap_stock, norm=norm_stock, linewidth=2.8)
-            ax.plot(
-                compare[:, 0],
-                compare[:, 1],
-                compare[:, 2],
-                linestyle="-.",
-                linewidth=1.5,
-                color=COMPARE_COLOR,
-                alpha=0.8,
-            )
-            _plot_error_collection(ax, compare, err_compare, cmap=cmap_compare, norm=norm_compare, linewidth=3.0)
 
-            point_sets = [ref, stock, compare]
+            point_sets = [ref, stock]
             title_lines = [
                 case,
                 f"Ref RMSE X500: {payload['rmse_stock_raw']:.3f} m",
-                f"Ref RMSE {compare_label}: {payload['rmse_compare_raw']:.3f} m",
             ]
+
+            if has_compare:
+                compare = payload["compare_plot"]
+                err_compare = payload["err_compare"]
+                ax.plot(
+                    compare[:, 0],
+                    compare[:, 1],
+                    compare[:, 2],
+                    linestyle="-.",
+                    linewidth=1.5,
+                    color=COMPARE_COLOR,
+                    alpha=0.8,
+                )
+                _plot_error_collection(ax, compare, err_compare, cmap=cmap_compare, norm=norm_compare, linewidth=3.0)
+                point_sets.append(compare)
+                title_lines.append(f"Ref RMSE {compare_label}: {payload['rmse_compare_raw']:.3f} m")
 
             if has_compare_2:
                 compare_2 = payload["compare_2_plot"]
@@ -430,8 +457,11 @@ def build_comparison_figures(
         legend_handles = [
             mpl.lines.Line2D([0], [0], color=REF_COLOR, linestyle="--", linewidth=2.2, label="Reference"),
             mpl.lines.Line2D([0], [0], color=STOCK_COLOR, linestyle="-", linewidth=2.8, label="Stock x500 SITL"),
-            mpl.lines.Line2D([0], [0], color=COMPARE_COLOR, linestyle="-.", linewidth=3.0, label=compare_label),
         ]
+        if has_compare:
+            legend_handles.append(
+                mpl.lines.Line2D([0], [0], color=COMPARE_COLOR, linestyle="-.", linewidth=3.0, label=compare_label)
+            )
         if has_compare_2:
             legend_handles.append(
                 mpl.lines.Line2D([0], [0], color=COMPARE2_COLOR, linestyle=":", linewidth=3.1, label=compare_label_2)
@@ -448,11 +478,12 @@ def build_comparison_figures(
         )
 
         cbar_stock = fig.colorbar(mpl.cm.ScalarMappable(norm=norm_stock, cmap=cmap_stock), cax=cax_stock)
-        cbar_compare = fig.colorbar(mpl.cm.ScalarMappable(norm=norm_compare, cmap=cmap_compare), cax=cax_compare)
         cbar_stock.set_label("Stock SITL shape error [m]", fontsize=22, labelpad=12)
-        cbar_compare.set_label(f"{compare_label} shape error [m]", fontsize=22, labelpad=12)
         cbar_stock.ax.tick_params(labelsize=19)
-        cbar_compare.ax.tick_params(labelsize=19)
+        if has_compare and cax_compare is not None:
+            cbar_compare = fig.colorbar(mpl.cm.ScalarMappable(norm=norm_compare, cmap=cmap_compare), cax=cax_compare)
+            cbar_compare.set_label(f"{compare_label} shape error [m]", fontsize=22, labelpad=12)
+            cbar_compare.ax.tick_params(labelsize=19)
 
         if has_compare_2 and cax_compare_2 is not None:
             cbar_compare_2 = fig.colorbar(
@@ -475,7 +506,7 @@ def build_comparison_figures(
 
     summary = {
         "stock_label": "Stock x500 SITL",
-        "compare_label": compare_label,
+        "compare_label": compare_label if has_compare else None,
         "compare_label_2": compare_label_2 if has_compare_2 else None,
         "cases": summary_cases,
         "figures": figures,
@@ -489,19 +520,24 @@ def build_comparison_figures(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate grouped trajectory comparison figures.")
     parser.add_argument("--stock-root", required=True, help="Root containing tracking_logs/*.csv for the stock SITL dataset.")
-    parser.add_argument("--compare-root", required=True, help="Root containing tracking_logs/*.csv for the first comparison dataset.")
-    parser.add_argument("--compare-label", required=True, help="Legend/title label for the first comparison dataset.")
+    parser.add_argument("--compare-root", default="", help="Optional root containing tracking_logs/*.csv for the first comparison dataset.")
+    parser.add_argument("--compare-label", default="", help="Legend/title label for the first comparison dataset.")
     parser.add_argument("--compare-root-2", default="", help="Optional root containing tracking_logs/*.csv for the second comparison dataset.")
     parser.add_argument("--compare-label-2", default="", help="Legend/title label for the second comparison dataset.")
     parser.add_argument("--out-dir", required=True, help="Output directory for PNG figures and a JSON summary.")
     args = parser.parse_args()
 
+    compare_root = Path(args.compare_root).expanduser().resolve() if args.compare_root else None
+    compare_label = args.compare_label or None
+    compare_root_2 = Path(args.compare_root_2).expanduser().resolve() if args.compare_root_2 and args.compare_label_2 else None
+    compare_label_2 = args.compare_label_2 or None
+
     summary = build_comparison_figures(
         stock_root=Path(args.stock_root).expanduser().resolve(),
-        compare_root=Path(args.compare_root).expanduser().resolve(),
-        compare_label=args.compare_label,
-        compare_root_2=Path(args.compare_root_2).expanduser().resolve() if args.compare_root_2 and args.compare_label_2 else None,
-        compare_label_2=args.compare_label_2 or None,
+        compare_root=compare_root,
+        compare_label=compare_label,
+        compare_root_2=compare_root_2,
+        compare_label_2=compare_label_2,
         out_dir=Path(args.out_dir).expanduser().resolve(),
     )
     print(json.dumps(summary, indent=2))

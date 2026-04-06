@@ -114,8 +114,9 @@ Stock 5-trajectory validation set
 ---------------------------------
 This collects one tracking CSV per validation trajectory for the stock `x500`.
 
-If you want to watch the stock vehicle in Gazebo before running the full `5/5`
-set, use the visible smoke command above first.
+The default command below is headless. That is why it can look like it is
+"waiting" in the terminal while the five trajectories are being executed one by
+one in the background.
 
 ```bash
 cd ~/px4-system-identification
@@ -127,6 +128,21 @@ python3 experimental_validation/collect_sitl_tracking_dataset.py \
   --out-root /tmp/sitl_stock_suite
 ```
 
+If you want to watch all five stock trajectories in Gazebo instead of running
+headless, use the same collector with `--visual --show-console`:
+
+```bash
+cd ~/px4-system-identification
+./examples/cleanup_px4_background_services.sh
+
+python3 experimental_validation/collect_sitl_tracking_dataset.py \
+  --candidate-dir examples/paper_assets/candidates/jmavsim_prior_v1 \
+  --model-label stock_sitl_placeholder \
+  --visual \
+  --show-console \
+  --out-root /tmp/sitl_stock_suite_visual
+```
+
 Outputs:
 
 - dataset root:
@@ -135,6 +151,33 @@ Outputs:
   `/tmp/sitl_stock_suite/stock_sitl_placeholder/tracking_logs/*.csv`
 - summary:
   `/tmp/sitl_stock_suite/stock_sitl_placeholder/collection_summary.json`
+
+Stock-only figures and interactive review:
+
+```bash
+cd ~/px4-system-identification
+
+python3 experimental_validation/trajectory_comparison_figures.py \
+  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
+  --out-dir /tmp/sitl_stock_suite/stock_only_figures
+
+python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
+  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
+  --stock-label "Stock x500 SITL" \
+  --out-dir /tmp/sitl_stock_suite/stock_only_review
+```
+
+Review outputs:
+
+- static PNGs:
+  `/tmp/sitl_stock_suite/stock_only_figures/group_1_circle_hairpin_lemniscate.png`
+- static PNGs:
+  `/tmp/sitl_stock_suite/stock_only_figures/group_2_time_optimal_minimum_snap.png`
+- interactive 3D HTML:
+  `/tmp/sitl_stock_suite/stock_only_review/index.html`
+
+Open the HTML in Firefox if you want zoom, pan, and rotate inspection per
+trajectory.
 
 Prepare the jMAVSim-prior SDF
 -----------------------------
@@ -152,6 +195,41 @@ Installed model paths:
 
 - `~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_ident_matrix_prior`
 - `~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_ident_matrix_prior_base`
+
+jMAVSim prior parameter table
+-----------------------------
+These are the fixed prior values transferred from the local PX4 `jMAVSim`
+defaults into the Gazebo candidate:
+
+| Parameter | Value | Unit |
+|---|---:|---:|
+| Mass | 0.8 | kg |
+| Thrust scale | 16.0 | N/cmd |
+| Inertia X | 0.005 | kg*m^2 |
+| Inertia Y | 0.005 | kg*m^2 |
+| Inertia Z | 0.009 | kg*m^2 |
+| Drag X | 0.01 | - |
+| Drag Y | 0.01 | - |
+| Drag Z | 0.01 | - |
+| Time constant up | 0.005 | s |
+| Time constant down | 0.005 | s |
+| Max rotor velocity | 1000.0 | rad/s |
+| Motor constant | 4.0e-06 | N/(rad/s)^2 |
+| Moment constant | 0.0125 | - |
+| Rotor drag coefficient | 8.06428e-05 | - |
+| Rolling moment coefficient | 1.0e-06 | - |
+| Rotor velocity slowdown | 10.0 | - |
+
+If you want the same table as a saved markdown/json artifact:
+
+```bash
+cd ~/px4-system-identification
+
+python3 experimental_validation/summarize_candidate_parameters.py \
+  --candidate-a examples/paper_assets/candidates/jmavsim_prior_v1 \
+  --label-a "jMAVSim prior SDF" \
+  --out-dir /tmp/sitl_jmavsim_prior_parameters
+```
 
 jMAVSim-prior 5-trajectory validation set
 -----------------------------------------
@@ -193,6 +271,34 @@ Outputs:
 - tracking logs:
   `/tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl/tracking_logs/*.csv`
 
+Stock vs jMAVSim-prior figures and interactive review:
+
+```bash
+cd ~/px4-system-identification
+
+python3 experimental_validation/trajectory_comparison_figures.py \
+  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
+  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
+  --compare-label "jMAVSim prior SDF" \
+  --out-dir /tmp/sitl_jmavsim_prior_suite/stock_vs_prior_figures
+
+python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
+  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
+  --stock-label "Stock x500 SITL" \
+  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
+  --compare-label "jMAVSim prior SDF" \
+  --out-dir /tmp/sitl_jmavsim_prior_suite/stock_vs_prior_review
+```
+
+Review outputs:
+
+- static PNGs:
+  `/tmp/sitl_jmavsim_prior_suite/stock_vs_prior_figures/group_1_circle_hairpin_lemniscate.png`
+- static PNGs:
+  `/tmp/sitl_jmavsim_prior_suite/stock_vs_prior_figures/group_2_time_optimal_minimum_snap.png`
+- interactive 3D HTML:
+  `/tmp/sitl_jmavsim_prior_suite/stock_vs_prior_review/index.html`
+
 jMAVSim-prior 9-profile SITL identification suite
 -------------------------------------------------
 This runs the same fixed SITL flight flow, but switches the payload phase from
@@ -220,6 +326,21 @@ Outputs:
 - per-profile truth logs:
   `/tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite/*/gazebo_truth_traces/eval_00000.csv`
 
+Interactive ident review bundle:
+
+```bash
+cd ~/px4-system-identification
+
+python3 experimental_validation/build_hitl_review_bundle.py \
+  --log-root /tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite \
+  --out-dir /tmp/sitl_ident_jmavsim_prior/review
+```
+
+Review output:
+
+- interactive HTML:
+  `/tmp/sitl_ident_jmavsim_prior/review/index.html`
+
 Build a new candidate from the SITL ident logs
 ----------------------------------------------
 This uses the existing ident code path. The reference SDF is the prepared
@@ -243,6 +364,26 @@ Outputs:
   `/tmp/sitl_reidentified_candidate/candidate_x500_base.sdf`
 - comparison report:
   `/tmp/sitl_reidentified_candidate/sdf_comparison.json`
+
+jMAVSim prior vs re-identified parameter table:
+
+```bash
+cd ~/px4-system-identification
+
+python3 experimental_validation/summarize_candidate_parameters.py \
+  --candidate-a examples/paper_assets/candidates/jmavsim_prior_v1 \
+  --label-a "jMAVSim prior SDF" \
+  --candidate-b /tmp/sitl_reidentified_candidate \
+  --label-b "Re-identified from SITL ident" \
+  --out-dir /tmp/sitl_reidentified_candidate/parameter_report
+```
+
+Parameter comparison outputs:
+
+- markdown table:
+  `/tmp/sitl_reidentified_candidate/parameter_report/parameter_summary.md`
+- json table:
+  `/tmp/sitl_reidentified_candidate/parameter_report/parameter_summary.json`
 
 Prepare the re-identified SDF
 -----------------------------
@@ -291,6 +432,38 @@ Outputs:
   `/tmp/sitl_reidentified_suite/reidentified_sitl`
 - tracking logs:
   `/tmp/sitl_reidentified_suite/reidentified_sitl/tracking_logs/*.csv`
+
+Final four-layer figures and interactive review:
+
+```bash
+cd ~/px4-system-identification
+
+python3 experimental_validation/trajectory_comparison_figures.py \
+  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
+  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
+  --compare-label "jMAVSim prior SDF" \
+  --compare-root-2 /tmp/sitl_reidentified_suite/reidentified_sitl \
+  --compare-label-2 "Re-identified from SITL ident" \
+  --out-dir /tmp/sitl_three_model_figures
+
+python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
+  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
+  --stock-label "Stock x500 SITL" \
+  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
+  --compare-label "jMAVSim prior SDF" \
+  --compare-root-2 /tmp/sitl_reidentified_suite/reidentified_sitl \
+  --compare-label-2 "Re-identified from SITL ident" \
+  --out-dir /tmp/sitl_three_model_review
+```
+
+Review outputs:
+
+- static PNGs:
+  `/tmp/sitl_three_model_figures/group_1_circle_hairpin_lemniscate.png`
+- static PNGs:
+  `/tmp/sitl_three_model_figures/group_2_time_optimal_minimum_snap.png`
+- interactive 3D HTML:
+  `/tmp/sitl_three_model_review/index.html`
 
 Build the final three-model figures
 -----------------------------------
