@@ -35,6 +35,15 @@ class DatasetSpec:
     dash: str
 
 
+def _plotly_script_tag() -> str:
+    try:
+        from plotly.offline import get_plotlyjs
+
+        return f"<script>{get_plotlyjs()}</script>"
+    except Exception:
+        return '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
+
+
 def _safe_key(label: str) -> str:
     cleaned = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
     return cleaned or "dataset"
@@ -114,13 +123,14 @@ def _dataset_payload(case: str, spec: DatasetSpec, *, out_dir: Path, max_points:
 
 def _build_html(bundle: dict[str, object]) -> str:
     data_json = json.dumps(bundle, ensure_ascii=True)
+    plotly_script = _plotly_script_tag()
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SITL Trajectory Review</title>
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  {plotly_script}
   <style>
     :root {{
       --bg: #f3ede3;

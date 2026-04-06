@@ -13,6 +13,15 @@ DEFAULT_MAX_POINTS = 4000
 SORTIE_PREFIX_RE = re.compile(r"^\d+[_-]+(.+)$")
 
 
+def _plotly_script_tag() -> str:
+    try:
+        from plotly.offline import get_plotlyjs
+
+        return f"<script>{get_plotlyjs()}</script>"
+    except Exception:
+        return '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
+
+
 def _sortie_profile_from_path(csv_path: Path) -> str:
     parent = csv_path.parent
     if parent.name not in {"tracking_logs", "identification_logs", "identification_traces"}:
@@ -167,13 +176,14 @@ def _copy_raw_logs(
 
 def _build_html(bundle: dict[str, object]) -> str:
     data_json = json.dumps(bundle, ensure_ascii=True)
+    plotly_script = _plotly_script_tag()
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HITL Log Review</title>
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  {plotly_script}
   <style>
     :root {{
       --bg: #f4efe7;

@@ -28,6 +28,21 @@ The local links are best when you inspect the repo on the same machine.
 The rendered links are best when you inspect the same README from GitHub and
 want the HTML review to open directly instead of showing the file contents.
 
+Important limitation:
+
+- GitHub does not execute repo HTML files directly from normal file links, so a plain `index.html` repo link may still show source or download behavior
+- for a guaranteed rendered local view, start the local docs server once and then open the review URLs through `http://127.0.0.1:8765/...`
+
+One-command local docs server:
+
+```bash
+cd ~/px4-system-identification
+python3 experimental_validation/serve_sitl_docs.py \
+  --open-path docs/sitl_validation/three_model/review/index.html
+```
+
+This serves the repo at `http://127.0.0.1:8765/` and opens the requested review in your default browser.
+
 Fixed project rules
 -------------------
 These are intentionally stable and should not be changed between tests:
@@ -184,6 +199,7 @@ Pinned docs outputs after the publish step:
 - [Stock grouped PNG 1](docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png)
 - [Stock grouped PNG 2](docs/sitl_validation/stock/figures/group_2_time_optimal_minimum_snap.png)
 - <a href="docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open local stock interactive review</a>
+- <a href="http://127.0.0.1:8765/docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open rendered stock review from local docs server</a>
 - <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open rendered stock interactive review from GitHub</a>
 
 Review notes:
@@ -379,6 +395,7 @@ Pinned docs outputs after the publish step:
 - [Stock vs prior grouped PNG 1](docs/sitl_validation/stock_vs_prior/figures/group_1_circle_hairpin_lemniscate.png)
 - [Stock vs prior grouped PNG 2](docs/sitl_validation/stock_vs_prior/figures/group_2_time_optimal_minimum_snap.png)
 - <a href="docs/sitl_validation/stock_vs_prior/review/index.html" target="_blank" rel="noopener">Open local stock vs prior interactive review</a>
+- <a href="http://127.0.0.1:8765/docs/sitl_validation/stock_vs_prior/review/index.html" target="_blank" rel="noopener">Open rendered stock vs prior review from local docs server</a>
 - <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock_vs_prior/review/index.html" target="_blank" rel="noopener">Open rendered stock vs prior interactive review from GitHub</a>
 - [Pinned prior parameter table](docs/sitl_validation/stock_vs_prior/parameters/parameter_summary.md)
 
@@ -442,6 +459,7 @@ python3 experimental_validation/publish_sitl_docs_assets.py \
 Pinned docs outputs after the publish step:
 
 - <a href="docs/sitl_validation/prior_ident/review/index.html" target="_blank" rel="noopener">Open local prior ident interactive review</a>
+- <a href="http://127.0.0.1:8765/docs/sitl_validation/prior_ident/review/index.html" target="_blank" rel="noopener">Open rendered prior ident review from local docs server</a>
 - <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/prior_ident/review/index.html" target="_blank" rel="noopener">Open rendered prior ident interactive review from GitHub</a>
 
 Review notes:
@@ -608,6 +626,7 @@ Pinned docs outputs after the publish step:
 - [Final grouped PNG 1](docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png)
 - [Final grouped PNG 2](docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png)
 - <a href="docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open local final interactive review</a>
+- <a href="http://127.0.0.1:8765/docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open rendered final review from local docs server</a>
 - <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open rendered final interactive review from GitHub</a>
 - [Pinned prior vs re-identified parameter comparison](docs/sitl_validation/three_model/parameters/parameter_summary.md)
 
