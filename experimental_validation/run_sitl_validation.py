@@ -83,11 +83,11 @@ SITL_TAKEOFF_SETTLE_SECONDS = 2.0
 SITL_TAKEOFF_STABLE_WINDOW_SECONDS = 2.0
 SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS = 0.15
 SITL_TAKEOFF_MAX_VERT_SPEED_MPS = 0.10
-SITL_TAKEOFF_Z_TOLERANCE_M = 0.25
+SITL_TAKEOFF_Z_TOLERANCE_M = 0.35
 SITL_TAKEOFF_TILT_LIMIT_DEG = 5.0
 SITL_MANUAL_CONTROL_PERIOD = 0.05
 SITL_MANUAL_CLIMB_TIMEOUT_SECONDS = 30.0
-SITL_MANUAL_CLIMB_ENTRY_Z_MARGIN = 0.80
+SITL_MANUAL_CLIMB_ENTRY_Z_MARGIN = 0.25
 SITL_MANUAL_CAPTURE_THROTTLE = 450
 SITL_MANUAL_MAX_THROTTLE = 650
 SITL_PRE_OFFBOARD_SECONDS = 2.0
@@ -122,6 +122,7 @@ SITL_ESC_MIN_DEFAULT = 0
 SITL_START_ATTEMPTS = 3
 SITL_START_RETRY_DELAY_SECONDS = 3.0
 SITL_FREEZE_TRAJECTORY_YAW = True
+SITL_LOCKED_YAW_RAD = 0.0
 SITL_REFERENCE_WORLD_NAME = "validation_reference_world"
 SITL_REFERENCE_MARKER_NAME = "takeoff_reference_marker"
 SITL_REFERENCE_MARKER_X = 1.5
@@ -132,6 +133,9 @@ SITL_REFERENCE_MARKER_LENGTH = 0.90
 VISUAL_FOLLOW_OFFSET_X = 0.0
 VISUAL_FOLLOW_OFFSET_Y = 0.0
 VISUAL_FOLLOW_OFFSET_Z = 7.0
+VISUAL_FOLLOW_PGAIN = 1.0
+VISUAL_TRACK_PGAIN = 0.0
+SITL_VISUAL_DISABLE_FOLLOW = True
 SITL_CONSOLE_WINDOW_TITLE = "PX4 SITL Log (read-only)"
 SITL_NESTED_DISPLAY_TITLE = "PX4 Gazebo Nested Display"
 SITL_NESTED_DISPLAY_WIDTH = 1400
@@ -142,6 +146,9 @@ SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS = 30.0
 SITL_PARAM_PROPAGATION_SECONDS = 0.5
 SITL_CONSOLE_COLUMNS = 110
 SITL_CONSOLE_ROWS = 26
+SITL_LAND_TIMEOUT_SECONDS = 45.0
+SITL_QGC_DISCOVERY_GRACE_SECONDS = 2.0
+SITL_DISARM_AFTER_LAND_TIMEOUT_SECONDS = 12.0
 
 
 @dataclass
@@ -417,6 +424,28 @@ def _prepare_run_rootfs(base_rootfs: Path, run_rootfs: Path) -> None:
         path = run_rootfs / name
         if path.exists() or path.is_symlink():
             path.unlink()
+    _patch_run_rootfs_gcs_link(run_rootfs)
+
+
+def _patch_run_rootfs_gcs_link(run_rootfs: Path) -> None:
+    rc_mavlink = run_rootfs / "etc" / "init.d-posix" / "px4-rc.mavlink"
+    if not rc_mavlink.exists():
+        return
+
+    source_path = rc_mavlink.resolve() if rc_mavlink.is_symlink() else rc_mavlink
+    text = source_path.read_text(encoding="utf-8")
+    patched = re.sub(
+        r"mavlink start -x -u \$udp_gcs_port_local -r 4000000 -f(?:\s+-p)*",
+        "mavlink start -x -u $udp_gcs_port_local -r 4000000 -f -p",
+        text,
+        count=1,
+    )
+    if patched != text:
+        if rc_mavlink.is_symlink():
+            rc_mavlink.unlink()
+            rc_mavlink.write_text(patched, encoding="utf-8")
+        else:
+            rc_mavlink.write_text(patched, encoding="utf-8")
 
 
 def _patch_gz_env_world_override(run_rootfs: Path, override_worlds_root: Path) -> None:
@@ -692,6 +721,48 @@ def _focus_window_by_title(title: str) -> None:
     )
 
 
+def _configure_visual_camera_follow(
+    *,
+    model_name: str,
+    env: dict[str, str],
+    follow_x: float = VISUAL_FOLLOW_OFFSET_X,
+    follow_y: float = VISUAL_FOLLOW_OFFSET_Y,
+    follow_z: float = VISUAL_FOLLOW_OFFSET_Z,
+    follow_pgain: float = VISUAL_FOLLOW_PGAIN,
+    track_pgain: float = VISUAL_TRACK_PGAIN,
+    px4_instance: int = 0,
+    attempts: int = 8,
+    retry_delay_s: float = 0.5,
+) -> bool:
+    if env.get("PX4_GZ_NO_FOLLOW"):
+        return False
+
+    gz = shutil.which("gz")
+    if gz is None:
+        return False
+
+    model_instance = f"{model_name}_{px4_instance}"
+    payload = (
+        f"track_mode: FOLLOW, follow_target: {{name: '{model_instance}'}}, "
+        f"follow_offset: {{x: {follow_x}, y: {follow_y}, z: {follow_z}}}, "
+        f"follow_pgain: {follow_pgain}, track_pgain: {track_pgain}"
+    )
+
+    for _ in range(max(1, attempts)):
+        proc = subprocess.run(
+            [gz, "topic", "-t", "/gui/track", "-m", "gz.msgs.CameraTrack", "-p", payload],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+            check=False,
+        )
+        if proc.returncode == 0:
+            return True
+        time.sleep(retry_delay_s)
+
+    return False
+
+
 def _set_window_above(title: str, *, enabled: bool = True) -> None:
     if not shutil.which("wmctrl"):
         return
@@ -855,10 +926,12 @@ def _build_px4_env(px4_root: Path, build_dir: Path, run_rootfs: Path, override_m
     env["PX4_SYSID_LOG_DIR"] = str((run_rootfs / "sysid_truth_logs").resolve())
     env["PX4_SYSID_LOG_SLOT"] = run_rootfs.name
     if not headless:
-        # Keep the visual workflow on a fixed near-top-down follow view unless the caller overrides it.
-        env.setdefault("PX4_GZ_FOLLOW_OFFSET_X", str(VISUAL_FOLLOW_OFFSET_X))
-        env.setdefault("PX4_GZ_FOLLOW_OFFSET_Y", str(VISUAL_FOLLOW_OFFSET_Y))
-        env.setdefault("PX4_GZ_FOLLOW_OFFSET_Z", str(VISUAL_FOLLOW_OFFSET_Z))
+        if SITL_VISUAL_DISABLE_FOLLOW:
+            env.setdefault("PX4_GZ_NO_FOLLOW", "1")
+        else:
+            env.setdefault("PX4_GZ_FOLLOW_OFFSET_X", str(VISUAL_FOLLOW_OFFSET_X))
+            env.setdefault("PX4_GZ_FOLLOW_OFFSET_Y", str(VISUAL_FOLLOW_OFFSET_Y))
+            env.setdefault("PX4_GZ_FOLLOW_OFFSET_Z", str(VISUAL_FOLLOW_OFFSET_Z))
     return env
 
 
@@ -1233,6 +1306,10 @@ def _sample_attitude(mav, *, timeout_s: float = 5.0):
     raise RuntimeError("vehicle attitude sample was not received in time")
 
 
+def _capture_locked_yaw(mav, *, timeout_s: float = 5.0) -> float:
+    return _wrap_pi(float(_sample_attitude(mav, timeout_s=timeout_s).yaw))
+
+
 class _ManualControlThread:
     def __init__(self, mav, *, period_s: float = SITL_MANUAL_CONTROL_PERIOD) -> None:
         self._mav = mav
@@ -1293,6 +1370,18 @@ class _ManualControlThread:
             self._stop.wait(self._period_s)
 
 
+def _wrap_pi(angle_rad: float) -> float:
+    return math.atan2(math.sin(angle_rad), math.cos(angle_rad))
+
+
+def _manual_rudder_for_yaw(current_yaw: float, target_yaw: float) -> int:
+    yaw_error = _wrap_pi(target_yaw - current_yaw)
+    if abs(yaw_error) < math.radians(1.5):
+        return 0
+    command = yaw_error * 380.0
+    return int(max(-250.0, min(250.0, command)))
+
+
 def _throttle_for_target(current_z: float, target_z: float) -> int:
     remaining = current_z - target_z
     if remaining >= 0.0:
@@ -1318,6 +1407,7 @@ def _wait_for_takeoff_hover(
     *,
     manual_control: _ManualControlThread | None = None,
     target_z: float,
+    target_yaw: float | None = None,
     timeout_s: float = SITL_HOVER_TIMEOUT_SECONDS,
     z_tolerance_m: float = SITL_TAKEOFF_Z_TOLERANCE_M,
     max_horiz_speed_mps: float = SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS,
@@ -1332,6 +1422,7 @@ def _wait_for_takeoff_hover(
     stable_since = None
     next_report = 0.0
     last_throttle_cmd = 500
+    last_rudder_cmd = 0
     hover_capture_active = False
 
     while time.time() < deadline:
@@ -1351,17 +1442,22 @@ def _wait_for_takeoff_hover(
                     last_throttle_cmd = SITL_MANUAL_CAPTURE_THROTTLE
                 else:
                     last_throttle_cmd = _throttle_for_target(float(msg.z), target_z)
-                manual_control.update(z=last_throttle_cmd, r=0)
         elif msg_type == "ATTITUDE":
             latest_att = msg
+            if manual_control is not None and target_yaw is not None:
+                last_rudder_cmd = _manual_rudder_for_yaw(float(msg.yaw), target_yaw)
+
+        if manual_control is not None:
+            manual_control.update(z=last_throttle_cmd, r=last_rudder_cmd)
 
         now = time.time()
         if latest_lpos is not None and latest_att is not None and now >= next_report:
             print(
                 f"Takeoff hover x={float(latest_lpos.x):.3f} y={float(latest_lpos.y):.3f} z={float(latest_lpos.z):.3f} "
                 f"vx={float(latest_lpos.vx):.3f} vy={float(latest_lpos.vy):.3f} vz={float(latest_lpos.vz):.3f} "
-                f"thr={last_throttle_cmd} "
-                f"roll={math.degrees(float(latest_att.roll)):.2f} pitch={math.degrees(float(latest_att.pitch)):.2f}",
+                f"thr={last_throttle_cmd} rud={last_rudder_cmd} "
+                f"roll={math.degrees(float(latest_att.roll)):.2f} pitch={math.degrees(float(latest_att.pitch)):.2f} "
+                f"yaw={math.degrees(float(latest_att.yaw)):.2f}",
                 flush=True,
             )
             next_report = now + report_period
@@ -1392,6 +1488,110 @@ def _wait_for_takeoff_hover(
         f"Vehicle did not settle into hover around z={target_z:.3f} "
         f"(last_lpos={latest_lpos}, last_att={latest_att})"
     )
+
+
+def _landing_throttle_for_altitude(current_z: float, ground_z_m: float) -> int:
+    altitude_agl = max(0.0, ground_z_m - current_z)
+    if altitude_agl > 3.0:
+        return 320
+    if altitude_agl > 1.5:
+        return 350
+    if altitude_agl > 0.7:
+        return 390
+    if altitude_agl > 0.25:
+        return 435
+    return 465
+
+
+def _land_in_posctl_with_manual_control(
+    mav,
+    *,
+    manual_control: _ManualControlThread,
+    ground_z_m: float,
+    target_yaw: float,
+    timeout_s: float = SITL_LAND_TIMEOUT_SECONDS,
+    z_tolerance_m: float = 0.18,
+    speed_tol_mps: float = 0.30,
+    report_period: float = SITL_REPORT_PERIOD,
+) -> dict[str, float]:
+    deadline = time.time() + timeout_s
+    next_report = 0.0
+    latest_lpos = None
+    latest_att = None
+    landed_streak = 0
+    throttle_cmd = 480
+    rudder_cmd = 0
+    touchdown_reported = False
+
+    while time.time() < deadline:
+        msg = mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.3)
+        if not msg:
+            manual_control.update(z=throttle_cmd, r=rudder_cmd)
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "STATUSTEXT":
+            text = decode_statustext(msg)
+            print(text, flush=True)
+            continue
+        if msg_type == "LOCAL_POSITION_NED":
+            latest_lpos = msg
+            throttle_cmd = _landing_throttle_for_altitude(float(msg.z), ground_z_m)
+        elif msg_type == "ATTITUDE":
+            latest_att = msg
+            rudder_cmd = 0
+
+        manual_control.update(z=throttle_cmd, r=rudder_cmd)
+
+        now = time.time()
+        if latest_lpos is not None and latest_att is not None and now >= next_report:
+            print(
+                f"Landing x={float(latest_lpos.x):.3f} y={float(latest_lpos.y):.3f} z={float(latest_lpos.z):.3f} "
+                f"vx={float(latest_lpos.vx):.3f} vy={float(latest_lpos.vy):.3f} vz={float(latest_lpos.vz):.3f} "
+                f"thr={throttle_cmd} rud={rudder_cmd} "
+                f"roll={math.degrees(float(latest_att.roll)):.2f} pitch={math.degrees(float(latest_att.pitch)):.2f} "
+                f"yaw={math.degrees(float(latest_att.yaw)):.2f}",
+                flush=True,
+            )
+            next_report = now + report_period
+
+        if latest_lpos is None:
+            continue
+
+        speed = math.sqrt(float(latest_lpos.vx) ** 2 + float(latest_lpos.vy) ** 2 + float(latest_lpos.vz) ** 2)
+        if abs(float(latest_lpos.z) - ground_z_m) <= z_tolerance_m and speed <= speed_tol_mps:
+            landed_streak += 1
+            if landed_streak >= 10:
+                if not touchdown_reported:
+                    print("Touchdown detected; waiting for auto-disarm", flush=True)
+                    touchdown_reported = True
+                manual_control.update(z=0, r=0)
+                disarm_deadline = time.time() + SITL_DISARM_AFTER_LAND_TIMEOUT_SECONDS
+                while time.time() < disarm_deadline:
+                    if not mav.motors_armed():
+                        return {
+                            "x": float(latest_lpos.x),
+                            "y": float(latest_lpos.y),
+                            "z": float(latest_lpos.z),
+                            "speed_mps": speed,
+                            "disarmed": True,
+                        }
+                    heartbeat = mav.recv_match(type=["HEARTBEAT", "LOCAL_POSITION_NED", "STATUSTEXT"], blocking=True, timeout=0.5)
+                    if heartbeat is not None and heartbeat.get_type() == "LOCAL_POSITION_NED":
+                        latest_lpos = heartbeat
+                        speed = math.sqrt(float(latest_lpos.vx) ** 2 + float(latest_lpos.vy) ** 2 + float(latest_lpos.vz) ** 2)
+                        manual_control.update(z=0, r=0)
+                return {
+                    "x": float(latest_lpos.x),
+                    "y": float(latest_lpos.y),
+                    "z": float(latest_lpos.z),
+                    "speed_mps": speed,
+                    "disarmed": False,
+                }
+        else:
+            landed_streak = 0
+
+    raise RuntimeError(f"vehicle did not land in {timeout_s:.1f}s (last={latest_lpos})")
 
 
 def _stabilize_direct_hover(
@@ -1533,14 +1733,10 @@ def run_validation_model(
     if model_spec.label != "stock_sitl_placeholder":
         _prepare_model_override(px4_root, model_spec.gz_model, override_models_root)
     env = _build_px4_env(px4_root, build_dir, run_rootfs, override_models_root, model_spec.gz_model, headless)
-    if model_spec.label == "stock_sitl_placeholder":
-        world_name = "default"
-        world_sdf = px4_root / "Tools" / "simulation" / "gz" / "worlds" / "default.sdf"
-    else:
-        world_name, override_worlds_root, world_sdf = _prepare_reference_world(px4_root, runtime_root)
-        _patch_gz_env_world_override(run_rootfs, override_worlds_root)
-        env["PX4_GZ_WORLDS"] = str(override_worlds_root.resolve())
-        env["GZ_SIM_RESOURCE_PATH"] = _append_path_list(env.get("GZ_SIM_RESOURCE_PATH", ""), override_worlds_root)
+    world_name, override_worlds_root, world_sdf = _prepare_reference_world(px4_root, runtime_root)
+    _patch_gz_env_world_override(run_rootfs, override_worlds_root)
+    env["PX4_GZ_WORLDS"] = str(override_worlds_root.resolve())
+    env["GZ_SIM_RESOURCE_PATH"] = _append_path_list(env.get("GZ_SIM_RESOURCE_PATH", ""), override_worlds_root)
     env["PX4_GZ_WORLD"] = world_name
 
     display_session: _NestedDisplaySession | None = None
@@ -1560,6 +1756,7 @@ def run_validation_model(
         if not headless:
             time.sleep(1.0)
             visual_window_title = display_session.window_title if display_session is not None else "Gazebo Sim"
+            _configure_visual_camera_follow(model_name=model_spec.gz_model, env=env)
             _promote_window(visual_window_title)
         assert session._mav is not None
         mav = session._mav
@@ -1588,7 +1785,7 @@ def run_validation_model(
         set_param(mav, "TRJ_POS_X", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_POS_Y", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_POS_Z", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
-        set_param(mav, "TRJ_POS_YAW", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "TRJ_POS_YAW", SITL_LOCKED_YAW_RAD, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         wait_for_sim_ready(mav, timeout=20.0, require_local_position=True, min_local_samples=3)
         wait_for_ground_quiet(mav, duration_s=2.0, timeout=10.0)
         baseline_x, baseline_y, baseline_z = robust_ground_baseline(mav)
@@ -1602,42 +1799,42 @@ def run_validation_model(
         set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "NAV_DLL_ACT", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "CBRK_SUPPLY_CHK", 894281, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "COM_DISARM_PRFLT", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "MAV_0_BROADCAST", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "MIS_TAKEOFF_ALT", abs(SITL_HOVER_Z), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
             time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
 
-        hover_yaw = 0.0
-        for _ in range(10):
-            msg = mav.recv_match(type=["ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.5)
-            if not msg:
-                continue
-            if msg.get_type() == "STATUSTEXT":
-                continue
-            hover_yaw = float(msg.yaw)
-            break
+        hover_yaw = _capture_locked_yaw(mav)
+        set_param(mav, "TRJ_POS_YAW", hover_yaw, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
 
         _wait_for_ready_for_takeoff(session)
         _wait_for_preflight_ok(session)
+        if not headless and SITL_QGC_DISCOVERY_GRACE_SECONDS > 0.0:
+            time.sleep(SITL_QGC_DISCOVERY_GRACE_SECONDS)
         _arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)
-        session.send_no_wait("commander takeoff")
-        session.wait_until_hover_stable(
-            min_altitude_m=max(2.7, abs(SITL_HOVER_Z) - 0.35),
-            speed_tol_mps=SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS,
+        manual_control = _ManualControlThread(mav)
+        manual_control.update(x=0, y=0, z=500, r=0)
+        manual_control.start()
+        set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
+            time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
+        session.set_mode("POSCTL")
+        time.sleep(1.0)
+        latest_lpos, latest_att = _wait_for_takeoff_hover(
+            mav,
+            manual_control=manual_control,
+            target_z=SITL_HOVER_Z,
+            target_yaw=hover_yaw,
             timeout_s=SITL_HOVER_TIMEOUT_SECONDS,
         )
-        try:
-            session.sync_prompt(timeout_s=1.0)
-        except Exception:
-            pass
+        manual_control.update(z=500, r=0)
         if SITL_TAKEOFF_SETTLE_SECONDS > 0.0:
             time.sleep(SITL_TAKEOFF_SETTLE_SECONDS)
-        latest_lpos = wait_for_local_position(mav, timeout=3.0)
-        latest_att = _sample_attitude(mav, timeout_s=3.0)
 
         hold_x = float(latest_lpos.x)
         hold_y = float(latest_lpos.y)
         hold_z = float(latest_lpos.z)
-        hover_yaw = float(latest_att.yaw)
 
         set_position_target_absolute(
             mav,
@@ -1647,6 +1844,7 @@ def run_validation_model(
             hover_yaw,
         )
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "TRJ_POS_YAW", hover_yaw, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         stream_stop, stream_thread = _start_direct_setpoint_stream(
             mav,
             ref_x=hold_x,
@@ -1759,19 +1957,23 @@ def run_validation_model(
             set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             session.wait_until_position(common_anchor, xy_tol_m=0.28, z_tol_m=0.28, timeout_s=20.0)
 
-        set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-        if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
-            time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
-        manual_control = _ManualControlThread(mav)
         manual_control.update(x=0, y=0, z=500, r=0)
-        manual_control.start()
         time.sleep(1.0)
         session.set_mode("POSCTL")
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-        session.send_no_wait("commander mode auto:land")
-        session.wait_until_landed(ground_z_m=0.0, timeout_s=45.0)
-        session.sync_prompt(timeout_s=10.0)
+        land_result = _land_in_posctl_with_manual_control(
+            mav,
+            manual_control=manual_control,
+            ground_z_m=float(baseline_z),
+            target_yaw=common_yaw,
+        )
+        print(
+            f"Landing complete x={land_result['x']:.3f} y={land_result['y']:.3f} "
+            f"z={land_result['z']:.3f} speed={land_result['speed_mps']:.3f} "
+            f"disarmed={land_result['disarmed']}",
+            flush=True,
+        )
     finally:
         if manual_control is not None:
             manual_control.stop()

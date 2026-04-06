@@ -190,23 +190,24 @@ class OffnominalSitlStudyTest(unittest.TestCase):
 
     def test_validation_uses_takeoff_then_offboard_flow(self) -> None:
         source = inspect.getsource(study.run_validation_with_assets)
-        self.assertLess(source.index('session.send_no_wait("commander takeoff")'),
+        self.assertIn("_wait_for_takeoff_hover(", source)
+        self.assertIn("hover_yaw = _capture_locked_yaw(mav)", source)
+        self.assertIn("target_yaw=hover_yaw", source)
+        self.assertLess(source.index("_wait_for_takeoff_hover("),
                         source.index('session.send_no_wait("commander mode offboard")'))
-        self.assertIn('session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)', source)
-        self.assertIn('session.send_no_wait("commander mode auto:land")', source)
-        self.assertIn('session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)', source)
+        self.assertIn('_land_in_posctl_with_manual_control(', source)
+        self.assertIn('set_param(mav, "TRJ_POS_YAW", hover_yaw', source)
         self.assertIn('_apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)', source)
 
     def test_identification_uses_takeoff_then_offboard_flow(self) -> None:
         source = inspect.getsource(study.run_identification_with_assets)
-        self.assertLess(source.index('session.send_no_wait("commander takeoff")'),
+        self.assertLess(source.index('_wait_for_takeoff_hover('),
                         source.index('set_offboard(mav)'))
-        self.assertIn('session.wait_until_hover_stable(', source)
-        self.assertIn('session.sync_prompt(timeout_s=1.0)', source)
+        self.assertIn("target_yaw=hover_yaw", source)
         self.assertIn('observe_hold_phase(', source)
         self.assertIn('session.set_mode("POSCTL")', source)
-        self.assertIn('session.send_no_wait("commander mode auto:land")', source)
-        self.assertIn('session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)', source)
+        self.assertIn('_land_in_posctl_with_manual_control(', source)
+        self.assertIn('hover_yaw = _capture_locked_yaw(mav)', source)
         self.assertIn('_apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)', source)
 
     def test_identification_starts_modules_after_offboard_handover(self) -> None:

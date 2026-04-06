@@ -5,17 +5,17 @@ Scope
 -----
 This README is the repeatable `SITL` workflow for this repo.
 
-The goal is that someone can start from a clean terminal and run the same steps
-we are using now:
+The workflow is intentionally visual-first:
 
-1. clean up all old `PX4/Gazebo/QGC/helper` leftovers
-2. take one visible stock `x500 + circle` smoke test
-3. collect the full `5/5` stock validation set
-4. prepare the `jMAVSim`-prior SDF and collect its `5/5` set
-5. run the `9/9` SITL identification suite on that prior model
-6. build a new candidate from those ident logs
-7. collect the `5/5` validation set for the re-identified model
-8. draw the final three-model comparison figures
+1. clean all old `PX4/Gazebo/helper` leftovers without closing `QGroundControl`
+2. watch one visible stock `x500 + circle` smoke test
+3. watch the full visible `5/5` stock validation suite
+4. generate stock figures and pin them into `docs/sitl_validation`
+5. prepare the `jMAVSim`-prior SDF, watch its visible suite, and pin those outputs too
+6. run the visible `9/9` SITL identification suite on the prior model
+7. build a new candidate from those ident logs
+8. watch the visible `5/5` validation suite for the re-identified model
+9. build the final four-layer figures and pin them into `docs/sitl_validation`
 
 Fixed project rules
 -------------------
@@ -24,10 +24,11 @@ These are intentionally stable and should not be changed between tests:
 - every new top-level SITL test starts with cleanup
 - the SITL flight flow is fixed:
   `arm -> takeoff -> hover -> offboard -> modules -> trajectory/ident -> POSCTL -> land`
-- `SIM_GZ_EC_MIN/MAX` is not tuned per test
+- takeoff, hover, offboard hold, and landing use the same locked yaw policy in SITL
+- `SIM_GZ_EC_MIN/MAX` is not tuned per trajectory or per ident profile
 - if a changed SDF flies poorly under the fixed SITL mapping, we fix the model, not the run command
-- trajectory figures show raw `RMSE` against the reference trajectory in the title
-- color maps in the figures still show along-path shape error
+- trajectory figure titles show raw `RMSE` against the reference trajectory
+- the interactive HTML review keeps full pan, zoom, and rotate controls
 
 Workspace
 ---------
@@ -61,11 +62,12 @@ cd ~/px4-system-identification
 
 What the cleanup does:
 
-- closes visible `PX4 Gazebo Nested Display` and console windows
+- closes visible `PX4 Gazebo Nested Display` and PX4 log windows
 - stops stale `PX4 SITL`, `Gazebo`, console tail, helper, and old runner processes
 - releases common serial ports used by `HITL/QGC`
+- leaves `QGroundControl` open so you can watch the vehicle state there during SITL
 - does not intentionally close browser windows such as `Firefox`
-- if you stop a visual run with `Ctrl+C`, the runner now also triggers the same background cleanup on exit; if a second launch still behaves oddly, run the cleanup script once manually and start again
+- if you stop a visual run with `Ctrl+C`, the runner now also triggers the same background cleanup on exit
 
 Visible stock smoke test
 ------------------------
@@ -90,11 +92,11 @@ Expected windows:
 
 Notes:
 
-- the console window is a live log viewer, not an interactive `pxh>` shell
+- the PX4 log window is a live log viewer, not an interactive `pxh>` shell
 - visual mode uses the fixed near top-down follow view
+- visual runs now use the repo's marker world, so a red reference marker is always visible near takeoff
 - the runner already applies the required no-RC/no-GCS SITL preflight settings
-- this is the first command to use when you want to watch the motion in Gazebo
-- the runner first tries `PX4 Gazebo Nested Display`; if that window cannot become visible, it falls back to the normal host `Gazebo Sim` window
+- if you stop this with `Ctrl+C`, the next visual launch should still reopen cleanly
 
 Current camera default:
 
@@ -114,22 +116,7 @@ Stock 5-trajectory validation set
 ---------------------------------
 This collects one tracking CSV per validation trajectory for the stock `x500`.
 
-The default command below is headless. That is why it can look like it is
-"waiting" in the terminal while the five trajectories are being executed one by
-one in the background.
-
-```bash
-cd ~/px4-system-identification
-./examples/cleanup_px4_background_services.sh
-
-python3 experimental_validation/collect_sitl_tracking_dataset.py \
-  --candidate-dir examples/paper_assets/candidates/jmavsim_prior_v1 \
-  --model-label stock_sitl_placeholder \
-  --out-root /tmp/sitl_stock_suite
-```
-
-If you want to watch all five stock trajectories in Gazebo instead of running
-headless, use the same collector with `--visual --show-console`:
+Visible suite:
 
 ```bash
 cd ~/px4-system-identification
@@ -143,41 +130,49 @@ python3 experimental_validation/collect_sitl_tracking_dataset.py \
   --out-root /tmp/sitl_stock_suite_visual
 ```
 
-Outputs:
+What to expect:
 
-- dataset root:
-  `/tmp/sitl_stock_suite/stock_sitl_placeholder`
-- tracking logs:
-  `/tmp/sitl_stock_suite/stock_sitl_placeholder/tracking_logs/*.csv`
-- summary:
-  `/tmp/sitl_stock_suite/stock_sitl_placeholder/collection_summary.json`
+- Gazebo reopens sequentially for all five trajectories
+- the terminal prints `[1/5]`, `[2/5]`, and so on
+- while one trajectory is running, the collector may look "idle"; that is normal
 
-Stock-only figures and interactive review:
+Headless alternative for faster dataset production:
+
+```bash
+cd ~/px4-system-identification
+./examples/cleanup_px4_background_services.sh
+
+python3 experimental_validation/collect_sitl_tracking_dataset.py \
+  --candidate-dir examples/paper_assets/candidates/jmavsim_prior_v1 \
+  --model-label stock_sitl_placeholder \
+  --out-root /tmp/sitl_stock_suite
+```
+
+Stock-only figures:
 
 ```bash
 cd ~/px4-system-identification
 
 python3 experimental_validation/trajectory_comparison_figures.py \
-  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
-  --out-dir /tmp/sitl_stock_suite/stock_only_figures
+  --stock-root /tmp/sitl_stock_suite_visual/stock_sitl_placeholder \
+  --out-dir /tmp/sitl_stock_suite_visual/stock_only_figures
 
 python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
-  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
+  --stock-root /tmp/sitl_stock_suite_visual/stock_sitl_placeholder \
   --stock-label "Stock x500 SITL" \
-  --out-dir /tmp/sitl_stock_suite/stock_only_review
+  --out-dir /tmp/sitl_stock_suite_visual/stock_only_review
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section stock \
+  --figures-root /tmp/sitl_stock_suite_visual/stock_only_figures \
+  --review-root /tmp/sitl_stock_suite_visual/stock_only_review
 ```
 
-Review outputs:
+Pinned docs outputs after the publish step:
 
-- static PNGs:
-  `/tmp/sitl_stock_suite/stock_only_figures/group_1_circle_hairpin_lemniscate.png`
-- static PNGs:
-  `/tmp/sitl_stock_suite/stock_only_figures/group_2_time_optimal_minimum_snap.png`
-- interactive 3D HTML:
-  `/tmp/sitl_stock_suite/stock_only_review/index.html`
-
-Open the HTML in Firefox if you want zoom, pan, and rotate inspection per
-trajectory.
+- [Stock grouped PNG 1](docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png)
+- [Stock grouped PNG 2](docs/sitl_validation/stock/figures/group_2_time_optimal_minimum_snap.png)
+- <a href="docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open stock interactive 3D review in a new tab</a>
 
 Prepare the jMAVSim-prior SDF
 -----------------------------
@@ -220,7 +215,7 @@ defaults into the Gazebo candidate:
 | Rolling moment coefficient | 1.0e-06 | - |
 | Rotor velocity slowdown | 10.0 | - |
 
-If you want the same table as a saved markdown/json artifact:
+Save the same table as markdown/json:
 
 ```bash
 cd ~/px4-system-identification
@@ -229,13 +224,19 @@ python3 experimental_validation/summarize_candidate_parameters.py \
   --candidate-a examples/paper_assets/candidates/jmavsim_prior_v1 \
   --label-a "jMAVSim prior SDF" \
   --out-dir /tmp/sitl_jmavsim_prior_parameters
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section jmavsim_prior_parameters \
+  --parameter-report-root /tmp/sitl_jmavsim_prior_parameters
 ```
+
+Pinned docs outputs after the publish step:
+
+- [jMAVSim prior parameter table](docs/sitl_validation/jmavsim_prior_parameters/parameters/parameter_summary.md)
 
 jMAVSim-prior 5-trajectory validation set
 -----------------------------------------
-The dataset collector now supports custom model labels and Gazebo model names.
-
-Visible `jMAVSim`-prior smoke test:
+Visible smoke test:
 
 ```bash
 cd ~/px4-system-identification
@@ -252,6 +253,24 @@ python3 experimental_validation/collect_sitl_tracking_dataset.py \
   --out-root /tmp/sitl_jmavsim_prior_visual
 ```
 
+Visible 5/5 suite:
+
+```bash
+cd ~/px4-system-identification
+./examples/cleanup_px4_background_services.sh
+
+python3 experimental_validation/collect_sitl_tracking_dataset.py \
+  --candidate-dir examples/paper_assets/candidates/jmavsim_prior_v1 \
+  --model-label jmavsim_prior_sitl \
+  --gz-model x500_ident_matrix_prior \
+  --display-name "jMAVSim prior SDF" \
+  --visual \
+  --show-console \
+  --out-root /tmp/sitl_jmavsim_prior_suite_visual
+```
+
+Headless alternative:
+
 ```bash
 cd ~/px4-system-identification
 ./examples/cleanup_px4_background_services.sh
@@ -264,45 +283,59 @@ python3 experimental_validation/collect_sitl_tracking_dataset.py \
   --out-root /tmp/sitl_jmavsim_prior_suite
 ```
 
-Outputs:
-
-- dataset root:
-  `/tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl`
-- tracking logs:
-  `/tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl/tracking_logs/*.csv`
-
-Stock vs jMAVSim-prior figures and interactive review:
+Stock vs jMAVSim-prior figures:
 
 ```bash
 cd ~/px4-system-identification
 
 python3 experimental_validation/trajectory_comparison_figures.py \
-  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
-  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
+  --stock-root /tmp/sitl_stock_suite_visual/stock_sitl_placeholder \
+  --compare-root /tmp/sitl_jmavsim_prior_suite_visual/jmavsim_prior_sitl \
   --compare-label "jMAVSim prior SDF" \
-  --out-dir /tmp/sitl_jmavsim_prior_suite/stock_vs_prior_figures
+  --out-dir /tmp/sitl_jmavsim_prior_suite_visual/stock_vs_prior_figures
 
 python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
-  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
+  --stock-root /tmp/sitl_stock_suite_visual/stock_sitl_placeholder \
   --stock-label "Stock x500 SITL" \
-  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
+  --compare-root /tmp/sitl_jmavsim_prior_suite_visual/jmavsim_prior_sitl \
   --compare-label "jMAVSim prior SDF" \
-  --out-dir /tmp/sitl_jmavsim_prior_suite/stock_vs_prior_review
+  --out-dir /tmp/sitl_jmavsim_prior_suite_visual/stock_vs_prior_review
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section stock_vs_prior \
+  --figures-root /tmp/sitl_jmavsim_prior_suite_visual/stock_vs_prior_figures \
+  --review-root /tmp/sitl_jmavsim_prior_suite_visual/stock_vs_prior_review \
+  --parameter-report-root /tmp/sitl_jmavsim_prior_parameters
 ```
 
-Review outputs:
+Pinned docs outputs after the publish step:
 
-- static PNGs:
-  `/tmp/sitl_jmavsim_prior_suite/stock_vs_prior_figures/group_1_circle_hairpin_lemniscate.png`
-- static PNGs:
-  `/tmp/sitl_jmavsim_prior_suite/stock_vs_prior_figures/group_2_time_optimal_minimum_snap.png`
-- interactive 3D HTML:
-  `/tmp/sitl_jmavsim_prior_suite/stock_vs_prior_review/index.html`
+- [Stock vs prior grouped PNG 1](docs/sitl_validation/stock_vs_prior/figures/group_1_circle_hairpin_lemniscate.png)
+- [Stock vs prior grouped PNG 2](docs/sitl_validation/stock_vs_prior/figures/group_2_time_optimal_minimum_snap.png)
+- <a href="docs/sitl_validation/stock_vs_prior/review/index.html" target="_blank" rel="noopener">Open stock vs prior interactive 3D review in a new tab</a>
+- [Pinned prior parameter table](docs/sitl_validation/stock_vs_prior/parameters/parameter_summary.md)
 
 jMAVSim-prior 9-profile SITL identification suite
 -------------------------------------------------
 This runs the same fixed SITL flight flow, but switches the payload phase from
 validation trajectories to the nine built-in identification profiles.
+
+Visible suite:
+
+```bash
+cd ~/px4-system-identification
+./examples/cleanup_px4_background_services.sh
+
+python3 experimental_validation/run_sitl_ident_suite.py \
+  --out-root /tmp/sitl_ident_jmavsim_prior_visual \
+  --label jmavsim_prior_ident_suite \
+  --model-name x500_ident_matrix_prior \
+  --source-model-dir ~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_ident_matrix_prior \
+  --visual \
+  --show-console
+```
+
+Headless alternative:
 
 ```bash
 cd ~/px4-system-identification
@@ -315,31 +348,23 @@ python3 experimental_validation/run_sitl_ident_suite.py \
   --source-model-dir ~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_ident_matrix_prior
 ```
 
-Outputs:
-
-- manifest:
-  `/tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite/run_manifest.json`
-- per-profile ident logs:
-  `/tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite/*/identification_traces/eval_00000.csv`
-- per-profile tracking logs:
-  `/tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite/*/tracking_logs/run_00000.csv`
-- per-profile truth logs:
-  `/tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite/*/gazebo_truth_traces/eval_00000.csv`
-
-Interactive ident review bundle:
+Interactive ident review:
 
 ```bash
 cd ~/px4-system-identification
 
 python3 experimental_validation/build_hitl_review_bundle.py \
-  --log-root /tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite \
-  --out-dir /tmp/sitl_ident_jmavsim_prior/review
+  --log-root /tmp/sitl_ident_jmavsim_prior_visual/jmavsim_prior_ident_suite \
+  --out-dir /tmp/sitl_ident_jmavsim_prior_visual/review
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section prior_ident \
+  --review-root /tmp/sitl_ident_jmavsim_prior_visual/review
 ```
 
-Review output:
+Pinned docs outputs after the publish step:
 
-- interactive HTML:
-  `/tmp/sitl_ident_jmavsim_prior/review/index.html`
+- <a href="docs/sitl_validation/prior_ident/review/index.html" target="_blank" rel="noopener">Open prior ident interactive review in a new tab</a>
 
 Build a new candidate from the SITL ident logs
 ----------------------------------------------
@@ -350,20 +375,11 @@ This uses the existing ident code path. The reference SDF is the prepared
 cd ~/px4-system-identification
 
 python3 experimental_validation/compare_with_sdf.py \
-  --results-root /tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite \
+  --results-root /tmp/sitl_ident_jmavsim_prior_visual/jmavsim_prior_ident_suite \
   --out-dir /tmp/sitl_reidentified_candidate \
   --sdf-model ~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_ident_matrix_prior/model.sdf \
   --sdf-base-model ~/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_ident_matrix_prior_base/model.sdf
 ```
-
-Outputs:
-
-- candidate parameters:
-  `/tmp/sitl_reidentified_candidate/identified_parameters.json`
-- patched base SDF:
-  `/tmp/sitl_reidentified_candidate/candidate_x500_base.sdf`
-- comparison report:
-  `/tmp/sitl_reidentified_candidate/sdf_comparison.json`
 
 jMAVSim prior vs re-identified parameter table:
 
@@ -376,17 +392,19 @@ python3 experimental_validation/summarize_candidate_parameters.py \
   --candidate-b /tmp/sitl_reidentified_candidate \
   --label-b "Re-identified from SITL ident" \
   --out-dir /tmp/sitl_reidentified_candidate/parameter_report
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section reidentified_parameters \
+  --parameter-report-root /tmp/sitl_reidentified_candidate/parameter_report
 ```
 
-Parameter comparison outputs:
+Pinned docs outputs after the publish step:
 
-- markdown table:
-  `/tmp/sitl_reidentified_candidate/parameter_report/parameter_summary.md`
-- json table:
-  `/tmp/sitl_reidentified_candidate/parameter_report/parameter_summary.json`
+- [Prior vs re-identified parameter comparison](docs/sitl_validation/reidentified_parameters/parameters/parameter_summary.md)
 
 Prepare the re-identified SDF
 -----------------------------
+
 ```bash
 cd ~/px4-system-identification
 
@@ -397,7 +415,7 @@ python3 experimental_validation/prepare_identified_model.py \
 
 Re-identified 5-trajectory validation set
 -----------------------------------------
-Visible re-identified smoke test:
+Visible smoke test:
 
 ```bash
 cd ~/px4-system-identification
@@ -414,6 +432,24 @@ python3 experimental_validation/collect_sitl_tracking_dataset.py \
   --out-root /tmp/sitl_reidentified_visual
 ```
 
+Visible 5/5 suite:
+
+```bash
+cd ~/px4-system-identification
+./examples/cleanup_px4_background_services.sh
+
+python3 experimental_validation/collect_sitl_tracking_dataset.py \
+  --candidate-dir /tmp/sitl_reidentified_candidate \
+  --model-label reidentified_sitl \
+  --gz-model x500_ident_matrix_reidentified \
+  --display-name "Re-identified from SITL ident" \
+  --visual \
+  --show-console \
+  --out-root /tmp/sitl_reidentified_suite_visual
+```
+
+Headless alternative:
+
 ```bash
 cd ~/px4-system-identification
 ./examples/cleanup_px4_background_services.sh
@@ -426,55 +462,9 @@ python3 experimental_validation/collect_sitl_tracking_dataset.py \
   --out-root /tmp/sitl_reidentified_suite
 ```
 
-Outputs:
-
-- dataset root:
-  `/tmp/sitl_reidentified_suite/reidentified_sitl`
-- tracking logs:
-  `/tmp/sitl_reidentified_suite/reidentified_sitl/tracking_logs/*.csv`
-
-Final four-layer figures and interactive review:
-
-```bash
-cd ~/px4-system-identification
-
-python3 experimental_validation/trajectory_comparison_figures.py \
-  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
-  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
-  --compare-label "jMAVSim prior SDF" \
-  --compare-root-2 /tmp/sitl_reidentified_suite/reidentified_sitl \
-  --compare-label-2 "Re-identified from SITL ident" \
-  --out-dir /tmp/sitl_three_model_figures
-
-python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
-  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
-  --stock-label "Stock x500 SITL" \
-  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
-  --compare-label "jMAVSim prior SDF" \
-  --compare-root-2 /tmp/sitl_reidentified_suite/reidentified_sitl \
-  --compare-label-2 "Re-identified from SITL ident" \
-  --out-dir /tmp/sitl_three_model_review
-```
-
-Review outputs:
-
-- static PNGs:
-  `/tmp/sitl_three_model_figures/group_1_circle_hairpin_lemniscate.png`
-- static PNGs:
-  `/tmp/sitl_three_model_figures/group_2_time_optimal_minimum_snap.png`
-- interactive 3D HTML:
-  `/tmp/sitl_three_model_review/index.html`
-
-Build the final three-model figures
------------------------------------
-This overlays:
-
-- reference trajectory
-- stock `x500`
-- `jMAVSim`-prior SDF
-- re-identified SDF
-
-So each panel contains four curve layers in total:
+Final four-layer figures and interactive review
+-----------------------------------------------
+Each panel contains four curve layers:
 
 1. reference
 2. stock SITL result
@@ -485,33 +475,39 @@ So each panel contains four curve layers in total:
 cd ~/px4-system-identification
 
 python3 experimental_validation/trajectory_comparison_figures.py \
-  --stock-root /tmp/sitl_stock_suite/stock_sitl_placeholder \
-  --compare-root /tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl \
+  --stock-root /tmp/sitl_stock_suite_visual/stock_sitl_placeholder \
+  --compare-root /tmp/sitl_jmavsim_prior_suite_visual/jmavsim_prior_sitl \
   --compare-label "jMAVSim prior SDF" \
-  --compare-root-2 /tmp/sitl_reidentified_suite/reidentified_sitl \
+  --compare-root-2 /tmp/sitl_reidentified_suite_visual/reidentified_sitl \
   --compare-label-2 "Re-identified from SITL ident" \
-  --out-dir /tmp/sitl_three_model_figures
+  --out-dir /tmp/sitl_three_model_figures_visual
+
+python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
+  --stock-root /tmp/sitl_stock_suite_visual/stock_sitl_placeholder \
+  --stock-label "Stock x500 SITL" \
+  --compare-root /tmp/sitl_jmavsim_prior_suite_visual/jmavsim_prior_sitl \
+  --compare-label "jMAVSim prior SDF" \
+  --compare-root-2 /tmp/sitl_reidentified_suite_visual/reidentified_sitl \
+  --compare-label-2 "Re-identified from SITL ident" \
+  --out-dir /tmp/sitl_three_model_review_visual
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section three_model \
+  --figures-root /tmp/sitl_three_model_figures_visual \
+  --review-root /tmp/sitl_three_model_review_visual \
+  --parameter-report-root /tmp/sitl_reidentified_candidate/parameter_report
 ```
 
-Outputs:
+Pinned docs outputs after the publish step:
 
-- `/tmp/sitl_three_model_figures/group_1_circle_hairpin_lemniscate.png`
-- `/tmp/sitl_three_model_figures/group_2_time_optimal_minimum_snap.png`
-- `/tmp/sitl_three_model_figures/comparison_summary.json`
-
-Figure interpretation:
-
-- the dashed black curve is the reference trajectory
-- the blue curve is the stock `x500` SITL result
-- the orange curve is the `jMAVSim`-prior SDF SITL result
-- the purple curve is the re-identified SDF SITL result
-- the title of each panel prints raw reference-frame `RMSE` for the three simulated curves
-- the reference itself has no RMSE entry because it is the target signal
-- the color bars still show along-path shape error, not the title RMSE
+- [Final grouped PNG 1](docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png)
+- [Final grouped PNG 2](docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png)
+- <a href="docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open final interactive 3D review in a new tab</a>
+- [Pinned prior vs re-identified parameter comparison](docs/sitl_validation/three_model/parameters/parameter_summary.md)
 
 One-command shortcut
 --------------------
-If you do not want to run the whole matrix by hand, the repo now has a single
+If you do not want to run the whole matrix by hand, the repo still has a single
 orchestrator that performs the same stages:
 
 ```bash
@@ -521,37 +517,28 @@ python3 experimental_validation/run_sitl_three_model_validation.py \
   --out-root /tmp/sitl_three_model_validation
 ```
 
-This command:
-
-- reuses cached outputs when they already exist
-- prepares the `jMAVSim`-prior model
-- runs the `9/9` ident suite
-- builds the re-identified candidate
-- collects all three validation datasets
-- writes the final PNG figures and summary JSON
-
 Important:
 
-- this full-matrix command is meant for dataset production
-- for motion inspection in Gazebo, use the visible smoke commands first
-- do not rely on the headless full matrix when the goal is to visually inspect flight behavior
+- this full-matrix command is mainly for dataset production
+- it reuses cached outputs when available
+- for motion inspection in Gazebo, use the visible per-stage commands above
 
 Useful checks after each step
 -----------------------------
 - stock dataset summary:
-  `/tmp/sitl_stock_suite/stock_sitl_placeholder/collection_summary.json`
+  `/tmp/sitl_stock_suite_visual/stock_sitl_placeholder/collection_summary.json`
 - prior dataset summary:
-  `/tmp/sitl_jmavsim_prior_suite/jmavsim_prior_sitl/collection_summary.json`
+  `/tmp/sitl_jmavsim_prior_suite_visual/jmavsim_prior_sitl/collection_summary.json`
 - ident suite manifest:
-  `/tmp/sitl_ident_jmavsim_prior/jmavsim_prior_ident_suite/run_manifest.json`
+  `/tmp/sitl_ident_jmavsim_prior_visual/jmavsim_prior_ident_suite/run_manifest.json`
 - re-identified dataset summary:
-  `/tmp/sitl_reidentified_suite/reidentified_sitl/collection_summary.json`
+  `/tmp/sitl_reidentified_suite_visual/reidentified_sitl/collection_summary.json`
 - final comparison summary:
-  `/tmp/sitl_three_model_figures/comparison_summary.json`
+  `/tmp/sitl_three_model_figures_visual/comparison_summary.json`
 
 Troubleshooting
 ---------------
 - If a new SITL run behaves strangely, run the cleanup script again before retrying.
-- If visual mode is not needed, prefer the headless collectors for the full 5-trajectory and 9-profile suites.
-- If you only want to visually inspect a changed model on one trajectory, use the collector with `--trajectory-names circle --visual --show-console` and the matching `--model-label/--gz-model`.
-- The `PX4 SITL Log (read-only)` window is not an interactive shell. Use the manual `make px4_sitl gz_x500` path if you need direct `pxh>` commands.
+- If you only want to inspect one changed model quickly, use `--trajectory-names circle --visual --show-console`.
+- The `PX4 SITL Log (read-only)` window is not an interactive shell. Use `make px4_sitl gz_x500` if you need direct `pxh>` commands.
+- The visible collectors reopen Gazebo sequentially. A short wait between trajectories is normal.

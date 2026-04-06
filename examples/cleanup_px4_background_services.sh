@@ -12,7 +12,7 @@ Usage:
   $SCRIPT_NAME [--device /dev/ttyACM0] [--reset-usb]
 
 What it does:
-  - closes PX4 SITL, Gazebo, jMAVSim, QGroundControl
+  - closes PX4 SITL, Gazebo, jMAVSim
   - stops common PX4 helper scripts from this repo
   - releases busy serial devices such as /dev/ttyACM* and /dev/ttyUSB*
   - optionally tries a best-effort USB re-enumeration for one device
@@ -193,14 +193,13 @@ collect_ancestor_pids
 
 close_windows_by_regex "px4 sitl log|px4 sitl console|px4 console"
 close_windows_by_regex "px4 gazebo nested display"
-close_windows_by_regex "jmavsim|qgroundcontrol"
+close_windows_by_regex "jmavsim"
 
 graceful_stop_pattern "PX4 SITL" '/PX4-Autopilot-Identification/build/px4_sitl_default/bin/px4'
 graceful_stop_pattern "Gazebo" '(^|[[:space:]])gz sim([[:space:]]|$)'
 graceful_stop_pattern "Nested Gazebo display" 'Xephyr .*PX4 Gazebo Nested Display'
 graceful_stop_pattern "PX4 console tails" 'tail .*px4_console\.log'
 graceful_stop_pattern "jMAVSim" 'java.*jmavsim_run.jar|jmavsim_run.sh -q -s -d '
-graceful_stop_pattern "QGroundControl" 'QGroundControl'
 graceful_stop_pattern "MAVLink serial hub" 'mavlink_serial_hub.py'
 graceful_stop_pattern "HITL/SITL helpers" 'run_hitl_|run_mavlink_campaign.py|run_sitl_validation.py'
 

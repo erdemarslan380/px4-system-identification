@@ -5,8 +5,13 @@ import json
 import math
 import re
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from experimental_validation.trajectory_comparison_figures import (
     PANEL_GROUPS,

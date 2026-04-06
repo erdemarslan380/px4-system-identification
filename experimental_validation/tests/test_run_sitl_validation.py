@@ -16,10 +16,13 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn("_wait_for_ready_for_takeoff(session)", source)
         self.assertIn("_wait_for_preflight_ok(session)", source)
         self.assertIn("_arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)", source)
-        self.assertIn('session.send_no_wait("commander takeoff")', source)
-        self.assertIn('session.sync_prompt(timeout_s=1.0)', source)
+        self.assertIn("manual_control = _ManualControlThread(mav)", source)
+        self.assertIn('_wait_for_takeoff_hover(', source)
+        self.assertIn("target_yaw=hover_yaw", source)
+        self.assertIn('_land_in_posctl_with_manual_control(', source)
+        self.assertIn("land_result = _land_in_posctl_with_manual_control(", source)
+        self.assertIn('disarmed={land_result[\'disarmed\']}', source)
         self.assertIn('session.set_mode("POSCTL")', source)
-        self.assertIn("session.wait_until_hover_stable(", source)
         self.assertIn("_stabilize_direct_hover(", source)
         self.assertIn("SITL_ALLOW_UNSTABLE_CUSTOM_HOLD", source)
         self.assertIn("_start_direct_setpoint_stream(", source)
@@ -28,20 +31,22 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn('session.send("custom_pos_control enable")', source)
         self.assertIn("set_offboard(mav)", source)
         self.assertIn('set_param(mav, "TRJ_POS_ABS", 0', source)
+        self.assertIn('set_param(mav, "TRJ_POS_YAW", hover_yaw', source)
         self.assertIn("wait_for_ground_quiet(", source)
         self.assertIn("set_anchor_from_position(mav, common_anchor[0], common_anchor[1], common_anchor[2])", source)
         self.assertIn('label="Custom hold"', source)
-        self.assertIn("hover_yaw", source)
+        self.assertIn("hover_yaw = _capture_locked_yaw(mav)", source)
+        self.assertNotIn('session.send_no_wait("commander takeoff")', source)
+        self.assertNotIn('session.send_no_wait("commander mode auto:land")', source)
         self.assertNotIn('session.expect("Ready for takeoff!"', source)
         self.assertNotIn("prepare_hover_and_anchor(", source)
-        self.assertNotIn("_wait_for_takeoff_hover(", source)
         self.assertNotIn('session.send("commander takeoff", timeout_s=10.0)', source)
         self.assertLess(source.index("_wait_for_ready_for_takeoff(session)"), source.index("_arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)"))
         self.assertLess(source.index("_wait_for_preflight_ok(session)"), source.index("_arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)"))
         self.assertLess(source.index("_wait_for_ready_for_takeoff(session)"), source.index("_wait_for_preflight_ok(session)"))
-        self.assertLess(source.index("_arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)"), source.index('session.send_no_wait("commander takeoff")'))
-        self.assertLess(source.index('session.send_no_wait("commander takeoff")'), source.index("session.wait_until_hover_stable("))
-        self.assertLess(source.index("session.wait_until_hover_stable("), source.index("_start_direct_setpoint_stream("))
+        self.assertLess(source.index("_arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)"), source.index("manual_control = _ManualControlThread(mav)"))
+        self.assertLess(source.index("manual_control = _ManualControlThread(mav)"), source.index("_wait_for_takeoff_hover("))
+        self.assertLess(source.index("_wait_for_takeoff_hover("), source.index("_start_direct_setpoint_stream("))
         self.assertLess(source.index("_start_direct_setpoint_stream("), source.index("set_offboard(mav)"))
         self.assertLess(source.index("set_offboard(mav)"), source.index("_stabilize_direct_hover("))
         self.assertLess(source.index("_stabilize_direct_hover("), source.index('session.send("custom_pos_control start")'))
@@ -49,16 +54,20 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertLess(source.index('session.send("trajectory_reader start")'), source.index('session.send("custom_pos_control set px4_default")'))
         self.assertLess(source.index("_stabilize_direct_hover("), source.index('session.send("custom_pos_control enable")'))
         self.assertLess(source.index("set_offboard(mav)"), source.index('session.send("custom_pos_control enable")'))
-        self.assertLess(source.index('session.send_no_wait("commander takeoff")'), source.rindex('session.set_mode("POSCTL")'))
+        self.assertLess(source.index("_wait_for_takeoff_hover("), source.rindex('session.set_mode("POSCTL")'))
 
     def test_validation_starts_built_in_trajectory_via_params(self) -> None:
         source = inspect.getsource(sitl_validation.run_validation_model)
         helper_source = inspect.getsource(sitl_validation._arm_via_internal_command)
         preflight_source = inspect.getsource(sitl_validation._wait_for_preflight_ok)
         self.assertIn('set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
+        self.assertIn('set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
         self.assertIn('set_param(mav, "NAV_DLL_ACT", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
         self.assertIn('set_param(mav, "CBRK_SUPPLY_CHK", 894281, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
+        self.assertIn('set_param(mav, "COM_DISARM_PRFLT", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)', source)
+        self.assertIn('set_param(mav, "MAV_0_BROADCAST", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
         self.assertIn('set_param(mav, "MIS_TAKEOFF_ALT", abs(SITL_HOVER_Z), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)', source)
+        self.assertIn("if not headless and SITL_QGC_DISCOVERY_GRACE_SECONDS > 0.0:", source)
         self.assertIn("time.sleep(SITL_PARAM_PROPAGATION_SECONDS)", source)
         self.assertIn('session.send_no_wait("commander arm")', helper_source)
         self.assertIn('session.sync_prompt(timeout_s=1.0)', helper_source)
@@ -75,6 +84,26 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn("freeze_yaw=SITL_FREEZE_TRAJECTORY_YAW", source)
         self.assertNotIn('session.send_no_wait("commander mode offboard")', source)
 
+    def test_yaw_lock_helpers_exist_for_manual_takeoff_and_landing(self) -> None:
+        takeoff_source = inspect.getsource(sitl_validation._wait_for_takeoff_hover)
+        landing_source = inspect.getsource(sitl_validation._land_in_posctl_with_manual_control)
+        rudder_source = inspect.getsource(sitl_validation._manual_rudder_for_yaw)
+        capture_yaw_source = inspect.getsource(sitl_validation._capture_locked_yaw)
+
+        self.assertIn("target_yaw: float | None = None", takeoff_source)
+        self.assertIn("_manual_rudder_for_yaw", takeoff_source)
+        self.assertIn("yaw=", takeoff_source)
+        self.assertIn("_landing_throttle_for_altitude", landing_source)
+        self.assertIn("rudder_cmd = 0", landing_source)
+        self.assertIn("Touchdown detected; waiting for auto-disarm", landing_source)
+        self.assertIn("if not mav.motors_armed()", landing_source)
+        self.assertIn('"disarmed": True', landing_source)
+        self.assertIn("_wrap_pi", rudder_source)
+        self.assertIn("_sample_attitude", capture_yaw_source)
+        self.assertEqual(sitl_validation._manual_rudder_for_yaw(0.0, 0.0), 0)
+        self.assertGreater(sitl_validation._manual_rudder_for_yaw(0.0, 0.4), 0)
+        self.assertLess(sitl_validation._manual_rudder_for_yaw(0.4, 0.0), 0)
+
     def test_validation_uses_session_start_retry_and_optional_esc_override(self) -> None:
         model_source = inspect.getsource(sitl_validation.run_validation_model)
         main_source = inspect.getsource(sitl_validation.main)
@@ -87,8 +116,8 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn("_cleanup_background_services()", model_source)
         self.assertIn('if model_spec.label != "stock_sitl_placeholder":', model_source)
         self.assertIn("_prepare_model_override(px4_root, model_spec.gz_model, override_models_root)", model_source)
-        self.assertIn('if model_spec.label == "stock_sitl_placeholder":', model_source)
-        self.assertIn('world_name = "default"', model_source)
+        self.assertIn("_prepare_reference_world(px4_root, runtime_root)", model_source)
+        self.assertIn("_patch_gz_env_world_override(run_rootfs, override_worlds_root)", model_source)
         self.assertIn('if sitl_esc_max is not None:', model_source)
         self.assertIn('_apply_x500_esc_scaling(mav, min_value=sitl_esc_min, max_value=sitl_esc_max)', model_source)
         self.assertIn('if sitl_hover_thrust is not None:', model_source)
@@ -143,9 +172,14 @@ class RunSitlValidationFlowTests(unittest.TestCase):
 
         self.assertIn('env["GZ_IP"] = "127.0.0.1"', env_source)
         self.assertNotIn('env["PX4_SIM_SPEED_FACTOR"]', env_source)
-        self.assertIn('env.setdefault("PX4_GZ_FOLLOW_OFFSET_X"', env_source)
-        self.assertIn('env.setdefault("PX4_GZ_FOLLOW_OFFSET_Y"', env_source)
-        self.assertIn('env.setdefault("PX4_GZ_FOLLOW_OFFSET_Z"', env_source)
+        self.assertIn('env.setdefault("PX4_GZ_NO_FOLLOW", "1")', env_source)
+        self.assertIn("SITL_VISUAL_DISABLE_FOLLOW = True", inspect.getsource(sitl_validation))
+        self.assertIn("VISUAL_TRACK_PGAIN = 0.0", inspect.getsource(sitl_validation))
+        self.assertIn("_configure_visual_camera_follow(model_name=model_spec.gz_model, env=env)", model_source)
+        camera_source = inspect.getsource(sitl_validation._configure_visual_camera_follow)
+        self.assertIn('env.get("PX4_GZ_NO_FOLLOW")', camera_source)
+        self.assertIn('"/gui/track"', camera_source)
+        self.assertIn('track_pgain: {track_pgain}', camera_source)
         self.assertIn("_open_console_window(run_rootfs / \"px4_console.log\")", model_source)
         self.assertIn("display_session = _start_nested_visual_display(runtime_root)", model_source)
         self.assertIn('env["DISPLAY"] = display_session.display', model_source)
@@ -216,6 +250,28 @@ class RunSitlValidationFlowTests(unittest.TestCase):
             text = gz_env.read_text(encoding="utf-8")
             self.assertIn(f"export PX4_GZ_WORLDS={override_worlds_root.resolve()}", text)
             self.assertNotIn("export PX4_GZ_WORLDS=/tmp/worlds", text)
+
+    def test_patch_run_rootfs_gcs_link_enables_broadcast_on_gcs_port(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            run_rootfs = Path(td) / "rootfs"
+            init_dir = run_rootfs / "etc" / "init.d-posix"
+            init_dir.mkdir(parents=True)
+            rc_mavlink = init_dir / "px4-rc.mavlink"
+            rc_mavlink.write_text(
+                "#!/bin/sh\n"
+                "mavlink start -x -u $udp_gcs_port_local -r 4000000 -f\n"
+                "mavlink start -x -u $udp_offboard_port_local -r 4000000 -f -m onboard -o $udp_offboard_port_remote\n",
+                encoding="utf-8",
+            )
+
+            sitl_validation._patch_run_rootfs_gcs_link(run_rootfs)
+
+            text = rc_mavlink.read_text(encoding="utf-8")
+            self.assertIn("mavlink start -x -u $udp_gcs_port_local -r 4000000 -f -p", text)
+            self.assertIn(
+                "mavlink start -x -u $udp_offboard_port_local -r 4000000 -f -m onboard -o $udp_offboard_port_remote",
+                text,
+            )
 
     def test_session_send_waits_for_next_prompt_not_current_prompt_echo(self) -> None:
         send_source = inspect.getsource(sitl_validation.Px4SitlSession.send)
@@ -303,6 +359,13 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertGreaterEqual(overshoot, 0)
         self.assertGreaterEqual(overshoot, deep_overshoot)
         self.assertEqual(deep_overshoot, 0)
+
+    def test_landing_throttle_schedule_descends_more_assertively_from_altitude(self) -> None:
+        self.assertEqual(sitl_validation._landing_throttle_for_altitude(-5.0, 0.0), 320)
+        self.assertEqual(sitl_validation._landing_throttle_for_altitude(-2.0, 0.0), 350)
+        self.assertEqual(sitl_validation._landing_throttle_for_altitude(-1.0, 0.0), 390)
+        self.assertEqual(sitl_validation._landing_throttle_for_altitude(-0.4, 0.0), 435)
+        self.assertEqual(sitl_validation._landing_throttle_for_altitude(-0.1, 0.0), 465)
 
 
 if __name__ == "__main__":

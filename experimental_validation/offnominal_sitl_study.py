@@ -46,6 +46,7 @@ from experimental_validation.run_sitl_validation import (
     SITL_CUSTOM_Z_TOLERANCE,
     SITL_HOVER_TIMEOUT_SECONDS,
     SITL_HOVER_Z,
+    SITL_LOCKED_YAW_RAD,
     SITL_PARAM_PROPAGATION_SECONDS,
     SITL_PRE_OFFBOARD_SECONDS,
     SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS,
@@ -59,11 +60,16 @@ from experimental_validation.run_sitl_validation import (
     _build_px4_env,
     _cleanup_stale_sitl_processes,
     _copy_log,
+    _configure_visual_camera_follow,
+    _capture_locked_yaw,
     _find_tracking_log,
     _inject_truth_logger_plugin,
+    _land_in_posctl_with_manual_control,
+    _open_console_window,
     _sample_attitude,
     _start_direct_setpoint_stream,
     _stabilize_direct_hover,
+    _wait_for_takeoff_hover,
     _wait_for_preflight_ok,
     _wait_for_ready_for_takeoff,
     _prepare_run_rootfs,
@@ -380,9 +386,16 @@ def run_validation_with_assets(
 
         _cleanup_stale_sitl_processes()
         session = Px4SitlSession(px4_root, run_rootfs, env)
+        manual_control: _ManualControlThread | None = None
+        mav = None
+        ground_anchor = (0.0, 0.0, 0.0)
         try:
             session.start()
+            if not headless:
+                _configure_visual_camera_follow(model_name=model_name, env=env)
             _apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)
+            assert session._mav is not None
+            mav = session._mav
             session.send("param set MIS_TAKEOFF_ALT 5.0")
             session.send("custom_pos_control start")
             session.send("trajectory_reader start")
@@ -391,20 +404,35 @@ def run_validation_with_assets(
             session.send("trajectory_reader set_mode position")
             session.expect("Ready for takeoff!", timeout_s=30)
             ground_state = session.sample_local_position()
+            hover_yaw = _capture_locked_yaw(mav)
             ground_anchor = (
                 float(ground_state["x"]),
                 float(ground_state["y"]),
                 float(ground_state["z"]),
             )
-            session.send(f"trajectory_reader abs_ref {ground_anchor[0]} {ground_anchor[1]} {ground_anchor[2]} 0")
+            session.send(f"trajectory_reader abs_ref {ground_anchor[0]} {ground_anchor[1]} {ground_anchor[2]} {hover_yaw}")
             session.arm()
-            time.sleep(1.0)
-            session.send_no_wait("commander takeoff")
             hover_target = _takeoff_hover_target(ground_state, altitude_m=5.0)
-            session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)
-            session.sync_prompt(timeout_s=10.0)
-            common_anchor = hover_target
-            session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
+            manual_control = _ManualControlThread(mav)
+            manual_control.update(x=0, y=0, z=500, r=0)
+            manual_control.start()
+            set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            time.sleep(max(0.5, SITL_PARAM_PROPAGATION_SECONDS))
+            session.set_mode("POSCTL")
+            time.sleep(1.0)
+            latest_lpos, _ = _wait_for_takeoff_hover(
+                mav,
+                manual_control=manual_control,
+                target_z=hover_target[2],
+                target_yaw=hover_yaw,
+                timeout_s=45.0,
+            )
+            manual_control.update(z=500, r=0)
+            common_anchor = (float(latest_lpos.x), float(latest_lpos.y), float(latest_lpos.z))
+            set_param(mav, "TRJ_POS_YAW", hover_yaw, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            session.send(
+                f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} {hover_yaw}"
+            )
             session.send_no_wait("commander mode offboard")
             session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=20.0)
             time.sleep(2.0)
@@ -432,10 +460,19 @@ def run_validation_with_assets(
                     "console_log": str((run_rootfs / "px4_console.log").resolve()),
                 }
             )
-            session.send_no_wait("commander mode auto:land")
-            session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)
-            session.sync_prompt(timeout_s=10.0)
         finally:
+            if manual_control is not None and mav is not None:
+                try:
+                    session.set_mode("POSCTL")
+                    _land_in_posctl_with_manual_control(
+                        mav,
+                        manual_control=manual_control,
+                        ground_z_m=ground_anchor[2],
+                        target_yaw=hover_yaw,
+                    )
+                except Exception:
+                    pass
+                manual_control.stop()
             session.shutdown()
             _cleanup_stale_sitl_processes()
 
@@ -460,6 +497,7 @@ def run_identification_with_assets(
     source_model_dir: Path,
     model_name: str,
     headless: bool = True,
+    show_console: bool = False,
     sitl_esc_min: int = SITL_ESC_MIN,
     sitl_esc_max: int | None = SITL_ESC_MAX,
 ) -> dict:
@@ -491,6 +529,10 @@ def run_identification_with_assets(
         manual_control: _ManualControlThread | None = None
         try:
             session.start()
+            if not headless:
+                _configure_visual_camera_follow(model_name=model_name, env=env)
+            if show_console and not headless:
+                _open_console_window(run_rootfs / "px4_console.log")
             _apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)
             assert session._mav is not None
             mav = session._mav
@@ -506,7 +548,7 @@ def run_identification_with_assets(
             set_param(mav, "TRJ_POS_X", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
             set_param(mav, "TRJ_POS_Y", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
             set_param(mav, "TRJ_POS_Z", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
-            set_param(mav, "TRJ_POS_YAW", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            set_param(mav, "TRJ_POS_YAW", SITL_LOCKED_YAW_RAD, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
             wait_for_sim_ready(mav, timeout=20.0, require_local_position=True, min_local_samples=3)
             wait_for_ground_quiet(mav, duration_s=2.0, timeout=10.0)
             baseline_x, baseline_y, baseline_z = robust_ground_baseline(mav)
@@ -518,43 +560,43 @@ def run_identification_with_assets(
             set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             set_param(mav, "NAV_DLL_ACT", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             set_param(mav, "CBRK_SUPPLY_CHK", 894281, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "COM_DISARM_PRFLT", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            set_param(mav, "MAV_0_BROADCAST", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             set_param(mav, "MIS_TAKEOFF_ALT", abs(SITL_HOVER_Z), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
             if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
                 time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
 
-            hover_yaw = 0.0
-            for _ in range(10):
-                msg = mav.recv_match(type=["ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.5)
-                if not msg or msg.get_type() == "STATUSTEXT":
-                    continue
-                hover_yaw = float(msg.yaw)
-                break
+            hover_yaw = _capture_locked_yaw(mav)
+            set_param(mav, "TRJ_POS_YAW", hover_yaw, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
 
             _wait_for_ready_for_takeoff(session, timeout_s=SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS)
             _wait_for_preflight_ok(session, timeout_s=SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS)
             _arm_via_internal_command(session, mav)
-            session.send_no_wait("commander takeoff")
-            session.wait_until_hover_stable(
-                min_altitude_m=max(2.7, abs(SITL_HOVER_Z) - 0.35),
-                speed_tol_mps=SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS,
+            manual_control = _ManualControlThread(mav)
+            manual_control.update(x=0, y=0, z=500, r=0)
+            manual_control.start()
+            set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
+                time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
+            session.set_mode("POSCTL")
+            time.sleep(1.0)
+            latest_lpos, latest_att = _wait_for_takeoff_hover(
+                mav,
+                manual_control=manual_control,
+                target_z=SITL_HOVER_Z,
+                target_yaw=hover_yaw,
                 timeout_s=SITL_HOVER_TIMEOUT_SECONDS,
             )
-            try:
-                session.sync_prompt(timeout_s=1.0)
-            except Exception:
-                pass
+            manual_control.update(z=500, r=0)
             if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
                 time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
 
-            latest_lpos = wait_for_local_position(mav, timeout=3.0)
-            latest_att = _sample_attitude(mav, timeout_s=3.0)
             ground_anchor = (float(baseline_x), float(baseline_y), float(baseline_z))
             common_anchor = (
                 float(latest_lpos.x),
                 float(latest_lpos.y),
                 float(latest_lpos.z),
             )
-            hover_yaw = float(latest_att.yaw)
 
             set_position_target_absolute(
                 mav,
@@ -564,6 +606,7 @@ def run_identification_with_assets(
                 hover_yaw,
             )
             set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "TRJ_POS_YAW", hover_yaw, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
             stream_stop, stream_thread = _start_direct_setpoint_stream(
                 mav,
                 ref_x=common_anchor[0],
@@ -669,19 +712,17 @@ def run_identification_with_assets(
                 f"{common_anchor[0]:.3f} {common_anchor[1]:.3f} {common_anchor[2]:.3f} {hover_yaw:.3f}"
             )
             session.wait_until_position(common_anchor, xy_tol_m=0.28, z_tol_m=0.28, timeout_s=20.0)
-            set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-            if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
-                time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
-            manual_control = _ManualControlThread(mav)
             manual_control.update(x=0, y=0, z=500, r=0)
-            manual_control.start()
             time.sleep(1.0)
             session.set_mode("POSCTL")
             set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-            session.send_no_wait("commander mode auto:land")
-            session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)
-            session.sync_prompt(timeout_s=10.0)
+            _land_in_posctl_with_manual_control(
+                mav,
+                manual_control=manual_control,
+                ground_z_m=ground_anchor[2],
+                target_yaw=hover_yaw,
+            )
         finally:
             if manual_control is not None:
                 manual_control.stop()

@@ -21,6 +21,7 @@ def main() -> int:
     ap.add_argument("--model-name", required=True, help="Gazebo model name that PX4 should spawn.")
     ap.add_argument("--source-model-dir", required=True, help="Prepared Gazebo model directory to copy into the run override.")
     ap.add_argument("--visual", action="store_true", help="Run Gazebo with GUI instead of headless mode.")
+    ap.add_argument("--show-console", action="store_true", help="Open the read-only PX4 log window in visual mode.")
     args = ap.parse_args()
 
     manifest = run_identification_with_assets(
@@ -30,6 +31,7 @@ def main() -> int:
         source_model_dir=Path(args.source_model_dir).expanduser().resolve(),
         model_name=args.model_name,
         headless=not args.visual,
+        show_console=args.show_console,
     )
     print(json.dumps(manifest, indent=2))
     return 0
