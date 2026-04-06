@@ -31,6 +31,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from pymavlink import mavutil
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -39,19 +40,48 @@ if str(REPO_ROOT) not in sys.path:
 from experimental_validation.compare_with_sdf import parse_x500_sdf_reference
 from experimental_validation.run_sitl_validation import (
     PX4_PROMPT,
+    SITL_CUSTOM_HOLD_SECONDS,
+    SITL_CUSTOM_TILT_LIMIT_DEG,
+    SITL_CUSTOM_XY_LIMIT,
+    SITL_CUSTOM_Z_TOLERANCE,
+    SITL_HOVER_TIMEOUT_SECONDS,
+    SITL_HOVER_Z,
+    SITL_PARAM_PROPAGATION_SECONDS,
+    SITL_PRE_OFFBOARD_SECONDS,
+    SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS,
+    SITL_REPORT_PERIOD,
+    SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS,
     TRACKING_LOG_START_RE,
     Px4SitlSession,
     ValidationModelSpec,
+    _ManualControlThread,
+    _arm_via_internal_command,
     _build_px4_env,
     _cleanup_stale_sitl_processes,
     _copy_log,
     _find_tracking_log,
     _inject_truth_logger_plugin,
+    _sample_attitude,
+    _start_direct_setpoint_stream,
+    _stabilize_direct_hover,
+    _wait_for_preflight_ok,
+    _wait_for_ready_for_takeoff,
     _prepare_run_rootfs,
 )
+from experimental_validation.run_sitl_validation import observe_hold_phase
 from experimental_validation.validation_trajectories import (
     DEFAULT_VALIDATION_TRAJECTORIES as VALIDATION_CASES,
     export_validation_trajectories,
+)
+from run_hitl_udp_sequence import (
+    request_message_interval,
+    robust_ground_baseline,
+    set_offboard,
+    set_param,
+    set_position_target_absolute,
+    wait_for_ground_quiet,
+    wait_for_local_position,
+    wait_for_sim_ready,
 )
 
 IDENT_PROFILES: tuple[str, ...] = (
@@ -68,6 +98,17 @@ IDENT_PROFILES: tuple[str, ...] = (
 
 IDENT_LOG_START_RE = re.compile(r"Identification log started: (\./identification_logs/[^\r\n]+\.csv)")
 IDENT_DONE_RE = re.compile(r"Identification maneuver completed: ([a-z_]+)")
+IDENT_DURATION_S: dict[str, float] = {
+    "hover_thrust": 26.0,
+    "mass_vertical": 36.0,
+    "roll_sweep": 28.0,
+    "pitch_sweep": 28.0,
+    "yaw_sweep": 24.0,
+    "drag_x": 30.0,
+    "drag_y": 30.0,
+    "drag_z": 30.0,
+    "motor_step": 24.0,
+}
 
 
 @dataclass(frozen=True)
@@ -89,7 +130,7 @@ PANEL_GROUPS: tuple[tuple[str, ...], ...] = (
 )
 
 SITL_ESC_MIN = 0
-SITL_ESC_MAX = 55
+SITL_ESC_MAX: int | None = None
 
 
 def _trajectory_duration_s(entry) -> float:
@@ -284,7 +325,14 @@ def _takeoff_hover_target(ground_state: dict[str, float], altitude_m: float = 5.
     )
 
 
-def _apply_x500_esc_scaling(session: Px4SitlSession, *, min_value: int = SITL_ESC_MIN, max_value: int = SITL_ESC_MAX) -> None:
+def _apply_x500_esc_scaling(
+    session: Px4SitlSession,
+    *,
+    min_value: int = SITL_ESC_MIN,
+    max_value: int | None = SITL_ESC_MAX,
+) -> None:
+    if max_value is None:
+        return
     for motor_idx in range(1, 5):
         session.send(f"param set SIM_GZ_EC_MIN{motor_idx} {min_value}")
         session.send(f"param set SIM_GZ_EC_MAX{motor_idx} {max_value}")
@@ -302,6 +350,8 @@ def run_validation_with_assets(
     world_name: str = "default",
     override_worlds_root: Path | None = None,
     headless: bool = True,
+    sitl_esc_min: int = SITL_ESC_MIN,
+    sitl_esc_max: int | None = SITL_ESC_MAX,
 ) -> dict:
     build_dir = px4_root / "build" / "px4_sitl_default"
     base_rootfs = build_dir / "rootfs"
@@ -332,7 +382,7 @@ def run_validation_with_assets(
         session = Px4SitlSession(px4_root, run_rootfs, env)
         try:
             session.start()
-            _apply_x500_esc_scaling(session)
+            _apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)
             session.send("param set MIS_TAKEOFF_ALT 5.0")
             session.send("custom_pos_control start")
             session.send("trajectory_reader start")
@@ -410,6 +460,8 @@ def run_identification_with_assets(
     source_model_dir: Path,
     model_name: str,
     headless: bool = True,
+    sitl_esc_min: int = SITL_ESC_MIN,
+    sitl_esc_max: int | None = SITL_ESC_MAX,
 ) -> dict:
     build_dir = px4_root / "build" / "px4_sitl_default"
     base_rootfs = build_dir / "rootfs"
@@ -436,42 +488,156 @@ def run_identification_with_assets(
 
         _cleanup_stale_sitl_processes()
         session = Px4SitlSession(px4_root, run_rootfs, env)
+        manual_control: _ManualControlThread | None = None
         try:
             session.start()
-            _apply_x500_esc_scaling(session)
-            session.send("param set MIS_TAKEOFF_ALT 5.0")
-            session.send("custom_pos_control start")
-            session.send("trajectory_reader start")
-            session.send("custom_pos_control enable")
-            session.send("custom_pos_control set sysid")
-            session.send("trajectory_reader set_mode position")
-            session.expect("Ready for takeoff!", timeout_s=30)
-            ground = session.sample_local_position()
-            ground_anchor = (
-                float(ground["x"]),
-                float(ground["y"]),
-                float(ground["z"]),
-            )
-            session.send(f"trajectory_reader abs_ref {ground_anchor[0]} {ground_anchor[1]} {ground_anchor[2]} 0")
-            session.arm()
-            time.sleep(1.0)
+            _apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)
+            assert session._mav is not None
+            mav = session._mav
+            request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
+            request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE)
+            request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, interval_us=500_000)
+            set_param(mav, "COM_CPU_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            set_param(mav, "COM_RAM_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "CST_POS_CTRL_TYP", 5, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "TRJ_POS_ABS", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "TRJ_POS_X", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            set_param(mav, "TRJ_POS_Y", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            set_param(mav, "TRJ_POS_Z", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            set_param(mav, "TRJ_POS_YAW", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            wait_for_sim_ready(mav, timeout=20.0, require_local_position=True, min_local_samples=3)
+            wait_for_ground_quiet(mav, duration_s=2.0, timeout=10.0)
+            baseline_x, baseline_y, baseline_z = robust_ground_baseline(mav)
+            if math.hypot(baseline_x, baseline_y) > 0.25 or abs(baseline_z) > 0.25:
+                raise RuntimeError(
+                    f"Dirty ground baseline: x={baseline_x:.3f} y={baseline_y:.3f} z={baseline_z:.3f}"
+                )
+
+            set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "NAV_DLL_ACT", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "CBRK_SUPPLY_CHK", 894281, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "MIS_TAKEOFF_ALT", abs(SITL_HOVER_Z), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
+                time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
+
+            hover_yaw = 0.0
+            for _ in range(10):
+                msg = mav.recv_match(type=["ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.5)
+                if not msg or msg.get_type() == "STATUSTEXT":
+                    continue
+                hover_yaw = float(msg.yaw)
+                break
+
+            _wait_for_ready_for_takeoff(session, timeout_s=SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS)
+            _wait_for_preflight_ok(session, timeout_s=SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS)
+            _arm_via_internal_command(session, mav)
             session.send_no_wait("commander takeoff")
-            hover_target = _takeoff_hover_target(ground, altitude_m=5.0)
-            session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)
-            session.sync_prompt(timeout_s=10.0)
-            common_anchor = hover_target
-            session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
-            session.send_no_wait("commander mode offboard")
-            session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=20.0)
-            time.sleep(2.0)
-            session.wait_until_position(common_anchor, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=10.0)
-            session.sync_prompt(timeout_s=10.0)
-            session.send(f"trajectory_reader abs_ref {common_anchor[0]} {common_anchor[1]} {common_anchor[2]} 0")
+            session.wait_until_hover_stable(
+                min_altitude_m=max(2.7, abs(SITL_HOVER_Z) - 0.35),
+                speed_tol_mps=SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS,
+                timeout_s=SITL_HOVER_TIMEOUT_SECONDS,
+            )
+            try:
+                session.sync_prompt(timeout_s=1.0)
+            except Exception:
+                pass
+            if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
+                time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
+
+            latest_lpos = wait_for_local_position(mav, timeout=3.0)
+            latest_att = _sample_attitude(mav, timeout_s=3.0)
+            ground_anchor = (float(baseline_x), float(baseline_y), float(baseline_z))
+            common_anchor = (
+                float(latest_lpos.x),
+                float(latest_lpos.y),
+                float(latest_lpos.z),
+            )
+            hover_yaw = float(latest_att.yaw)
+
+            set_position_target_absolute(
+                mav,
+                common_anchor[0],
+                common_anchor[1],
+                common_anchor[2],
+                hover_yaw,
+            )
+            set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            stream_stop, stream_thread = _start_direct_setpoint_stream(
+                mav,
+                ref_x=common_anchor[0],
+                ref_y=common_anchor[1],
+                ref_z=common_anchor[2],
+                yaw=hover_yaw,
+            )
+            try:
+                pre_offboard_end = time.time() + max(0.5, SITL_PRE_OFFBOARD_SECONDS)
+                while time.time() < pre_offboard_end:
+                    mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.05)
+
+                set_offboard(mav)
+                latest_lpos, latest_att = _stabilize_direct_hover(
+                    mav,
+                    ref_x=common_anchor[0],
+                    ref_y=common_anchor[1],
+                    ref_z=common_anchor[2],
+                    yaw=hover_yaw,
+                )
+                session.send("custom_pos_control start")
+                session.send("trajectory_reader start")
+                session.send("custom_pos_control set sysid")
+                session.send("trajectory_reader set_mode position")
+                session.send(
+                    "trajectory_reader abs_ref "
+                    f"{float(latest_lpos.x):.3f} "
+                    f"{float(latest_lpos.y):.3f} "
+                    f"{float(latest_lpos.z):.3f} "
+                    f"{hover_yaw:.3f}"
+                )
+                session.send("custom_pos_control enable")
+            finally:
+                stream_stop.set()
+                stream_thread.join(timeout=1.0)
+
+            latest_lpos, latest_att, custom_max_xy, custom_max_z_err, custom_max_tilt, custom_failsafe = observe_hold_phase(
+                mav,
+                label="Custom hold",
+                duration_s=SITL_CUSTOM_HOLD_SECONDS,
+                report_period=SITL_REPORT_PERIOD,
+                ref_x=float(latest_lpos.x),
+                ref_y=float(latest_lpos.y),
+                ref_z=float(latest_lpos.z),
+            )
+            if (
+                custom_failsafe
+                or custom_max_xy > SITL_CUSTOM_XY_LIMIT
+                or custom_max_z_err > SITL_CUSTOM_Z_TOLERANCE
+                or custom_max_tilt > SITL_CUSTOM_TILT_LIMIT_DEG
+            ):
+                raise RuntimeError(
+                    f"Custom hold unstable before {profile}: max_xy={custom_max_xy:.3f}m "
+                    f"max_z_err={custom_max_z_err:.3f}m max_tilt={custom_max_tilt:.2f}deg "
+                    f"failsafe={custom_failsafe}"
+                )
+
+            common_anchor = (
+                float(latest_lpos.x),
+                float(latest_lpos.y),
+                float(latest_lpos.z),
+            )
+            session.send(
+                "trajectory_reader abs_ref "
+                f"{common_anchor[0]:.3f} {common_anchor[1]:.3f} {common_anchor[2]:.3f} {hover_yaw:.3f}"
+            )
             session.send(f"trajectory_reader set_ident_profile {profile}")
             session.send("trajectory_reader set_mode identification")
             match_track = session.expect(TRACKING_LOG_START_RE, timeout_s=20)
-            match_ident = session.expect(IDENT_LOG_START_RE, timeout_s=5)
-            session.expect(f"Identification maneuver completed: {profile}", timeout_s=70.0)
+            match_ident = session.expect(IDENT_LOG_START_RE, timeout_s=20)
+            session.expect(
+                f"Identification maneuver completed: {profile}",
+                timeout_s=max(25.0, IDENT_DURATION_S.get(profile, 30.0) + 20.0),
+            )
             session.expect(f"Identification log completed: {profile}", timeout_s=20.0)
             session.expect(f"Tracking log completed: {profile}", timeout_s=20.0)
             assert match_ident is not None and match_track is not None
@@ -497,10 +663,28 @@ def run_identification_with_assets(
                     "console_log": str((run_rootfs / "px4_console.log").resolve()),
                 }
             )
+            session.send("trajectory_reader set_mode position")
+            session.send(
+                "trajectory_reader abs_ref "
+                f"{common_anchor[0]:.3f} {common_anchor[1]:.3f} {common_anchor[2]:.3f} {hover_yaw:.3f}"
+            )
+            session.wait_until_position(common_anchor, xy_tol_m=0.28, z_tol_m=0.28, timeout_s=20.0)
+            set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
+                time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
+            manual_control = _ManualControlThread(mav)
+            manual_control.update(x=0, y=0, z=500, r=0)
+            manual_control.start()
+            time.sleep(1.0)
+            session.set_mode("POSCTL")
+            set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             session.send_no_wait("commander mode auto:land")
             session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)
             session.sync_prompt(timeout_s=10.0)
         finally:
+            if manual_control is not None:
+                manual_control.stop()
             session.shutdown()
             _cleanup_stale_sitl_processes()
 

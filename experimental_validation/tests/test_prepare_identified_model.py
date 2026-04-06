@@ -91,6 +91,25 @@ class PrepareIdentifiedModelTests(unittest.TestCase):
             plugin = tree.getroot().find("./model/plugin")
             self.assertEqual(plugin.find("timeConstantUp").text, "0.0125")
 
+    def test_prepare_identified_model_can_synthesize_candidate_base_sdf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            px4_root = Path(tmp) / "PX4-Autopilot"
+            models_root = px4_root / "Tools" / "simulation" / "gz" / "models"
+            self._write_stock_model(models_root)
+            candidate_dir = Path(tmp) / "candidate"
+            self._write_candidate(candidate_dir)
+            (candidate_dir / "candidate_x500_base.sdf").unlink()
+
+            payload = prepare_identified_model(px4_root, candidate_dir, model_name="x500_identified")
+
+            base_tree = ET.parse(Path(payload["base_model_dir"]) / "model.sdf")
+            base_mass = base_tree.getroot().find("./model/link/inertial/mass")
+            base_ixx = base_tree.getroot().find("./model/link/inertial/inertia/ixx")
+            self.assertIsNotNone(base_mass)
+            self.assertIsNotNone(base_ixx)
+            self.assertEqual(base_mass.text, "2.000000")
+            self.assertEqual(base_ixx.text, "0.021000")
+
 
 if __name__ == "__main__":
     unittest.main()

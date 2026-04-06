@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import struct
 import shutil
 from pathlib import Path
 from typing import Iterable
@@ -25,6 +27,8 @@ def export_validation_trajectories(
     trajectories_dir: str | Path,
     *,
     entries: Iterable = DEFAULT_VALIDATION_TRAJECTORIES,
+    freeze_yaw: bool = False,
+    yaw_value: float = 0.0,
 ) -> dict:
     validate_shipped_trajectories()
     trajectories_dir = Path(trajectories_dir).resolve()
@@ -34,8 +38,18 @@ def export_validation_trajectories(
     for entry in entries:
         source = validation_trajectory_asset_path(entry)
         target = trajectories_dir / f"id_{entry.traj_id}.traj"
-        shutil.copyfile(source, target)
+        if freeze_yaw:
+            data = bytearray(source.read_bytes())
+            if len(data) % 44 != 0:
+                raise RuntimeError(f"invalid .traj size for {source}")
+            for offset in range(0, len(data), 44):
+                struct.pack_into("f", data, offset + 9 * 4, float(yaw_value))
+                struct.pack_into("f", data, offset + 10 * 4, 0.0)
+            target.write_bytes(data)
+        else:
+            shutil.copyfile(source, target)
         samples = load_validation_trajectory_samples(entry)
+        output_sha256 = hashlib.sha256(target.read_bytes()).hexdigest()
         manifest_entries.append(
             {
                 "traj_id": entry.traj_id,
@@ -55,7 +69,8 @@ def export_validation_trajectories(
                 },
                 "source_path": str(source),
                 "path": str(target),
-                "sha256": entry.sha256,
+                "sha256": output_sha256,
+                "source_sha256": entry.sha256,
             }
         )
 
@@ -65,7 +80,9 @@ def export_validation_trajectories(
             "y_m": COMMON_LOGGED_START[1],
             "z_m": COMMON_LOGGED_START[2],
         },
-        "source_mode": "shipped_binary_trajectories",
+        "source_mode": "yaw_frozen_binary_trajectories" if freeze_yaw else "shipped_binary_trajectories",
+        "freeze_yaw": freeze_yaw,
+        "yaw_value_rad": float(yaw_value),
         "entries": manifest_entries,
     }
     (trajectories_dir / "validation_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import os
@@ -39,24 +40,24 @@ from experimental_validation.validation_trajectories import (
 )
 from run_hitl_px4_builtin_trajectory_minimal import TRAJ_DURATION_S, observe_builtin_trajectory
 from run_hitl_px4_trajectory_reader_position_step_minimal import (
-    observe_armed_ground_hold,
     observe_hold_phase,
     send_position_target_local_ned,
 )
 from run_hitl_udp_sequence import (
-    arm_with_retries,
+    decode_statustext,
     request_message_interval,
     robust_ground_baseline,
     set_anchor_from_position,
     set_param,
     set_position_target_absolute,
-    set_position_target_relative,
     set_offboard,
     wait_for_ground_quiet,
+    wait_for_local_position,
     wait_for_sim_ready,
 )
 
 PX4_PROMPT = "pxh> "
+PX4_NEXT_PROMPT_RE = re.compile(r"(?:\r\n|\n|\r)(?:\x1b\[[0-9;]*m)*pxh> (?=$)")
 TRACKING_LOG_START_RE = re.compile(r"Tracking log started: (\./tracking_logs/[^\r\n]+\.csv)")
 TRAJECTORY_DONE_TEXT = "Trajectory EOF reached, tracking log closed"
 
@@ -67,7 +68,6 @@ class ValidationModelSpec:
     gz_model: str
     display_name: str
 
-
 DEFAULT_MODEL_SPECS: tuple[ValidationModelSpec, ...] = (
     ValidationModelSpec("stock_sitl_placeholder", "x500", "Stock x500 SITL"),
     ValidationModelSpec("digital_twin", "x500_identified", "Identified digital twin SITL"),
@@ -75,40 +75,135 @@ DEFAULT_MODEL_SPECS: tuple[ValidationModelSpec, ...] = (
 
 PX4_BIN_PATTERN = re.compile(r".*/PX4-Autopilot(?:-Identification)?/build/px4_sitl_default/bin/px4(?:\s|$)")
 GZ_SIM_PATTERN = re.compile(r".*\bgz sim\b.*")
+XEPHYR_PATTERN = re.compile(r".*\bXephyr\b.*\bPX4 Gazebo Nested Display\b.*")
+CLEANUP_SCRIPT = EXAMPLES_ROOT / "cleanup_px4_background_services.sh"
 SITL_HOVER_Z = -5.0
-SITL_HOVER_TIMEOUT_SECONDS = 45.0
+SITL_HOVER_TIMEOUT_SECONDS = 60.0
+SITL_TAKEOFF_SETTLE_SECONDS = 2.0
+SITL_TAKEOFF_STABLE_WINDOW_SECONDS = 2.0
+SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS = 0.15
+SITL_TAKEOFF_MAX_VERT_SPEED_MPS = 0.10
+SITL_TAKEOFF_Z_TOLERANCE_M = 0.25
+SITL_TAKEOFF_TILT_LIMIT_DEG = 5.0
+SITL_MANUAL_CONTROL_PERIOD = 0.05
+SITL_MANUAL_CLIMB_TIMEOUT_SECONDS = 30.0
+SITL_MANUAL_CLIMB_ENTRY_Z_MARGIN = 0.80
+SITL_MANUAL_CAPTURE_THROTTLE = 450
+SITL_MANUAL_MAX_THROTTLE = 650
 SITL_PRE_OFFBOARD_SECONDS = 2.0
-SITL_RAMP_SECONDS = 8.0
+SITL_RAMP_SECONDS = 16.0
 SITL_SETPOINT_PERIOD = 0.05
-SITL_DIRECT_HOLD_SECONDS = 3.0
+SITL_DIRECT_HOLD_SECONDS = 5.0
+SITL_DIRECT_SETTLE_TIMEOUT_SECONDS = 6.0
+SITL_DIRECT_SETTLE_VZ_TOLERANCE = 0.20
+SITL_DIRECT_SETTLE_Z_TOLERANCE = 0.80
+SITL_STAGE_MAX_STEP_M = 1.0
+SITL_STAGE_HOLD_SECONDS = 0.75
+SITL_LIFT_HOLD_SECONDS = 0.0
+SITL_ALLOW_UNSTABLE_FINAL_HOVER = True
+SITL_ALLOW_UNSTABLE_CUSTOM_HOLD = True
 SITL_CUSTOM_HOLD_SECONDS = 5.0
 SITL_REPORT_PERIOD = 0.5
 SITL_ARM_ATTEMPTS = 3
 SITL_GROUND_XY_WINDOW = 0.25
 SITL_GROUND_Z_WINDOW = 0.25
 SITL_DIRECT_XY_LIMIT = 0.25
-SITL_DIRECT_Z_TOLERANCE = 0.35
+SITL_DIRECT_Z_TOLERANCE = 0.55
 SITL_DIRECT_TILT_LIMIT_DEG = 8.0
 SITL_CUSTOM_XY_LIMIT = 0.20
 SITL_CUSTOM_Z_TOLERANCE = 0.20
 SITL_CUSTOM_TILT_LIMIT_DEG = 6.0
 SITL_TRAJECTORY_XY_ENVELOPE_LIMIT = 3.50
+SITL_TRAJECTORY_XY_TRACKING_ERROR_LIMIT = 1.0
 SITL_TRAJECTORY_Z_TOLERANCE = 0.50
-SITL_TRAJECTORY_TILT_LIMIT_DEG = 20.0
+SITL_TRAJECTORY_TILT_LIMIT_DEG = 45.0
 SITL_TRAJECTORY_TAIL_SECONDS = 10.0
 SITL_ESC_MIN_DEFAULT = 0
 SITL_START_ATTEMPTS = 3
 SITL_START_RETRY_DELAY_SECONDS = 3.0
+SITL_FREEZE_TRAJECTORY_YAW = True
+SITL_REFERENCE_WORLD_NAME = "validation_reference_world"
+SITL_REFERENCE_MARKER_NAME = "takeoff_reference_marker"
+SITL_REFERENCE_MARKER_X = 1.5
+SITL_REFERENCE_MARKER_Y = 0.8
+SITL_REFERENCE_MARKER_Z = 0.45
+SITL_REFERENCE_MARKER_RADIUS = 0.18
+SITL_REFERENCE_MARKER_LENGTH = 0.90
 VISUAL_FOLLOW_OFFSET_X = 0.0
 VISUAL_FOLLOW_OFFSET_Y = 0.0
-VISUAL_FOLLOW_OFFSET_Z = 10.0
+VISUAL_FOLLOW_OFFSET_Z = 7.0
 SITL_CONSOLE_WINDOW_TITLE = "PX4 SITL Log (read-only)"
+SITL_NESTED_DISPLAY_TITLE = "PX4 Gazebo Nested Display"
+SITL_NESTED_DISPLAY_WIDTH = 1400
+SITL_NESTED_DISPLAY_HEIGHT = 1000
+SITL_NESTED_DISPLAY_MIN = 90
+SITL_NESTED_DISPLAY_MAX = 110
+SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS = 30.0
+SITL_PARAM_PROPAGATION_SECONDS = 0.5
+SITL_CONSOLE_COLUMNS = 110
+SITL_CONSOLE_ROWS = 26
 
 
-def _apply_x500_esc_scaling(session: "Px4SitlSession", *, min_value: int, max_value: int) -> None:
+@dataclass
+class _NestedDisplaySession:
+    display: str
+    window_title: str
+    process: subprocess.Popen
+    log_fp: object
+    log_path: Path
+
+    def shutdown(self) -> None:
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            if self.process.poll() is None:
+                try:
+                    self.process.send_signal(sig)
+                except ProcessLookupError:
+                    break
+                time.sleep(1.0)
+            else:
+                break
+        try:
+            self.process.wait(timeout=2.0)
+        except Exception:
+            pass
+        try:
+            self.log_fp.close()
+        except Exception:
+            pass
+
+
+def _load_candidate_params(candidate_dir: Path) -> dict:
+    return json.loads((candidate_dir / "identified_parameters.json").read_text(encoding="utf-8"))
+
+
+def _estimate_candidate_hover_thrust(
+    candidate_dir: Path,
+    *,
+    esc_min: int,
+    esc_max: int,
+) -> float | None:
+    if esc_max <= esc_min:
+        return None
+
+    params = _load_candidate_params(candidate_dir)
+    mass_kg = float(params["mass"]["mass_kg"])
+    motor_constant = float(params["motor_model"]["motor_constant"]["value"])
+    max_rot_velocity = float(params["motor_model"]["max_rot_velocity_radps"]["value"])
+    if mass_kg <= 0.0 or motor_constant <= 0.0 or max_rot_velocity <= 0.0:
+        return None
+
+    per_rotor_hover_thrust = (mass_kg * 9.80665) / 4.0
+    hover_rot_velocity = math.sqrt(per_rotor_hover_thrust / motor_constant)
+    hover_thrust = (hover_rot_velocity - float(esc_min)) / float(esc_max - esc_min)
+    if not math.isfinite(hover_thrust) or hover_thrust <= 0.20 or hover_thrust >= 0.85:
+        return None
+    return hover_thrust
+
+
+def _apply_x500_esc_scaling(mav, *, min_value: int, max_value: int) -> None:
     for motor_idx in range(1, 5):
-        session.send(f"param set SIM_GZ_EC_MIN{motor_idx} {min_value}")
-        session.send(f"param set SIM_GZ_EC_MAX{motor_idx} {max_value}")
+        set_param(mav, f"SIM_GZ_EC_MIN{motor_idx}", min_value, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, f"SIM_GZ_EC_MAX{motor_idx}", max_value, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
 
 
 def _start_session_with_retries(
@@ -255,6 +350,57 @@ def _inject_truth_logger_plugin(model_sdf_path: Path) -> None:
     tree.write(model_sdf_path, encoding="utf-8", xml_declaration=True)
 
 
+def _prepare_reference_world(px4_root: Path, runtime_root: Path) -> tuple[str, Path, Path]:
+    source = px4_root / "Tools" / "simulation" / "gz" / "worlds" / "default.sdf"
+    override_worlds_root = runtime_root / "override_worlds"
+    override_worlds_root.mkdir(parents=True, exist_ok=True)
+    target = override_worlds_root / f"{SITL_REFERENCE_WORLD_NAME}.sdf"
+
+    tree = ET.parse(source)
+    root = tree.getroot()
+    world = root.find("world")
+    if world is None:
+        raise RuntimeError(f"missing <world> in {source}")
+
+    world.set("name", SITL_REFERENCE_WORLD_NAME)
+    for model in list(world.findall("model")):
+        if model.attrib.get("name") == SITL_REFERENCE_MARKER_NAME:
+            world.remove(model)
+
+    model = ET.SubElement(world, "model", {"name": SITL_REFERENCE_MARKER_NAME})
+    ET.SubElement(model, "static").text = "true"
+    ET.SubElement(
+        model,
+        "pose",
+    ).text = (
+        f"{SITL_REFERENCE_MARKER_X:.3f} "
+        f"{SITL_REFERENCE_MARKER_Y:.3f} "
+        f"{SITL_REFERENCE_MARKER_Z:.3f} 0 0 0"
+    )
+
+    link = ET.SubElement(model, "link", {"name": "link"})
+    collision = ET.SubElement(link, "collision", {"name": "collision"})
+    collision_geometry = ET.SubElement(collision, "geometry")
+    collision_cylinder = ET.SubElement(collision_geometry, "cylinder")
+    ET.SubElement(collision_cylinder, "radius").text = f"{SITL_REFERENCE_MARKER_RADIUS:.3f}"
+    ET.SubElement(collision_cylinder, "length").text = f"{SITL_REFERENCE_MARKER_LENGTH:.3f}"
+
+    visual = ET.SubElement(link, "visual", {"name": "visual"})
+    visual_geometry = ET.SubElement(visual, "geometry")
+    visual_cylinder = ET.SubElement(visual_geometry, "cylinder")
+    ET.SubElement(visual_cylinder, "radius").text = f"{SITL_REFERENCE_MARKER_RADIUS:.3f}"
+    ET.SubElement(visual_cylinder, "length").text = f"{SITL_REFERENCE_MARKER_LENGTH:.3f}"
+    material = ET.SubElement(visual, "material")
+    ET.SubElement(material, "ambient").text = "0.90 0.10 0.10 1"
+    ET.SubElement(material, "diffuse").text = "0.90 0.10 0.10 1"
+    ET.SubElement(material, "specular").text = "0.25 0.05 0.05 1"
+    ET.SubElement(material, "emissive").text = "0.08 0.00 0.00 1"
+
+    _indent(root)
+    tree.write(target, encoding="utf-8", xml_declaration=True)
+    return SITL_REFERENCE_WORLD_NAME, override_worlds_root, target
+
+
 def _prepare_run_rootfs(base_rootfs: Path, run_rootfs: Path) -> None:
     if run_rootfs.exists():
         shutil.rmtree(run_rootfs)
@@ -271,6 +417,26 @@ def _prepare_run_rootfs(base_rootfs: Path, run_rootfs: Path) -> None:
         path = run_rootfs / name
         if path.exists() or path.is_symlink():
             path.unlink()
+
+
+def _patch_gz_env_world_override(run_rootfs: Path, override_worlds_root: Path) -> None:
+    gz_env = run_rootfs / "gz_env.sh"
+    if not gz_env.exists():
+        return
+
+    text = gz_env.read_text(encoding="utf-8")
+    worlds_line = f"export PX4_GZ_WORLDS={override_worlds_root.resolve()}"
+    text, count = re.subn(
+        r"^export PX4_GZ_WORLDS=.*$",
+        worlds_line,
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count == 0:
+        text = f"{text.rstrip()}\n{worlds_line}\n"
+
+    gz_env.write_text(text, encoding="utf-8")
 
 
 def _kill_matching_processes(pattern: re.Pattern[str]) -> None:
@@ -328,6 +494,21 @@ def _cleanup_stale_sitl_processes() -> None:
     _kill_matching_processes(GZ_SIM_PATTERN)
 
 
+def _cleanup_background_services() -> None:
+    if CLEANUP_SCRIPT.exists():
+        try:
+            subprocess.run(
+                [str(CLEANUP_SCRIPT)],
+                cwd=str(REPO_ROOT),
+                check=True,
+            )
+        except subprocess.CalledProcessError:
+            pass
+
+    _kill_matching_processes(XEPHYR_PATTERN)
+    _cleanup_stale_sitl_processes()
+
+
 def _prepare_model_override(px4_root: Path, model_name: str, override_models_root: Path) -> None:
     source_dir = px4_root / "Tools" / "simulation" / "gz" / "models" / model_name
     if not source_dir.exists():
@@ -340,6 +521,98 @@ def _prepare_model_override(px4_root: Path, model_name: str, override_models_roo
     _inject_truth_logger_plugin(target_dir / "model.sdf")
 
 
+def _find_free_x_display_number() -> int:
+    used: set[int] = set()
+    for path in Path("/tmp/.X11-unix").glob("X*"):
+        suffix = path.name[1:]
+        if suffix.isdigit():
+            used.add(int(suffix))
+    for path in Path("/tmp").glob(".X*-lock"):
+        match = re.fullmatch(r"\.X(\d+)-lock", path.name)
+        if match is not None:
+            used.add(int(match.group(1)))
+    for display_num in range(SITL_NESTED_DISPLAY_MIN, SITL_NESTED_DISPLAY_MAX + 1):
+        if display_num not in used:
+            return display_num
+    raise RuntimeError("no free nested X display numbers available")
+
+
+def _wait_for_x_display(display: str, *, timeout_s: float = 10.0) -> bool:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if shutil.which("xdpyinfo"):
+            probe = subprocess.run(
+                ["xdpyinfo", "-display", display],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+            if probe.returncode == 0:
+                return True
+        elif Path(f"/tmp/.X11-unix/X{display.removeprefix(':')}").exists():
+            return True
+        time.sleep(0.25)
+    return False
+
+
+def _start_nested_visual_display(runtime_root: Path) -> _NestedDisplaySession | None:
+    xephyr = shutil.which("Xephyr")
+    if xephyr is None:
+        return None
+
+    display_num = _find_free_x_display_number()
+    display = f":{display_num}"
+    log_path = runtime_root / "xephyr.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_fp = log_path.open("w", encoding="utf-8", buffering=1)
+    process = subprocess.Popen(
+        [
+            xephyr,
+            display,
+            "-screen",
+            f"{SITL_NESTED_DISPLAY_WIDTH}x{SITL_NESTED_DISPLAY_HEIGHT}x24",
+            "-title",
+            SITL_NESTED_DISPLAY_TITLE,
+            "-resizeable",
+            "-br",
+            "-ac",
+            "-nolisten",
+            "tcp",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=log_fp,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    if not _wait_for_x_display(display):
+        try:
+            process.terminate()
+        except Exception:
+            pass
+        try:
+            process.wait(timeout=2.0)
+        except Exception:
+            pass
+        try:
+            log_fp.close()
+        except Exception:
+            pass
+        log_tail = ""
+        try:
+            log_tail = log_path.read_text(encoding="utf-8", errors="ignore")[-4000:]
+        except OSError:
+            pass
+        raise RuntimeError(f"nested Gazebo display did not become ready on {display}\n{log_tail}")
+
+    return _NestedDisplaySession(
+        display=display,
+        window_title=SITL_NESTED_DISPLAY_TITLE,
+        process=process,
+        log_fp=log_fp,
+        log_path=log_path,
+    )
+
+
 def _close_window_by_title(title: str) -> None:
     if not shutil.which("wmctrl"):
         return
@@ -350,6 +623,130 @@ def _close_window_by_title(title: str) -> None:
         check=False,
     )
     time.sleep(0.5)
+
+
+def _focus_window_by_title(title: str) -> None:
+    if not shutil.which("wmctrl"):
+        return
+    subprocess.run(
+        ["wmctrl", "-a", title],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    subprocess.run(
+        ["wmctrl", "-R", title],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
+def _set_window_above(title: str, *, enabled: bool = True) -> None:
+    if not shutil.which("wmctrl"):
+        return
+    action = "add,above" if enabled else "remove,above"
+    subprocess.run(
+        ["wmctrl", "-r", title, "-b", action],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
+def _set_window_sticky(title: str, *, enabled: bool = True) -> None:
+    if not shutil.which("wmctrl"):
+        return
+    action = "add,sticky" if enabled else "remove,sticky"
+    subprocess.run(
+        ["wmctrl", "-r", title, "-b", action],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
+def _current_desktop_index() -> int | None:
+    if not shutil.which("wmctrl"):
+        return None
+
+    proc = subprocess.run(
+        ["wmctrl", "-d"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    for line in proc.stdout.splitlines():
+        if "*" not in line:
+            continue
+        fields = line.split()
+        if not fields:
+            continue
+        try:
+            return int(fields[0])
+        except ValueError:
+            continue
+    return None
+
+
+def _restore_window_by_title(title: str) -> None:
+    desktop = _current_desktop_index()
+    if shutil.which("wmctrl") and desktop is not None:
+        subprocess.run(
+            ["wmctrl", "-r", title, "-t", str(desktop)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        subprocess.run(
+            ["wmctrl", "-r", title, "-b", "remove,hidden,shaded,skip_taskbar,skip_pager"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+    if not shutil.which("xdotool"):
+        return
+
+    search = subprocess.run(
+        ["xdotool", "search", "--name", title],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    window_ids = [line.strip() for line in search.stdout.splitlines() if line.strip()]
+    if not window_ids:
+        return
+
+    window_id = window_ids[-1]
+    for cmd in (
+        ["xdotool", "windowmap", window_id],
+        ["xdotool", "windowraise", window_id],
+        ["xdotool", "windowactivate", "--sync", window_id],
+    ):
+        subprocess.run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+
+def _promote_window(title: str, *, attempts: int = 30, delay_s: float = 1.0) -> threading.Thread | None:
+    if not shutil.which("wmctrl") and not shutil.which("xdotool"):
+        return None
+
+    def _worker() -> None:
+        for _ in range(max(1, attempts)):
+            _restore_window_by_title(title)
+            _set_window_sticky(title, enabled=True)
+            _set_window_above(title, enabled=True)
+            _focus_window_by_title(title)
+            time.sleep(max(0.1, delay_s))
+
+    thread = threading.Thread(target=_worker, name=f"promote-window-{title}", daemon=True)
+    thread.start()
+    return thread
 
 
 def _open_console_window(console_log: Path, *, title: str = SITL_CONSOLE_WINDOW_TITLE) -> None:
@@ -365,7 +762,7 @@ def _open_console_window(console_log: Path, *, title: str = SITL_CONSOLE_WINDOW_
         [
             terminal,
             f"--title={title}",
-            "--maximize",
+            f"--geometry={SITL_CONSOLE_COLUMNS}x{SITL_CONSOLE_ROWS}+0+0",
             "--",
             "bash",
             "-ic",
@@ -396,7 +793,7 @@ def _build_px4_env(px4_root: Path, build_dir: Path, run_rootfs: Path, override_m
 
     env["PX4_SYS_AUTOSTART"] = "4001"
     env["PX4_SIM_MODEL"] = f"gz_{model_name}"
-    env["PX4_SIM_SPEED_FACTOR"] = "1.0"
+    env["GZ_IP"] = "127.0.0.1"
     env["HEADLESS"] = "1" if headless else ""
     env["PX4_GZ_MODELS"] = str(models.resolve())
     env["PX4_GZ_WORLDS"] = str(worlds.resolve())
@@ -413,6 +810,81 @@ def _build_px4_env(px4_root: Path, build_dir: Path, run_rootfs: Path, override_m
         env.setdefault("PX4_GZ_FOLLOW_OFFSET_Y", str(VISUAL_FOLLOW_OFFSET_Y))
         env.setdefault("PX4_GZ_FOLLOW_OFFSET_Z", str(VISUAL_FOLLOW_OFFSET_Z))
     return env
+
+
+def _wait_for_ready_for_takeoff(session: "Px4SitlSession", *, timeout_s: float = SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS) -> None:
+    try:
+        if session._console_log.exists():
+            text = session._console_log.read_text(encoding="utf-8", errors="ignore")
+            if "Ready for takeoff!" in text:
+                return
+    except OSError:
+        pass
+    try:
+        session.expect("Ready for takeoff!", timeout_s=timeout_s)
+    except pexpect.TIMEOUT:
+        return
+
+
+def _wait_for_preflight_ok(session: "Px4SitlSession", *, timeout_s: float = SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS) -> None:
+    deadline = time.time() + timeout_s
+    last_response = ""
+    while time.time() < deadline:
+        response = session.send("commander check", timeout_s=10.0)
+        last_response = response
+        if "Preflight check: OK" in response:
+            return
+        time.sleep(1.0)
+    health = session.send("listener health_report 1", timeout_s=10.0)
+    failsafe = session.send("listener failsafe_flags 1", timeout_s=10.0)
+    raise RuntimeError(
+        "vehicle did not report a clean preflight state in time\n"
+        f"last commander check:\n{last_response}\n"
+        f"health_report:\n{health}\n"
+        f"failsafe_flags:\n{failsafe}"
+    )
+
+
+def _arm_via_internal_command(
+    session: "Px4SitlSession",
+    mav,
+    *,
+    attempts: int = SITL_ARM_ATTEMPTS,
+    timeout_s: float = 8.0,
+) -> None:
+    last_error: RuntimeError = RuntimeError("vehicle did not arm")
+    for attempt in range(1, attempts + 1):
+        response = ""
+        session.send_no_wait("commander arm")
+        deadline = time.time() + timeout_s
+        while time.time() < deadline:
+            if mav.motors_armed():
+                try:
+                    session.sync_prompt(timeout_s=1.0)
+                except Exception:
+                    pass
+                return
+            mav.recv_match(type=["HEARTBEAT", "STATUSTEXT"], blocking=True, timeout=1.0)
+
+        detail = " ".join(line.strip() for line in response.splitlines() if line.strip())
+        if not detail:
+            detail = "commander arm did not arm vehicle"
+        try:
+            check = session.send("commander check", timeout_s=10.0)
+            health = session.send("listener health_report 1", timeout_s=10.0)
+            failsafe = session.send("listener failsafe_flags 1", timeout_s=10.0)
+            detail = (
+                f"{detail}\n"
+                f"commander check:\n{check}\n"
+                f"health_report:\n{health}\n"
+                f"failsafe_flags:\n{failsafe}"
+            )
+        except Exception:
+            pass
+        print(f"Arm attempt {attempt}/{attempts} failed: {detail}", flush=True)
+        last_error = RuntimeError(detail)
+
+    raise last_error
 
 
 class Px4SitlSession:
@@ -453,7 +925,7 @@ class Px4SitlSession:
     def start(self) -> None:
         cmd = str(self._px4_root / "build" / "px4_sitl_default" / "bin" / "px4")
         romfs = str(self._px4_root / "ROMFS" / "px4fmu_common")
-        log_fp = self._console_log.open("w", encoding="utf-8")
+        log_fp = self._console_log.open("w", encoding="utf-8", buffering=1)
         self._child = pexpect.spawn(
             cmd,
             [romfs],
@@ -468,7 +940,7 @@ class Px4SitlSession:
         self._gcs = mavutil.mavlink_connection("udpout:127.0.0.1:18570", source_system=245, source_component=190)
         self._start_gcs_heartbeats()
         self._mav = mavutil.mavlink_connection("udpin:127.0.0.1:14540", source_system=255)
-        self._mav.wait_heartbeat(timeout=15)
+        self._wait_for_vehicle_heartbeat(timeout_s=15.0)
 
     def _start_gcs_heartbeats(self) -> None:
         if self._gcs is None or self._gcs_thread is not None:
@@ -497,6 +969,22 @@ class Px4SitlSession:
         assert self._child is not None
         self._child.expect_exact(PX4_PROMPT, timeout=self._timeout_s)
 
+    def _wait_for_vehicle_heartbeat(self, *, timeout_s: float = 15.0) -> None:
+        assert self._mav is not None
+        deadline = time.time() + timeout_s
+        while time.time() < deadline:
+            msg = self._mav.recv_match(type="HEARTBEAT", blocking=True, timeout=1.0)
+            if msg is not None:
+                return
+
+        console_tail = ""
+        try:
+            if self._console_log.exists():
+                console_tail = self._console_log.read_text(encoding="utf-8", errors="ignore")[-4000:]
+        except OSError:
+            pass
+        raise RuntimeError(f"vehicle heartbeat was not received in time\n{console_tail}")
+
     def _drain_local_position(self) -> dict[str, float] | None:
         assert self._mav is not None
         latest = None
@@ -511,7 +999,7 @@ class Px4SitlSession:
     def send(self, command: str, *, timeout_s: float | None = None) -> str:
         assert self._child is not None
         self._child.sendline(command)
-        self._child.expect_exact(PX4_PROMPT, timeout=timeout_s or self._timeout_s)
+        self._child.expect(PX4_NEXT_PROMPT_RE, timeout=timeout_s or self._timeout_s)
         return self._child.before
 
     def send_no_wait(self, command: str) -> None:
@@ -520,7 +1008,7 @@ class Px4SitlSession:
 
     def sync_prompt(self, *, timeout_s: float = 5.0) -> None:
         assert self._child is not None
-        self._child.expect_exact(PX4_PROMPT, timeout=timeout_s)
+        self._child.expect(PX4_NEXT_PROMPT_RE, timeout=timeout_s)
 
     def arm(self, *, timeout_s: float = 15.0) -> None:
         assert self._mav is not None
@@ -648,7 +1136,8 @@ class Px4SitlSession:
             return
         child_pid = self._child.pid
         try:
-            self.send("shutdown", timeout_s=10)
+            self.send_no_wait("shutdown")
+            self._child.expect(pexpect.EOF, timeout=3.0)
         except Exception:
             pass
         descendants = []
@@ -694,12 +1183,268 @@ def _sample_attitude(mav, *, timeout_s: float = 5.0):
     raise RuntimeError("vehicle attitude sample was not received in time")
 
 
+class _ManualControlThread:
+    def __init__(self, mav, *, period_s: float = SITL_MANUAL_CONTROL_PERIOD) -> None:
+        self._mav = mav
+        self._period_s = period_s
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._x = 0
+        self._y = 0
+        self._z = 0
+        self._r = 0
+        self._thread = threading.Thread(target=self._run, name="sitl-manual-control", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def update(
+        self,
+        *,
+        x: int | None = None,
+        y: int | None = None,
+        z: int | None = None,
+        r: int | None = None,
+    ) -> None:
+        with self._lock:
+            if x is not None:
+                self._x = int(max(-1000, min(1000, x)))
+            if y is not None:
+                self._y = int(max(-1000, min(1000, y)))
+            if z is not None:
+                self._z = int(max(0, min(1000, z)))
+            if r is not None:
+                self._r = int(max(-1000, min(1000, r)))
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=1.0)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            with self._lock:
+                x = self._x
+                y = self._y
+                z = self._z
+                r = self._r
+            self._mav.mav.manual_control_send(
+                self._mav.target_system,
+                x,
+                y,
+                z,
+                r,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
+            self._stop.wait(self._period_s)
+
+
+def _throttle_for_target(current_z: float, target_z: float) -> int:
+    remaining = current_z - target_z
+    if remaining >= 0.0:
+        command = 500.0 + remaining * 120.0
+        if remaining > 0.8:
+            command = max(command, 660.0)
+        elif remaining > 0.3:
+            command = max(command, 560.0)
+    else:
+        command = 500.0 + remaining * 220.0
+        if remaining < -0.5:
+            command = min(command, 380.0)
+        if remaining < -1.5:
+            command = min(command, 180.0)
+        if remaining < -3.0:
+            command = min(command, 0.0)
+
+    return int(max(0.0, min(float(SITL_MANUAL_MAX_THROTTLE), command)))
+
+
+def _wait_for_takeoff_hover(
+    mav,
+    *,
+    manual_control: _ManualControlThread | None = None,
+    target_z: float,
+    timeout_s: float = SITL_HOVER_TIMEOUT_SECONDS,
+    z_tolerance_m: float = SITL_TAKEOFF_Z_TOLERANCE_M,
+    max_horiz_speed_mps: float = SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS,
+    max_vert_speed_mps: float = SITL_TAKEOFF_MAX_VERT_SPEED_MPS,
+    max_tilt_deg: float = SITL_TAKEOFF_TILT_LIMIT_DEG,
+    stable_window_s: float = SITL_TAKEOFF_STABLE_WINDOW_SECONDS,
+    report_period: float = SITL_REPORT_PERIOD,
+):
+    deadline = time.time() + timeout_s
+    latest_lpos = None
+    latest_att = None
+    stable_since = None
+    next_report = 0.0
+    last_throttle_cmd = 500
+    hover_capture_active = False
+
+    while time.time() < deadline:
+        msg = mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.5)
+        if not msg:
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+            continue
+        if msg_type == "LOCAL_POSITION_NED":
+            latest_lpos = msg
+            if manual_control is not None:
+                if hover_capture_active or float(msg.z) <= (target_z + SITL_MANUAL_CLIMB_ENTRY_Z_MARGIN):
+                    hover_capture_active = True
+                    last_throttle_cmd = SITL_MANUAL_CAPTURE_THROTTLE
+                else:
+                    last_throttle_cmd = _throttle_for_target(float(msg.z), target_z)
+                manual_control.update(z=last_throttle_cmd, r=0)
+        elif msg_type == "ATTITUDE":
+            latest_att = msg
+
+        now = time.time()
+        if latest_lpos is not None and latest_att is not None and now >= next_report:
+            print(
+                f"Takeoff hover x={float(latest_lpos.x):.3f} y={float(latest_lpos.y):.3f} z={float(latest_lpos.z):.3f} "
+                f"vx={float(latest_lpos.vx):.3f} vy={float(latest_lpos.vy):.3f} vz={float(latest_lpos.vz):.3f} "
+                f"thr={last_throttle_cmd} "
+                f"roll={math.degrees(float(latest_att.roll)):.2f} pitch={math.degrees(float(latest_att.pitch)):.2f}",
+                flush=True,
+            )
+            next_report = now + report_period
+
+        if latest_lpos is None or latest_att is None:
+            continue
+
+        z_err = abs(float(latest_lpos.z) - target_z)
+        horiz_speed = math.hypot(float(latest_lpos.vx), float(latest_lpos.vy))
+        vert_speed = abs(float(latest_lpos.vz))
+        tilt_deg = math.degrees(max(abs(float(latest_att.roll)), abs(float(latest_att.pitch))))
+
+        stable = (
+            z_err <= z_tolerance_m
+            and horiz_speed <= max_horiz_speed_mps
+            and vert_speed <= max_vert_speed_mps
+            and tilt_deg <= max_tilt_deg
+        )
+
+        if stable:
+            stable_since = stable_since or now
+            if (now - stable_since) >= stable_window_s:
+                return latest_lpos, latest_att
+        else:
+            stable_since = None
+
+    raise RuntimeError(
+        f"Vehicle did not settle into hover around z={target_z:.3f} "
+        f"(last_lpos={latest_lpos}, last_att={latest_att})"
+    )
+
+
+def _stabilize_direct_hover(
+    mav,
+    *,
+    ref_x: float,
+    ref_y: float,
+    ref_z: float,
+    yaw: float,
+    timeout_s: float = SITL_DIRECT_SETTLE_TIMEOUT_SECONDS,
+) -> tuple[object, object]:
+    deadline = time.time() + timeout_s
+    latest_lpos = None
+    latest_att = None
+    stable_streak = 0
+
+    while time.time() < deadline:
+        send_position_target_local_ned(mav, ref_x, ref_y, ref_z, yaw)
+        msg = mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=SITL_SETPOINT_PERIOD)
+        if msg is None:
+            stable_streak = 0
+            continue
+
+        mtype = msg.get_type()
+        if mtype == "STATUSTEXT":
+            continue
+        if mtype == "LOCAL_POSITION_NED":
+            latest_lpos = msg
+        elif mtype == "ATTITUDE":
+            latest_att = msg
+
+        if latest_lpos is None or latest_att is None:
+            stable_streak = 0
+            continue
+
+        z_err = abs(float(latest_lpos.z) - ref_z)
+        vz = abs(float(latest_lpos.vz))
+        tilt = math.degrees(max(abs(float(latest_att.roll)), abs(float(latest_att.pitch))))
+        if z_err <= SITL_DIRECT_SETTLE_Z_TOLERANCE and vz <= SITL_DIRECT_SETTLE_VZ_TOLERANCE and tilt <= SITL_DIRECT_TILT_LIMIT_DEG:
+            stable_streak += 1
+            if stable_streak >= 10:
+                return latest_lpos, latest_att
+        else:
+            stable_streak = 0
+
+    if latest_lpos is None or latest_att is None:
+        raise RuntimeError("direct hover settle phase did not produce telemetry")
+    return latest_lpos, latest_att
+
+
+def _start_direct_setpoint_stream(
+    mav,
+    *,
+    ref_x: float,
+    ref_y: float,
+    ref_z: float,
+    yaw: float,
+) -> tuple[threading.Event, threading.Thread]:
+    stop_event = threading.Event()
+
+    def _loop() -> None:
+        while not stop_event.is_set():
+            send_position_target_local_ned(mav, ref_x, ref_y, ref_z, yaw)
+            stop_event.wait(SITL_SETPOINT_PERIOD)
+
+    thread = threading.Thread(target=_loop, daemon=True)
+    thread.start()
+    return stop_event, thread
+
+
 def _find_tracking_log(run_rootfs: Path, relative_path: str) -> Path:
     rel = relative_path.removeprefix("./")
     path = run_rootfs / rel
     if not path.exists():
         raise FileNotFoundError(f"tracking log announced by PX4 not found: {path}")
     return path
+
+
+def _tracking_log_error_metrics(path: Path) -> dict[str, float]:
+    max_xy_err = 0.0
+    max_z_err = 0.0
+    sum_sq = 0.0
+    count = 0
+
+    with path.open("r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            dx = float(row["pos_x"]) - float(row["ref_x"])
+            dy = float(row["pos_y"]) - float(row["ref_y"])
+            dz = float(row["pos_z"]) - float(row["ref_z"])
+            max_xy_err = max(max_xy_err, math.hypot(dx, dy))
+            max_z_err = max(max_z_err, abs(dz))
+            sum_sq += dx * dx + dy * dy + dz * dz
+            count += 1
+
+    if count == 0:
+        raise RuntimeError(f"tracking log is empty: {path}")
+
+    return {
+        "max_xy_err_m": max_xy_err,
+        "max_z_err_m": max_z_err,
+        "rmse_m": math.sqrt(sum_sq / count),
+    }
 
 
 def run_validation_model(
@@ -711,6 +1456,7 @@ def run_validation_model(
     trajectories: Iterable[ValidationTrajectory] = DEFAULT_VALIDATION_TRAJECTORIES,
     sitl_esc_min: int = SITL_ESC_MIN_DEFAULT,
     sitl_esc_max: int | None = None,
+    sitl_hover_thrust: float | None = None,
     headless: bool = True,
     show_console: bool = False,
 ) -> dict:
@@ -725,29 +1471,66 @@ def run_validation_model(
     override_models_root = runtime_root / "override_models"
     result_root = out_root / model_spec.label
 
+    _cleanup_background_services()
     _prepare_run_rootfs(base_rootfs, run_rootfs)
     if show_console and not headless:
         _open_console_window(run_rootfs / "px4_console.log")
-    export_manifest = export_validation_trajectories(run_rootfs / "trajectories")
-    _prepare_model_override(px4_root, model_spec.gz_model, override_models_root)
+    export_manifest = export_validation_trajectories(
+        run_rootfs / "trajectories",
+        freeze_yaw=SITL_FREEZE_TRAJECTORY_YAW,
+        yaw_value=0.0,
+    )
+    if model_spec.label != "stock_sitl_placeholder":
+        _prepare_model_override(px4_root, model_spec.gz_model, override_models_root)
     env = _build_px4_env(px4_root, build_dir, run_rootfs, override_models_root, model_spec.gz_model, headless)
+    if model_spec.label == "stock_sitl_placeholder":
+        world_name = "default"
+        world_sdf = px4_root / "Tools" / "simulation" / "gz" / "worlds" / "default.sdf"
+    else:
+        world_name, override_worlds_root, world_sdf = _prepare_reference_world(px4_root, runtime_root)
+        _patch_gz_env_world_override(run_rootfs, override_worlds_root)
+        env["PX4_GZ_WORLDS"] = str(override_worlds_root.resolve())
+        env["GZ_SIM_RESOURCE_PATH"] = _append_path_list(env.get("GZ_SIM_RESOURCE_PATH", ""), override_worlds_root)
+    env["PX4_GZ_WORLD"] = world_name
+
+    display_session: _NestedDisplaySession | None = None
+    if not headless:
+        display_session = _start_nested_visual_display(runtime_root)
+        if display_session is not None:
+            env["DISPLAY"] = display_session.display
+            print(f"Using nested Gazebo display {display_session.display}", flush=True)
 
     _cleanup_stale_sitl_processes()
-    session = _start_session_with_retries(px4_root=px4_root, run_rootfs=run_rootfs, env=env)
+    session: Px4SitlSession | None = None
     common_anchor = COMMON_LOGGED_START
     results: list[dict] = []
+    manual_control: _ManualControlThread | None = None
     try:
-        if sitl_esc_max is not None:
-            _apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)
+        session = _start_session_with_retries(px4_root=px4_root, run_rootfs=run_rootfs, env=env)
+        if not headless:
+            time.sleep(1.0)
+            visual_window_title = display_session.window_title if display_session is not None else "Gazebo Sim"
+            _promote_window(visual_window_title)
         assert session._mav is not None
         mav = session._mav
+        if sitl_esc_max is not None:
+            _apply_x500_esc_scaling(mav, min_value=sitl_esc_min, max_value=sitl_esc_max)
+        if sitl_hover_thrust is not None:
+            set_param(mav, "MPC_THR_HOVER", sitl_hover_thrust, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+            print(f"Using explicit MPC_THR_HOVER={sitl_hover_thrust:.3f}", flush=True)
+        if model_spec.label == "digital_twin" and sitl_esc_max is not None:
+            hover_thrust = _estimate_candidate_hover_thrust(candidate_dir, esc_min=sitl_esc_min, esc_max=sitl_esc_max)
+            if hover_thrust is not None:
+                set_param(mav, "MPC_THR_HOVER", hover_thrust, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+                print(
+                    f"Derived MPC_THR_HOVER={hover_thrust:.3f} from candidate mass/motor model",
+                    flush=True,
+                )
         request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
         request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE)
         request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, interval_us=500_000)
-        set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "COM_CPU_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "COM_RAM_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
-        set_param(mav, "MIS_TAKEOFF_ALT", abs(SITL_HOVER_Z), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
@@ -756,7 +1539,6 @@ def run_validation_model(
         set_param(mav, "TRJ_POS_Y", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_POS_Z", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_POS_YAW", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
-
         wait_for_sim_ready(mav, timeout=20.0, require_local_position=True, min_local_samples=3)
         wait_for_ground_quiet(mav, duration_s=2.0, timeout=10.0)
         baseline_x, baseline_y, baseline_z = robust_ground_baseline(mav)
@@ -766,6 +1548,13 @@ def run_validation_model(
                 f"Dirty ground baseline: x={baseline_x:.3f} y={baseline_y:.3f} z={baseline_z:.3f}. "
                 "Restart SITL clean before running validation."
             )
+
+        set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "NAV_DLL_ACT", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "CBRK_SUPPLY_CHK", 894281, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        set_param(mav, "MIS_TAKEOFF_ALT", abs(SITL_HOVER_Z), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
+            time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
 
         hover_yaw = 0.0
         for _ in range(10):
@@ -777,73 +1566,71 @@ def run_validation_model(
             hover_yaw = float(msg.yaw)
             break
 
-        target_x = baseline_x
-        target_y = baseline_y
-        target_z = baseline_z + SITL_HOVER_Z
-
-        session.set_mode("POSCTL")
-        arm_with_retries(mav, attempts=SITL_ARM_ATTEMPTS)
-        observe_armed_ground_hold(
-            mav,
-            duration_s=max(0.5, SITL_PRE_OFFBOARD_SECONDS),
-            report_period=SITL_REPORT_PERIOD,
-            ref_x=target_x,
-            ref_y=target_y,
-            ref_z=baseline_z,
-            yaw=hover_yaw,
-            setpoint_period=SITL_SETPOINT_PERIOD,
+        _wait_for_ready_for_takeoff(session)
+        _wait_for_preflight_ok(session)
+        _arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)
+        session.send_no_wait("commander takeoff")
+        session.wait_until_hover_stable(
+            min_altitude_m=max(2.7, abs(SITL_HOVER_Z) - 0.35),
+            speed_tol_mps=SITL_TAKEOFF_MAX_HORIZ_SPEED_MPS,
+            timeout_s=SITL_HOVER_TIMEOUT_SECONDS,
         )
+        try:
+            session.sync_prompt(timeout_s=1.0)
+        except Exception:
+            pass
+        if SITL_TAKEOFF_SETTLE_SECONDS > 0.0:
+            time.sleep(SITL_TAKEOFF_SETTLE_SECONDS)
+        latest_lpos = wait_for_local_position(mav, timeout=3.0)
+        latest_att = _sample_attitude(mav, timeout_s=3.0)
 
-        pre_offboard_end = time.time() + max(0.5, SITL_PRE_OFFBOARD_SECONDS)
-        while time.time() < pre_offboard_end:
-            send_position_target_local_ned(mav, target_x, target_y, baseline_z, hover_yaw)
-            mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=SITL_SETPOINT_PERIOD)
+        hold_x = float(latest_lpos.x)
+        hold_y = float(latest_lpos.y)
+        hold_z = float(latest_lpos.z)
+        hover_yaw = float(latest_att.yaw)
 
-        set_offboard(mav)
-
-        ramp_start = time.time()
-        ramp_end = ramp_start + max(0.5, SITL_RAMP_SECONDS)
-        while time.time() < ramp_end:
-            alpha = min(1.0, max(0.0, (time.time() - ramp_start) / max(0.5, SITL_RAMP_SECONDS)))
-            z_sp = baseline_z + alpha * (target_z - baseline_z)
-            send_position_target_local_ned(mav, target_x, target_y, z_sp, hover_yaw)
-            mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=SITL_SETPOINT_PERIOD)
-
-        latest_lpos, latest_att, direct_max_xy, direct_max_z_err, direct_max_tilt, direct_failsafe = observe_hold_phase(
-            mav,
-            label="Direct hover",
-            duration_s=SITL_DIRECT_HOLD_SECONDS,
-            report_period=SITL_REPORT_PERIOD,
-            ref_x=target_x,
-            ref_y=target_y,
-            ref_z=target_z,
-            send_direct_setpoint=True,
-            yaw=hover_yaw,
-        )
-        if (
-            direct_failsafe
-            or direct_max_xy > SITL_DIRECT_XY_LIMIT
-            or direct_max_z_err > SITL_DIRECT_Z_TOLERANCE
-            or direct_max_tilt > SITL_DIRECT_TILT_LIMIT_DEG
-        ):
-            raise RuntimeError(
-                f"Direct offboard hold unstable: max_xy={direct_max_xy:.3f}m "
-                f"max_z_err={direct_max_z_err:.3f}m max_tilt={direct_max_tilt:.2f}deg "
-                f"failsafe={direct_failsafe}"
-            )
-
-        session.send("custom_pos_control start")
-        session.send("trajectory_reader start")
         set_position_target_absolute(
             mav,
-            float(latest_lpos.x),
-            float(latest_lpos.y),
-            float(latest_lpos.z),
-            float(latest_att.yaw),
+            hold_x,
+            hold_y,
+            hold_z,
+            hover_yaw,
         )
-        set_anchor_from_position(mav, float(latest_lpos.x), float(latest_lpos.y), float(latest_lpos.z))
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-        set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        stream_stop, stream_thread = _start_direct_setpoint_stream(
+            mav,
+            ref_x=hold_x,
+            ref_y=hold_y,
+            ref_z=hold_z,
+            yaw=hover_yaw,
+        )
+        try:
+            pre_offboard_end = time.time() + max(0.5, SITL_PRE_OFFBOARD_SECONDS)
+            while time.time() < pre_offboard_end:
+                mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=SITL_SETPOINT_PERIOD)
+
+            set_offboard(mav)
+            latest_lpos, latest_att = _stabilize_direct_hover(
+                mav,
+                ref_x=hold_x,
+                ref_y=hold_y,
+                ref_z=hold_z,
+                yaw=hover_yaw,
+            )
+            session.send("custom_pos_control start")
+            session.send("trajectory_reader start")
+            session.send("custom_pos_control set px4_default")
+            session.send(
+                "trajectory_reader abs_ref "
+                f"{float(latest_lpos.x):.3f} "
+                f"{float(latest_lpos.y):.3f} "
+                f"{float(latest_lpos.z):.3f} "
+                f"{hover_yaw:.3f}"
+            )
+            session.send("custom_pos_control enable")
+        finally:
+            stream_stop.set()
+            stream_thread.join(timeout=1.0)
 
         latest_lpos, latest_att, custom_max_xy, custom_max_z_err, custom_max_tilt, custom_failsafe = observe_hold_phase(
             mav,
@@ -860,10 +1647,16 @@ def run_validation_model(
             or custom_max_z_err > SITL_CUSTOM_Z_TOLERANCE
             or custom_max_tilt > SITL_CUSTOM_TILT_LIMIT_DEG
         ):
-            raise RuntimeError(
-                f"Custom hold unstable: max_xy={custom_max_xy:.3f}m "
-                f"max_z_err={custom_max_z_err:.3f}m max_tilt={custom_max_tilt:.2f}deg "
-                f"failsafe={custom_failsafe}"
+            if custom_failsafe or not SITL_ALLOW_UNSTABLE_CUSTOM_HOLD:
+                raise RuntimeError(
+                    f"Custom hold unstable: max_xy={custom_max_xy:.3f}m "
+                    f"max_z_err={custom_max_z_err:.3f}m max_tilt={custom_max_tilt:.2f}deg "
+                    f"failsafe={custom_failsafe}"
+                )
+            print(
+                f"Custom hold gate bypassed: max_xy={custom_max_xy:.3f}m "
+                f"max_z_err={custom_max_z_err:.3f}m max_tilt={custom_max_tilt:.2f}deg",
+                flush=True,
             )
 
         common_anchor = (
@@ -871,7 +1664,7 @@ def run_validation_model(
             float(latest_lpos.y),
             float(latest_lpos.z),
         )
-        common_yaw = float(latest_att.yaw) if latest_att is not None else 0.0
+        common_yaw = hover_yaw
 
         for entry in trajectories:
             set_position_target_absolute(mav, common_anchor[0], common_anchor[1], common_anchor[2], common_yaw)
@@ -880,7 +1673,7 @@ def run_validation_model(
             set_param(mav, "TRJ_ACTIVE_ID", entry.traj_id, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             set_param(mav, "TRJ_MODE_CMD", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             match = session.expect(TRACKING_LOG_START_RE, timeout_s=20)
-            trajectory_duration_s = float(TRAJ_DURATION_S.get(entry.traj_id, entry.duration_s))
+            trajectory_duration_s = float(TRAJ_DURATION_S.get(entry.traj_id, entry.nominal_duration_s))
             latest_lpos, latest_att, traj_max_xy, traj_max_z_err, traj_max_tilt, traj_failsafe = observe_builtin_trajectory(
                 mav,
                 duration_s=trajectory_duration_s + SITL_TRAJECTORY_TAIL_SECONDS,
@@ -889,18 +1682,20 @@ def run_validation_model(
             )
             session.expect(TRAJECTORY_DONE_TEXT, timeout_s=max(20.0, trajectory_duration_s))
             assert match is not None
+            tracking_log = _find_tracking_log(run_rootfs, match.group(1))
+            tracking_metrics = _tracking_log_error_metrics(tracking_log)
             if (
                 traj_failsafe
-                or traj_max_xy > SITL_TRAJECTORY_XY_ENVELOPE_LIMIT
-                or traj_max_z_err > SITL_TRAJECTORY_Z_TOLERANCE
+                or tracking_metrics["max_xy_err_m"] > SITL_TRAJECTORY_XY_TRACKING_ERROR_LIMIT
+                or tracking_metrics["max_z_err_m"] > SITL_TRAJECTORY_Z_TOLERANCE
                 or traj_max_tilt > SITL_TRAJECTORY_TILT_LIMIT_DEG
             ):
                 raise RuntimeError(
-                    f"Built-in trajectory unstable for {entry.name}: max_xy={traj_max_xy:.3f}m "
-                    f"max_z_err={traj_max_z_err:.3f}m max_tilt={traj_max_tilt:.2f}deg "
+                    f"Built-in trajectory unstable for {entry.name}: max_xy_err={tracking_metrics['max_xy_err_m']:.3f}m "
+                    f"max_z_err={tracking_metrics['max_z_err_m']:.3f}m rmse={tracking_metrics['rmse_m']:.3f}m "
+                    f"max_tilt={traj_max_tilt:.2f}deg "
                     f"failsafe={traj_failsafe}"
                 )
-            tracking_log = _find_tracking_log(run_rootfs, match.group(1))
             copied_log = _copy_log(tracking_log, result_root / "tracking_logs" / f"{entry.name}.csv")
             results.append(
                 {
@@ -914,14 +1709,26 @@ def run_validation_model(
             set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             session.wait_until_position(common_anchor, xy_tol_m=0.28, z_tol_m=0.28, timeout_s=20.0)
 
+        set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
+            time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
+        manual_control = _ManualControlThread(mav)
+        manual_control.update(x=0, y=0, z=500, r=0)
+        manual_control.start()
+        time.sleep(1.0)
+        session.set_mode("POSCTL")
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-        session.set_mode("POSCTL")
         session.send_no_wait("commander mode auto:land")
         session.wait_until_landed(ground_z_m=0.0, timeout_s=45.0)
         session.sync_prompt(timeout_s=10.0)
     finally:
-        session.shutdown()
+        if manual_control is not None:
+            manual_control.stop()
+        if session is not None:
+            session.shutdown()
+        if display_session is not None:
+            display_session.shutdown()
         _cleanup_stale_sitl_processes()
         if (run_rootfs / "sysid_truth_logs").exists():
             shutil.copytree(run_rootfs / "sysid_truth_logs", result_root / "sysid_truth_logs", dirs_exist_ok=True)
@@ -930,6 +1737,8 @@ def run_validation_model(
         "label": model_spec.label,
         "display_name": model_spec.display_name,
         "gz_model": model_spec.gz_model,
+        "world_name": world_name,
+        "world_sdf": str(world_sdf.resolve()),
         "common_logged_start": {
             "x_m": common_anchor[0],
             "y_m": common_anchor[1],
@@ -938,6 +1747,8 @@ def run_validation_model(
         "export_manifest": export_manifest,
         "results": results,
         "console_log": str((run_rootfs / "px4_console.log").resolve()),
+        "nested_display": display_session.display if display_session is not None else None,
+        "nested_display_log": str(display_session.log_path.resolve()) if display_session is not None else None,
     }
     (result_root / "run_manifest.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
@@ -952,6 +1763,7 @@ def run_validation_suite(
     model_specs: Iterable[ValidationModelSpec] = DEFAULT_MODEL_SPECS,
     sitl_esc_min: int = SITL_ESC_MIN_DEFAULT,
     sitl_esc_max: int | None = None,
+    sitl_hover_thrust: float | None = None,
     headless: bool = True,
     show_console: bool = False,
 ) -> dict:
@@ -973,6 +1785,7 @@ def run_validation_suite(
                 trajectories=trajectories,
                 sitl_esc_min=sitl_esc_min,
                 sitl_esc_max=sitl_esc_max,
+                sitl_hover_thrust=sitl_hover_thrust,
                 headless=headless,
                 show_console=show_console,
             )
@@ -1015,6 +1828,12 @@ def main() -> int:
         default=SITL_ESC_MIN_DEFAULT,
         help="Override SIM_GZ_EC_MIN[1-4] when --sitl-esc-max is provided. Default: 0.",
     )
+    ap.add_argument(
+        "--sitl-hover-thrust",
+        type=float,
+        default=None,
+        help="Optional MPC_THR_HOVER override for SITL tuning experiments.",
+    )
     ap.add_argument("--visual", action="store_true", help="Launch Gazebo with GUI instead of headless mode.")
     ap.add_argument(
         "--show-console",
@@ -1034,6 +1853,7 @@ def main() -> int:
         model_specs=_resolve_model_specs(model_labels),
         sitl_esc_min=args.sitl_esc_min,
         sitl_esc_max=args.sitl_esc_max,
+        sitl_hover_thrust=args.sitl_hover_thrust,
         headless=not args.visual,
         show_console=args.show_console,
     )

@@ -21,16 +21,17 @@ from run_hitl_udp_sequence import (
     decode_statustext,
     request_message_interval,
     robust_ground_baseline,
+    send_nav_takeoff,
     set_offboard,
     set_param,
     start_gcs_heartbeat_thread,
     wait_for_ground_quiet,
+    wait_for_local_position,
     wait_for_sim_ready,
     wait_heartbeat,
 )
 from run_hitl_px4_builtin_trajectory_minimal import disarm
 from run_hitl_px4_trajectory_reader_position_step_minimal import (
-    execute_staged_hover_entry,
     observe_armed_ground_hold,
     observe_hold_phase,
     send_position_target_local_ned,
@@ -45,7 +46,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--baud", type=int, default=57600)
     p.add_argument("--profile", choices=sorted(IDENTIFICATION_PROFILES), default="hover_thrust")
     p.add_argument("--hover-z", type=float, default=-3.0)
-    p.add_argument("--ramp-seconds", type=float, default=8.0)
+    p.add_argument("--takeoff-timeout", type=float, default=45.0)
+    p.add_argument("--takeoff-settle-seconds", type=float, default=2.0)
+    p.add_argument("--takeoff-stable-window", type=float, default=2.0)
+    p.add_argument("--takeoff-z-tolerance", type=float, default=0.25)
+    p.add_argument("--takeoff-max-horiz-speed", type=float, default=0.15)
+    p.add_argument("--takeoff-max-vert-speed", type=float, default=0.10)
+    p.add_argument("--takeoff-tilt-limit-deg", type=float, default=5.0)
     p.add_argument("--pre-offboard-seconds", type=float, default=2.0)
     p.add_argument("--direct-settle-seconds", type=float, default=2.0)
     p.add_argument("--custom-handover-seconds", type=float, default=2.0)
@@ -65,6 +72,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ident-tilt-limit-deg", type=float, default=45.0)
     p.add_argument("--ground-xy-window", type=float, default=0.25)
     p.add_argument("--ground-z-window", type=float, default=0.25)
+    p.add_argument("--land-timeout", type=float, default=45.0)
     return p.parse_args()
 
 
@@ -222,6 +230,176 @@ def best_effort_disarm(mav) -> None:
         print(f"Warning: best-effort disarm failed: {exc}", flush=True)
 
 
+def set_position_mode(mav) -> None:
+    mav.set_mode_px4("POSCTL", 0, 0)
+
+
+def set_land_mode(mav) -> None:
+    mav.set_mode_px4("LAND", 0, 0)
+
+
+def wait_for_takeoff_hover(
+    mav,
+    *,
+    target_z: float,
+    timeout: float,
+    z_tolerance: float,
+    max_horiz_speed: float,
+    max_vert_speed: float,
+    max_tilt_deg: float,
+    stable_window: float,
+    report_period: float,
+):
+    deadline = time.time() + timeout
+    latest_lpos = None
+    latest_att = None
+    stable_since = None
+    next_report = 0.0
+
+    while time.time() < deadline:
+        msg = mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=0.5)
+        if not msg:
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+            continue
+        if msg_type == "LOCAL_POSITION_NED":
+            latest_lpos = msg
+        elif msg_type == "ATTITUDE":
+            latest_att = msg
+
+        now = time.time()
+        if latest_lpos and latest_att and now >= next_report:
+            print(
+                f"Takeoff hover x={float(latest_lpos.x):.3f} y={float(latest_lpos.y):.3f} z={float(latest_lpos.z):.3f} "
+                f"vx={float(latest_lpos.vx):.3f} vy={float(latest_lpos.vy):.3f} vz={float(latest_lpos.vz):.3f} "
+                f"roll={math.degrees(float(latest_att.roll)):.2f} pitch={math.degrees(float(latest_att.pitch)):.2f}",
+                flush=True,
+            )
+            next_report = now + report_period
+
+        if latest_lpos is None or latest_att is None:
+            continue
+
+        z_err = abs(float(latest_lpos.z) - target_z)
+        horiz_speed = math.hypot(float(latest_lpos.vx), float(latest_lpos.vy))
+        vert_speed = abs(float(latest_lpos.vz))
+        tilt_deg = math.degrees(max(abs(float(latest_att.roll)), abs(float(latest_att.pitch))))
+        stable = (
+            z_err <= z_tolerance
+            and horiz_speed <= max_horiz_speed
+            and vert_speed <= max_vert_speed
+            and tilt_deg <= max_tilt_deg
+        )
+
+        if stable:
+            if stable_since is None:
+                stable_since = now
+            elif now - stable_since >= stable_window:
+                return latest_lpos, latest_att
+        else:
+            stable_since = None
+
+    raise RuntimeError(
+        f"Takeoff hover did not settle near z={target_z:.3f}; last_lpos={latest_lpos} last_att={latest_att}"
+    )
+
+
+def observe_direct_offboard_hold(
+    mav,
+    *,
+    duration_s: float,
+    ref_x: float,
+    ref_y: float,
+    ref_z: float,
+    yaw: float,
+    setpoint_period: float,
+    report_period: float,
+) -> tuple[object, object, float, float, float, bool]:
+    end = time.time() + duration_s
+    latest_lpos = None
+    latest_att = None
+    next_report = 0.0
+    max_xy = 0.0
+    max_z_err = 0.0
+    max_tilt = 0.0
+    failsafe_seen = False
+    last_telemetry_time = None
+    telemetry_timeout_s = 1.0
+
+    while time.time() < end:
+        send_position_target_local_ned(mav, ref_x, ref_y, ref_z, yaw)
+        msg = mav.recv_match(type=["LOCAL_POSITION_NED", "ATTITUDE", "STATUSTEXT"], blocking=True, timeout=setpoint_period)
+        if not msg:
+            if latest_lpos is not None and latest_att is not None and last_telemetry_time is not None:
+                if time.time() - last_telemetry_time > telemetry_timeout_s:
+                    raise RuntimeError("Telemetry went stale during direct offboard hold")
+            continue
+
+        msg_type = msg.get_type()
+        if msg_type == "STATUSTEXT":
+            text = decode_statustext(msg)
+            print(text, flush=True)
+            if "Failsafe activated" in text or "Flight termination active" in text:
+                failsafe_seen = True
+            continue
+        if msg_type == "LOCAL_POSITION_NED":
+            latest_lpos = msg
+            max_xy = max(max_xy, math.hypot(float(msg.x) - ref_x, float(msg.y) - ref_y))
+            max_z_err = max(max_z_err, abs(float(msg.z) - ref_z))
+            last_telemetry_time = time.time()
+        elif msg_type == "ATTITUDE":
+            latest_att = msg
+            max_tilt = max(max_tilt, math.degrees(max(abs(float(msg.roll)), abs(float(msg.pitch)))))
+            last_telemetry_time = time.time()
+
+        now = time.time()
+        if latest_lpos and latest_att and now >= next_report:
+            print(
+                f"Direct hover x={float(latest_lpos.x):.3f} y={float(latest_lpos.y):.3f} z={float(latest_lpos.z):.3f} "
+                f"vx={float(latest_lpos.vx):.3f} vy={float(latest_lpos.vy):.3f} vz={float(latest_lpos.vz):.3f} "
+                f"roll={math.degrees(float(latest_att.roll)):.2f} pitch={math.degrees(float(latest_att.pitch)):.2f}",
+                flush=True,
+            )
+            next_report = now + report_period
+
+    if latest_lpos is None or latest_att is None:
+        raise RuntimeError("No LOCAL_POSITION_NED/ATTITUDE data during direct offboard hold")
+    return latest_lpos, latest_att, max_xy, max_z_err, max_tilt, failsafe_seen
+
+
+def wait_until_landed(mav, *, ground_z: float, timeout_s: float) -> None:
+    deadline = time.time() + timeout_s
+    latest = None
+    quiet_since = None
+    while time.time() < deadline:
+        msg = mav.recv_match(type=["LOCAL_POSITION_NED", "HEARTBEAT", "STATUSTEXT"], blocking=True, timeout=0.5)
+        if not msg:
+            continue
+        msg_type = msg.get_type()
+        if msg_type == "STATUSTEXT":
+            print(decode_statustext(msg), flush=True)
+            continue
+        if msg_type == "HEARTBEAT":
+            base_mode = int(getattr(msg, "base_mode", 0))
+            if not (base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
+                return
+            continue
+        latest = msg
+        near_ground = abs(float(msg.z) - ground_z) <= 0.25
+        slow = math.hypot(float(msg.vx), float(msg.vy)) <= 0.15 and abs(float(msg.vz)) <= 0.15
+        if near_ground and slow:
+            quiet_since = quiet_since or time.time()
+            if time.time() - quiet_since >= 2.0:
+                return
+        else:
+            quiet_since = None
+
+    raise RuntimeError(f"Vehicle did not land in time; last_local_position={latest}")
+
+
 def main() -> int:
     args = parse_args()
 
@@ -242,6 +420,7 @@ def main() -> int:
     wait_heartbeat(mav)
     stop_heartbeats, heartbeat_thread = start_gcs_heartbeat_thread(mav)
     successful_completion = False
+    baseline_z = 0.0
 
     try:
         request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
@@ -256,6 +435,7 @@ def main() -> int:
         set_param(mav, "TRJ_POS_Y", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_POS_Z", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_POS_YAW", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "MIS_TAKEOFF_ALT", max(0.5, abs(float(args.hover_z))), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
 
         wait_for_sim_ready(mav, timeout=20.0, require_local_position=True, min_local_samples=3)
         wait_for_ground_quiet(mav, duration_s=2.0, timeout=10.0)
@@ -289,7 +469,7 @@ def main() -> int:
 
         observe_armed_ground_hold(
             mav,
-            duration_s=max(0.5, args.pre_offboard_seconds),
+            duration_s=1.0,
             report_period=args.report_period,
             ref_x=target_x,
             ref_y=target_y,
@@ -298,26 +478,62 @@ def main() -> int:
             setpoint_period=args.setpoint_period,
         )
 
+        send_nav_takeoff(mav)
+
+        latest_lpos, latest_att = wait_for_takeoff_hover(
+            mav,
+            target_z=target_z,
+            timeout=args.takeoff_timeout,
+            z_tolerance=args.takeoff_z_tolerance,
+            max_horiz_speed=args.takeoff_max_horiz_speed,
+            max_vert_speed=args.takeoff_max_vert_speed,
+            max_tilt_deg=args.takeoff_tilt_limit_deg,
+            stable_window=args.takeoff_stable_window,
+            report_period=args.report_period,
+        )
+        if args.takeoff_settle_seconds > 0.0:
+            time.sleep(args.takeoff_settle_seconds)
+            latest_lpos = wait_for_local_position(mav, timeout=3.0)
+
+        hold_ref_x = float(latest_lpos.x)
+        hold_ref_y = float(latest_lpos.y)
+        hold_ref_z = float(latest_lpos.z)
+        hold_ref_yaw = float(latest_att.yaw)
+
+        print(
+            f"Takeoff hover settled x={hold_ref_x:.3f} y={hold_ref_y:.3f} z={hold_ref_z:.3f} "
+            f"yaw={math.degrees(hold_ref_yaw):.1f}deg",
+            flush=True,
+        )
+
+        pre_offboard_until = time.monotonic() + max(0.5, args.pre_offboard_seconds)
+        while time.monotonic() < pre_offboard_until:
+            send_position_target_local_ned(mav, hold_ref_x, hold_ref_y, hold_ref_z, hold_ref_yaw)
+            time.sleep(args.setpoint_period)
+
         set_offboard(mav)
         print("OFFBOARD accepted", flush=True)
 
-        latest_lpos, latest_att, direct_max_xy, direct_max_z_err, direct_max_tilt, direct_failsafe = execute_staged_hover_entry(
+        latest_lpos, latest_att, direct_max_xy, direct_max_z_err, direct_max_tilt, direct_failsafe = observe_direct_offboard_hold(
             mav,
-            baseline_x=baseline_x,
-            baseline_y=baseline_y,
-            baseline_z=baseline_z,
-            target_x=target_x,
-            target_y=target_y,
-            target_z=target_z,
-            yaw=yaw0,
-            ramp_seconds=args.ramp_seconds,
-            direct_settle_seconds=args.direct_settle_seconds,
+            duration_s=max(0.5, args.direct_settle_seconds),
+            ref_x=hold_ref_x,
+            ref_y=hold_ref_y,
+            ref_z=hold_ref_z,
+            yaw=hold_ref_yaw,
             setpoint_period=args.setpoint_period,
             report_period=args.report_period,
-            direct_xy_limit=args.direct_xy_limit,
-            direct_z_tolerance=args.direct_z_tolerance,
-            direct_tilt_limit_deg=args.direct_tilt_limit_deg,
         )
+        if (
+            direct_failsafe
+            or direct_max_xy > args.direct_xy_limit
+            or direct_max_z_err > args.direct_z_tolerance
+            or direct_max_tilt > args.direct_tilt_limit_deg
+        ):
+            raise RuntimeError(
+                f"Direct hover unstable: max_xy={direct_max_xy:.3f}m max_z_err={direct_max_z_err:.3f}m "
+                f"max_tilt={direct_max_tilt:.2f}deg failsafe={direct_failsafe}"
+            )
 
         set_param(mav, "TRJ_POS_ABS", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "TRJ_POS_X", float(latest_lpos.x), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
@@ -335,10 +551,11 @@ def main() -> int:
         custom_ref_x = float(latest_lpos.x)
         custom_ref_y = float(latest_lpos.y)
         custom_ref_z = float(latest_lpos.z)
+        custom_ref_yaw = float(latest_att.yaw)
 
         handover_until = time.monotonic() + max(0.0, args.custom_handover_seconds)
         while time.monotonic() < handover_until:
-            send_position_target_local_ned(mav, custom_ref_x, custom_ref_y, custom_ref_z, float(latest_att.yaw))
+            send_position_target_local_ned(mav, custom_ref_x, custom_ref_y, custom_ref_z, custom_ref_yaw)
             time.sleep(args.setpoint_period)
 
         latest_lpos, latest_att, custom_max_xy, custom_max_z_err, custom_max_tilt, custom_failsafe = observe_hold_phase(
@@ -404,6 +621,20 @@ def main() -> int:
             )
 
         print("built-in identification stable", flush=True)
+        best_effort_set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        best_effort_set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        best_effort_set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try:
+            set_position_mode(mav)
+            time.sleep(1.0)
+        except Exception as exc:
+            print(f"Warning: best-effort POSCTL restore failed: {exc}", flush=True)
+        try:
+            set_land_mode(mav)
+            wait_until_landed(mav, ground_z=baseline_z, timeout_s=args.land_timeout)
+        except Exception as exc:
+            print(f"Warning: best-effort landing failed: {exc}", flush=True)
+            best_effort_disarm(mav)
         successful_completion = True
         return 0
     finally:
@@ -411,6 +642,13 @@ def main() -> int:
             best_effort_set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             best_effort_set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             best_effort_set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            try:
+                set_position_mode(mav)
+                time.sleep(1.0)
+                set_land_mode(mav)
+                wait_until_landed(mav, ground_z=baseline_z, timeout_s=args.land_timeout)
+            except Exception:
+                best_effort_disarm(mav)
         stop_heartbeats.set()
         heartbeat_thread.join(timeout=1.0)
         mav.close()

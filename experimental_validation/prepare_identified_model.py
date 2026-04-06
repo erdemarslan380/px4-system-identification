@@ -12,6 +12,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from experimental_validation.twin_metrics import flatten_identified_metrics
+from experimental_validation.sdf_export import apply_inertial_snippet_to_sdf, build_inertial_snippet
 
 
 def _indent(elem: ET.Element, level: int = 0) -> None:
@@ -38,6 +39,22 @@ def _load_params(candidate_json: Path) -> dict:
     return json.loads(candidate_json.read_text(encoding="utf-8"))
 
 
+def _build_candidate_base_tree(stock_base_sdf: Path, params: dict[str, float], *, model_name: str) -> ET.ElementTree:
+    inertial_snippet = build_inertial_snippet(
+        mass_kg=params["mass_kg"],
+        ixx=params["ixx_kgm2"],
+        iyy=params["iyy_kgm2"],
+        izz=params["izz_kgm2"],
+    )
+    base_model_text = stock_base_sdf.read_text(encoding="utf-8")
+    patched = apply_inertial_snippet_to_sdf(base_model_text, inertial_snippet)
+    root = ET.fromstring(patched)
+    model_node = root.find("model")
+    if model_node is not None:
+        model_node.set("name", model_name)
+    return ET.ElementTree(root)
+
+
 def prepare_identified_model(px4_root: str | Path, candidate_dir: str | Path, *, model_name: str = "x500_identified") -> dict:
     px4_root = Path(px4_root).expanduser().resolve()
     candidate_dir = Path(candidate_dir).expanduser().resolve()
@@ -58,13 +75,17 @@ def prepare_identified_model(px4_root: str | Path, candidate_dir: str | Path, *,
     shutil.copytree(stock_base_dir, identified_base_dir)
 
     # Replace the base SDF with the identified inertial model and rename references.
-    candidate_base_sdf = candidate_dir / "candidate_x500_base.sdf"
     base_target_sdf = identified_base_dir / "model.sdf"
-    base_tree = ET.parse(candidate_base_sdf)
-    base_root = base_tree.getroot()
-    model_node = base_root.find("model")
-    if model_node is not None:
-        model_node.set("name", f"{model_name}_base")
+    candidate_base_sdf = candidate_dir / "candidate_x500_base.sdf"
+    if candidate_base_sdf.exists():
+        base_tree = ET.parse(candidate_base_sdf)
+        base_root = base_tree.getroot()
+        model_node = base_root.find("model")
+        if model_node is not None:
+            model_node.set("name", f"{model_name}_base")
+    else:
+        base_tree = _build_candidate_base_tree(stock_base_dir / "model.sdf", params, model_name=f"{model_name}_base")
+        base_root = base_tree.getroot()
     _indent(base_root)
     base_tree.write(base_target_sdf, encoding="utf-8", xml_declaration=True)
 

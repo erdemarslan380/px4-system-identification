@@ -284,6 +284,10 @@ def execute_staged_hover_entry(
     direct_xy_limit: float,
     direct_z_tolerance: float,
     direct_tilt_limit_deg: float,
+    max_stage_step_m: float | None = None,
+    stage_hold_seconds: float = 0.0,
+    lift_hold_seconds_override: float | None = None,
+    allow_unstable_final_hover: bool = False,
 ) -> tuple[object, object, float, float, float, bool]:
     current_ref_x = target_x
     current_ref_y = target_y
@@ -318,6 +322,9 @@ def execute_staged_hover_entry(
         lift_hold_seconds = min(2.0, max(1.0, direct_settle_seconds))
         lift_ramp_seconds = max(2.0, min(ramp_seconds * 0.45, ramp_seconds - 2.0))
         final_ramp_seconds = max(2.0, ramp_seconds - lift_ramp_seconds)
+
+    if lift_hold_seconds_override is not None:
+        lift_hold_seconds = max(0.0, float(lift_hold_seconds_override))
 
     print(
         f"Staged hover entry baseline_z={baseline_z:.3f} lift_z={lift_z:.3f} target_z={target_z:.3f}",
@@ -371,7 +378,31 @@ def execute_staged_hover_entry(
         )
 
     if final_ramp_seconds > 0.0 and not math.isclose(lift_z, target_z, abs_tol=1e-6):
-        _ramp_to_z(lift_z, target_z, final_ramp_seconds)
+        stage_targets = [target_z]
+        if max_stage_step_m is not None and max_stage_step_m > 0.0:
+            delta_to_target = target_z - lift_z
+            stage_count = max(1, math.ceil(abs(delta_to_target) / max_stage_step_m))
+            if stage_count > 1:
+                stage_targets = [
+                    lift_z + (delta_to_target * (stage_idx / stage_count))
+                    for stage_idx in range(1, stage_count + 1)
+                ]
+
+        prev_z = lift_z
+        segment_ramp_seconds = max(1.5, final_ramp_seconds / max(1, len(stage_targets)))
+        stage_hold = max(0.0, float(stage_hold_seconds))
+
+        for stage_idx, stage_target_z in enumerate(stage_targets, start=1):
+            if len(stage_targets) > 1:
+                print(
+                    f"Intermediate hover stage {stage_idx}/{len(stage_targets)} "
+                    f"z={stage_target_z:.3f}",
+                    flush=True,
+                )
+            _ramp_to_z(prev_z, stage_target_z, segment_ramp_seconds)
+            if stage_hold > 0.0 and stage_idx < len(stage_targets):
+                _hold_at_z(stage_target_z, stage_hold)
+            prev_z = stage_target_z
 
     latest_lpos, latest_att, direct_max_xy, direct_max_z_err, direct_max_tilt, direct_failsafe = observe_hold_phase(
         mav,
@@ -396,6 +427,15 @@ def execute_staged_hover_entry(
         or direct_max_tilt > direct_tilt_limit_deg
         or direct_final_tilt > direct_tilt_limit_deg
     ):
+        if allow_unstable_final_hover and not direct_failsafe:
+            print(
+                "Direct hover gate bypassed "
+                f"(max_xy={direct_max_xy:.3f}m max_z_err={direct_max_z_err:.3f}m "
+                f"final_xy={direct_final_xy:.3f}m final_z_err={direct_final_z_err:.3f}m "
+                f"max_tilt={direct_max_tilt:.2f}deg final_tilt={direct_final_tilt:.2f}deg)",
+                flush=True,
+            )
+            return latest_lpos, latest_att, direct_max_xy, direct_max_z_err, direct_max_tilt, direct_failsafe
         raise RuntimeError(
             f"Direct hover unstable: max_xy={direct_max_xy:.3f}m max_z_err={direct_max_z_err:.3f}m "
             f"final_xy={direct_final_xy:.3f}m final_z_err={direct_final_z_err:.3f}m "

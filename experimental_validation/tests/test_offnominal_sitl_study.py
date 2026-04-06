@@ -65,7 +65,7 @@ class OffnominalSitlStudyTest(unittest.TestCase):
 
     def test_sitl_esc_scaling_defaults_match_tuned_values(self) -> None:
         self.assertEqual(SITL_ESC_MIN, 0)
-        self.assertEqual(SITL_ESC_MAX, 55)
+        self.assertIsNone(SITL_ESC_MAX)
 
     def test_panel_groups_cover_all_five_cases(self) -> None:
         flattened = [name for group in PANEL_GROUPS for name in group]
@@ -88,7 +88,7 @@ class OffnominalSitlStudyTest(unittest.TestCase):
         source = inspect.getsource(study.run_identification_with_assets)
         self.assertLess(
             source.index('match_track = session.expect(TRACKING_LOG_START_RE, timeout_s=20)'),
-            source.index('match_ident = session.expect(IDENT_LOG_START_RE, timeout_s=5)'),
+            source.index('match_ident = session.expect(IDENT_LOG_START_RE, timeout_s=20)'),
         )
 
     def test_light_breeze_world_is_derived_from_default_world(self) -> None:
@@ -195,16 +195,28 @@ class OffnominalSitlStudyTest(unittest.TestCase):
         self.assertIn('session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)', source)
         self.assertIn('session.send_no_wait("commander mode auto:land")', source)
         self.assertIn('session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)', source)
-        self.assertIn('_apply_x500_esc_scaling(session)', source)
+        self.assertIn('_apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)', source)
 
     def test_identification_uses_takeoff_then_offboard_flow(self) -> None:
         source = inspect.getsource(study.run_identification_with_assets)
         self.assertLess(source.index('session.send_no_wait("commander takeoff")'),
-                        source.index('session.send_no_wait("commander mode offboard")'))
-        self.assertIn('session.wait_until_position(hover_target, xy_tol_m=0.25, z_tol_m=0.25, timeout_s=45.0)', source)
+                        source.index('set_offboard(mav)'))
+        self.assertIn('session.wait_until_hover_stable(', source)
+        self.assertIn('session.sync_prompt(timeout_s=1.0)', source)
+        self.assertIn('observe_hold_phase(', source)
+        self.assertIn('session.set_mode("POSCTL")', source)
         self.assertIn('session.send_no_wait("commander mode auto:land")', source)
         self.assertIn('session.wait_until_landed(ground_z_m=ground_anchor[2], timeout_s=45.0)', source)
-        self.assertIn('_apply_x500_esc_scaling(session)', source)
+        self.assertIn('_apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)', source)
+
+    def test_identification_starts_modules_after_offboard_handover(self) -> None:
+        source = inspect.getsource(study.run_identification_with_assets)
+        self.assertLess(source.index('set_offboard(mav)'),
+                        source.index('session.send("custom_pos_control start")'))
+        self.assertLess(source.index('set_offboard(mav)'),
+                        source.index('session.send("trajectory_reader start")'))
+        self.assertLess(source.index('set_offboard(mav)'),
+                        source.index('session.send("custom_pos_control enable")'))
 
     def test_figure_builder_uses_error_colormaps_for_both_series(self) -> None:
         source = inspect.getsource(study.build_offnominal_figures)

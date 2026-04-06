@@ -29,6 +29,55 @@ X500_REFERENCE_SDF: dict[str, Any] = {
 }
 
 
+# Prior-guided Gazebo candidate based on the hard-coded default jMAVSim quad.
+# The mass, inertia, per-rotor full thrust/torque, and rotor time constant come
+# from the local PX4 jMAVSim sources; Gazebo-only coefficients keep the stock
+# x500 defaults where jMAVSim has no direct analogue.
+JMAVSIM_PRIOR_V1: dict[str, Any] = {
+    "mass": {
+        "mass_kg": 0.8,
+        "sample_count": 0,
+        "std_kg": 0.0,
+        "gravity_mps2": 9.80665,
+    },
+    "thrust_scale": {
+        "thrust_scale_n_per_cmd": 16.0,
+        "sample_count": 0,
+        "rmse_n": 0.0,
+        "gravity_mps2": 9.80665,
+    },
+    "inertia": {
+        "x": {"axis": "x", "inertia_kgm2": 0.005, "sample_count": 0, "rmse_nm": 0.0},
+        "y": {"axis": "y", "inertia_kgm2": 0.005, "sample_count": 0, "rmse_nm": 0.0},
+        "z": {"axis": "z", "inertia_kgm2": 0.009, "sample_count": 0, "rmse_nm": 0.0},
+    },
+    "drag": {
+        "x": {"axis": "x", "coefficient": 0.01, "sample_count": 0, "rmse_n": 0.0},
+        "y": {"axis": "y", "coefficient": 0.01, "sample_count": 0, "rmse_n": 0.0},
+        "z": {"axis": "z", "coefficient": 0.01, "sample_count": 0, "rmse_n": 0.0},
+    },
+    "motor_model": {
+        "time_constant_up_s": {"value": 0.005, "sample_count": 0, "rmse": 0.0},
+        "time_constant_down_s": {"value": 0.005, "sample_count": 0, "rmse": 0.0},
+        "max_rot_velocity_radps": {"value": 1000.0, "sample_count": 0, "rmse": 0.0},
+        "motor_constant": {"value": 4.0e-06, "sample_count": 0, "rmse": 0.0},
+        "moment_constant": {"value": 0.0125, "sample_count": 0, "rmse": 0.0},
+        "rotor_drag_coefficient": {"value": 8.06428e-05, "sample_count": 0, "rmse": 0.0},
+        "rolling_moment_coefficient": {"value": 1.0e-06, "sample_count": 0, "rmse": 0.0},
+        "rotor_velocity_slowdown_sim": {"value": 10.0, "sample_count": 0, "rmse": 0.0},
+    },
+    "warnings": [
+        "Built from local PX4 jMAVSim defaults: mass/inertia/rotor full thrust/full torque/time constant come from Simulator.java and vehicle/Quadcopter.java. Gazebo-only rotor drag and rolling moment fields fall back to stock x500 values."
+    ],
+    "composite_sources": {
+        "mass": "jmavsim:Simulator.buildMulticopter",
+        "inertia": "jmavsim:Simulator.buildMulticopter",
+        "drag": "jmavsim:AbstractMulticopter.dragMove",
+        "motor_model": "jmavsim:vehicle.Quadcopter + Rotor",
+    },
+}
+
+
 # Legacy best-known family composite retained for regression comparisons.
 X500_FAMILY_COMPOSITE_V1: dict[str, Any] = {
     "mass": {"mass_kg": 2.06636, "sample_count": 0},
@@ -114,3 +163,7 @@ def default_x500_reference() -> dict[str, Any]:
 
 def default_candidate_identified() -> dict[str, Any]:
     return deepcopy(X500_FAMILY_COMPOSITE_V2)
+
+
+def default_jmavsim_prior_candidate() -> dict[str, Any]:
+    return deepcopy(JMAVSIM_PRIOR_V1)

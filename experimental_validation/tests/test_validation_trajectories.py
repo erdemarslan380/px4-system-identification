@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,7 +25,24 @@ class ValidationTrajectoriesTests(unittest.TestCase):
             payload = json.loads((out_dir / "validation_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["entries"][0]["traj_id"], DEFAULT_VALIDATION_TRAJECTORIES[0].traj_id)
             self.assertEqual(payload["entries"][0]["sha256"], DEFAULT_VALIDATION_TRAJECTORIES[0].sha256)
+            self.assertEqual(payload["entries"][0]["source_sha256"], DEFAULT_VALIDATION_TRAJECTORIES[0].sha256)
             self.assertAlmostEqual(payload["common_logged_start"]["x_m"], COMMON_LOGGED_START[0], places=5)
+
+    def test_export_can_freeze_yaw_and_yawspeed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "trajectories"
+            manifest = export_validation_trajectories(
+                out_dir,
+                entries=[DEFAULT_VALIDATION_TRAJECTORIES[2]],
+                freeze_yaw=True,
+            )
+            payload = json.loads((out_dir / "validation_manifest.json").read_text(encoding="utf-8"))
+            self.assertTrue(payload["freeze_yaw"])
+            first = manifest["entries"][0]
+            sample = struct.unpack("11f", Path(first["path"]).read_bytes()[:44])
+            self.assertEqual(sample[9], 0.0)
+            self.assertEqual(sample[10], 0.0)
+            self.assertNotEqual(first["sha256"], first["source_sha256"])
 
 
 if __name__ == "__main__":

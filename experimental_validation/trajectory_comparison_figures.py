@@ -395,8 +395,8 @@ def build_comparison_figures(
             point_sets = [ref, stock, compare]
             title_lines = [
                 case,
-                f"Shape RMSE X500: {payload['rmse_stock']:.3f} m",
-                f"{compare_label}: {payload['rmse_compare']:.3f} m",
+                f"Ref RMSE X500: {payload['rmse_stock_raw']:.3f} m",
+                f"Ref RMSE {compare_label}: {payload['rmse_compare_raw']:.3f} m",
             ]
 
             if has_compare_2:
@@ -413,7 +413,7 @@ def build_comparison_figures(
                 )
                 _plot_error_collection(ax, compare_2, err_compare_2, cmap=cmap_compare_2, norm=norm_compare_2, linewidth=3.1)
                 point_sets.append(compare_2)
-                title_lines.append(f"{compare_label_2}: {payload['rmse_compare_2']:.3f} m")
+                title_lines.append(f"Ref RMSE {compare_label_2}: {payload['rmse_compare_2_raw']:.3f} m")
 
             all_points = np.vstack(point_sets)
             _set_axes_equal(ax, all_points)

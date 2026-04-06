@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "$0")"
 RESET_USB=0
 DEVICE_ARG=""
+declare -A EXCLUDED_PIDS=()
 
 usage() {
   cat <<EOF
@@ -49,12 +50,10 @@ graceful_stop_pattern() {
   local label="$1"
   local pattern="$2"
   local -a pids=()
-  local parent_pid="${PPID:-0}"
 
   while IFS= read -r pid; do
     [[ -z "$pid" ]] && continue
-    [[ "$pid" == "$$" ]] && continue
-    [[ "$parent_pid" != "0" && "$pid" == "$parent_pid" ]] && continue
+    [[ -n "${EXCLUDED_PIDS[$pid]:-}" ]] && continue
     pids+=("$pid")
   done < <(pgrep -f "$pattern" || true)
 
@@ -79,6 +78,18 @@ graceful_stop_pattern() {
 
   echo "Force killing $label: ${pids[*]}"
   kill -KILL "${pids[@]}" 2>/dev/null || true
+}
+
+collect_ancestor_pids() {
+  local pid="$$"
+  local parent=""
+
+  while [[ -n "$pid" && "$pid" != "0" ]]; do
+    EXCLUDED_PIDS["$pid"]=1
+    parent="$(ps -o ppid= -p "$pid" 2>/dev/null | awk '{print $1}' || true)"
+    [[ -z "$parent" || "$parent" == "$pid" ]] && break
+    pid="$parent"
+  done
 }
 
 close_windows_by_regex() {
@@ -178,11 +189,15 @@ reset_usb_device() {
 }
 
 echo "Cleaning PX4 background services"
+collect_ancestor_pids
 
 close_windows_by_regex "px4 sitl console|px4 console|jmavsim|qgroundcontrol|gazebo"
+close_windows_by_regex "px4 gazebo nested display"
 
 graceful_stop_pattern "PX4 SITL" '/PX4-Autopilot-Identification/build/px4_sitl_default/bin/px4'
 graceful_stop_pattern "Gazebo" '(^|[[:space:]])gz sim([[:space:]]|$)'
+graceful_stop_pattern "Nested Gazebo display" 'Xephyr .*PX4 Gazebo Nested Display'
+graceful_stop_pattern "PX4 console tails" 'tail .*px4_console\.log'
 graceful_stop_pattern "jMAVSim" 'java.*jmavsim_run.jar|jmavsim_run.sh -q -s -d '
 graceful_stop_pattern "QGroundControl" 'QGroundControl'
 graceful_stop_pattern "MAVLink serial hub" 'mavlink_serial_hub.py'
