@@ -104,6 +104,32 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn('--sitl-esc-max', main_source)
         self.assertIn('--sitl-esc-min', main_source)
         self.assertIn('--sitl-hover-thrust', main_source)
+        self.assertIn("except KeyboardInterrupt:", main_source)
+        self.assertIn('_cleanup_background_services()', main_source)
+
+    def test_main_cleans_background_services_on_keyboard_interrupt(self) -> None:
+        with mock.patch.object(sitl_validation.argparse.ArgumentParser, "parse_args") as parse_args_mock:
+            parse_args_mock.return_value = mock.Mock(
+                px4_root="~/PX4-Autopilot-Identification",
+                out_root="/tmp/sitl-test",
+                candidate_dir="/tmp/candidate",
+                trajectory_names="",
+                model_labels="",
+                sitl_esc_min=sitl_validation.SITL_ESC_MIN_DEFAULT,
+                sitl_esc_max=None,
+                sitl_hover_thrust=None,
+                visual=False,
+                show_console=False,
+            )
+            with mock.patch.object(
+                sitl_validation,
+                "run_validation_suite",
+                side_effect=KeyboardInterrupt(),
+            ):
+                with mock.patch.object(sitl_validation, "_cleanup_background_services") as cleanup_mock:
+                    self.assertEqual(sitl_validation.main(), 130)
+
+        cleanup_mock.assert_called_once_with()
 
     def test_visual_mode_can_show_console_and_fix_topdown_camera(self) -> None:
         env_source = inspect.getsource(sitl_validation._build_px4_env)
@@ -128,6 +154,7 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn("Xephyr", nested_source)
         self.assertIn('"-title"', nested_source)
         self.assertIn("SITL_NESTED_DISPLAY_TITLE", nested_source)
+        self.assertIn("_wait_for_window_by_title(SITL_NESTED_DISPLAY_TITLE, timeout_s=5.0)", nested_source)
         self.assertIn("gnome-terminal", helper_source)
         self.assertIn('--geometry={SITL_CONSOLE_COLUMNS}x{SITL_CONSOLE_ROWS}+0+0', helper_source)
         self.assertNotIn("--maximize", helper_source)
@@ -233,6 +260,19 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn(["xdotool", "windowmap", "100"], calls)
         self.assertIn(["xdotool", "windowraise", "100"], calls)
         self.assertIn(["xdotool", "windowactivate", "--sync", "100"], calls)
+
+    def test_window_exists_by_title_checks_wmctrl_then_xdotool(self) -> None:
+        wmctrl_result = mock.Mock(stdout="0x1 0 host PX4 Gazebo Nested Display\n", returncode=0)
+        with mock.patch.object(sitl_validation.shutil, "which", side_effect=lambda name: "/usr/bin/" + name):
+            with mock.patch.object(sitl_validation.subprocess, "run", return_value=wmctrl_result):
+                self.assertTrue(sitl_validation._window_exists_by_title("PX4 Gazebo Nested Display"))
+
+        def _which(name: str) -> str | None:
+            return None if name == "wmctrl" else f"/usr/bin/{name}"
+
+        with mock.patch.object(sitl_validation.shutil, "which", side_effect=_which):
+            with mock.patch.object(sitl_validation.subprocess, "run", return_value=mock.Mock(returncode=0)):
+                self.assertTrue(sitl_validation._window_exists_by_title("PX4 Gazebo Nested Display"))
 
     def test_find_free_x_display_number_skips_used_sockets_and_locks(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -191,8 +191,9 @@ reset_usb_device() {
 echo "Cleaning PX4 background services"
 collect_ancestor_pids
 
-close_windows_by_regex "px4 sitl console|px4 console|jmavsim|qgroundcontrol|gazebo"
+close_windows_by_regex "px4 sitl log|px4 sitl console|px4 console"
 close_windows_by_regex "px4 gazebo nested display"
+close_windows_by_regex "jmavsim|qgroundcontrol"
 
 graceful_stop_pattern "PX4 SITL" '/PX4-Autopilot-Identification/build/px4_sitl_default/bin/px4'
 graceful_stop_pattern "Gazebo" '(^|[[:space:]])gz sim([[:space:]]|$)'

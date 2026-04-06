@@ -555,6 +555,39 @@ def _wait_for_x_display(display: str, *, timeout_s: float = 10.0) -> bool:
     return False
 
 
+def _window_exists_by_title(title: str) -> bool:
+    if shutil.which("wmctrl"):
+        proc = subprocess.run(
+            ["wmctrl", "-lx"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if title.lower() in proc.stdout.lower():
+            return True
+
+    if shutil.which("xdotool"):
+        proc = subprocess.run(
+            ["xdotool", "search", "--name", title],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if proc.returncode == 0:
+            return True
+
+    return False
+
+
+def _wait_for_window_by_title(title: str, *, timeout_s: float = 5.0) -> bool:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if _window_exists_by_title(title):
+            return True
+        time.sleep(0.25)
+    return False
+
+
 def _start_nested_visual_display(runtime_root: Path) -> _NestedDisplaySession | None:
     xephyr = shutil.which("Xephyr")
     if xephyr is None:
@@ -603,6 +636,23 @@ def _start_nested_visual_display(runtime_root: Path) -> _NestedDisplaySession | 
         except OSError:
             pass
         raise RuntimeError(f"nested Gazebo display did not become ready on {display}\n{log_tail}")
+
+    # If the host session never gets a visible Xephyr window, fall back to the
+    # normal Gazebo GUI path instead of silently running without a visible view.
+    if not _wait_for_window_by_title(SITL_NESTED_DISPLAY_TITLE, timeout_s=5.0):
+        try:
+            process.terminate()
+        except Exception:
+            pass
+        try:
+            process.wait(timeout=2.0)
+        except Exception:
+            pass
+        try:
+            log_fp.close()
+        except Exception:
+            pass
+        return None
 
     return _NestedDisplaySession(
         display=display,
@@ -1845,18 +1895,24 @@ def main() -> int:
     trajectory_names = [item.strip() for item in args.trajectory_names.split(",") if item.strip()] or None
     model_labels = [item.strip() for item in args.model_labels.split(",") if item.strip()] or None
 
-    summary = run_validation_suite(
-        px4_root=args.px4_root,
-        out_root=args.out_root,
-        candidate_dir=args.candidate_dir,
-        trajectories=_resolve_trajectories(trajectory_names),
-        model_specs=_resolve_model_specs(model_labels),
-        sitl_esc_min=args.sitl_esc_min,
-        sitl_esc_max=args.sitl_esc_max,
-        sitl_hover_thrust=args.sitl_hover_thrust,
-        headless=not args.visual,
-        show_console=args.show_console,
-    )
+    try:
+        summary = run_validation_suite(
+            px4_root=args.px4_root,
+            out_root=args.out_root,
+            candidate_dir=args.candidate_dir,
+            trajectories=_resolve_trajectories(trajectory_names),
+            model_specs=_resolve_model_specs(model_labels),
+            sitl_esc_min=args.sitl_esc_min,
+            sitl_esc_max=args.sitl_esc_max,
+            sitl_hover_thrust=args.sitl_hover_thrust,
+            headless=not args.visual,
+            show_console=args.show_console,
+        )
+    except KeyboardInterrupt:
+        print("Interrupted; cleaning PX4/Gazebo background services.", file=sys.stderr, flush=True)
+        _cleanup_background_services()
+        return 130
+
     print(json.dumps(summary, indent=2))
     return 0
 

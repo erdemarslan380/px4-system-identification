@@ -64,6 +64,8 @@ What the cleanup does:
 - closes visible `PX4 Gazebo Nested Display` and console windows
 - stops stale `PX4 SITL`, `Gazebo`, console tail, helper, and old runner processes
 - releases common serial ports used by `HITL/QGC`
+- does not intentionally close browser windows such as `Firefox`
+- if you stop a visual run with `Ctrl+C`, the runner now also triggers the same background cleanup on exit; if a second launch still behaves oddly, run the cleanup script once manually and start again
 
 Visible stock smoke test
 ------------------------
@@ -92,6 +94,7 @@ Notes:
 - visual mode uses the fixed near top-down follow view
 - the runner already applies the required no-RC/no-GCS SITL preflight settings
 - this is the first command to use when you want to watch the motion in Gazebo
+- the runner first tries `PX4 Gazebo Nested Display`; if that window cannot become visible, it falls back to the normal host `Gazebo Sim` window
 
 Current camera default:
 
