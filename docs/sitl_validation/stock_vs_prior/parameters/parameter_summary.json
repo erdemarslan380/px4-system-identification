@@ -1,0 +1,104 @@
+{
+  "label_a": "jMAVSim prior SDF",
+  "label_b": null,
+  "candidate_a": "/home/earsub/px4-system-identification/examples/paper_assets/candidates/jmavsim_prior_v1/identified_parameters.json",
+  "candidate_b": null,
+  "rows": [
+    {
+      "label": "Mass",
+      "key": "mass_kg",
+      "unit": "kg",
+      "value_a": 0.8
+    },
+    {
+      "label": "Thrust scale",
+      "key": "thrust_scale_n_per_cmd",
+      "unit": "N/cmd",
+      "value_a": 16.0
+    },
+    {
+      "label": "Inertia X",
+      "key": "ixx_kgm2",
+      "unit": "kg*m^2",
+      "value_a": 0.005
+    },
+    {
+      "label": "Inertia Y",
+      "key": "iyy_kgm2",
+      "unit": "kg*m^2",
+      "value_a": 0.005
+    },
+    {
+      "label": "Inertia Z",
+      "key": "izz_kgm2",
+      "unit": "kg*m^2",
+      "value_a": 0.009
+    },
+    {
+      "label": "Drag X",
+      "key": "drag_x",
+      "unit": "-",
+      "value_a": 0.01
+    },
+    {
+      "label": "Drag Y",
+      "key": "drag_y",
+      "unit": "-",
+      "value_a": 0.01
+    },
+    {
+      "label": "Drag Z",
+      "key": "drag_z",
+      "unit": "-",
+      "value_a": 0.01
+    },
+    {
+      "label": "Time constant up",
+      "key": "time_constant_up_s",
+      "unit": "s",
+      "value_a": 0.005
+    },
+    {
+      "label": "Time constant down",
+      "key": "time_constant_down_s",
+      "unit": "s",
+      "value_a": 0.005
+    },
+    {
+      "label": "Max rotor velocity",
+      "key": "max_rot_velocity_radps",
+      "unit": "rad/s",
+      "value_a": 1000.0
+    },
+    {
+      "label": "Motor constant",
+      "key": "motor_constant",
+      "unit": "N/(rad/s)^2",
+      "value_a": 4e-06
+    },
+    {
+      "label": "Moment constant",
+      "key": "moment_constant",
+      "unit": "-",
+      "value_a": 0.0125
+    },
+    {
+      "label": "Rotor drag coeff",
+      "key": "rotor_drag_coefficient",
+      "unit": "-",
+      "value_a": 8.06428e-05
+    },
+    {
+      "label": "Rolling moment coeff",
+      "key": "rolling_moment_coefficient",
+      "unit": "-",
+      "value_a": 1e-06
+    },
+    {
+      "label": "Velocity slowdown",
+      "key": "rotor_velocity_slowdown_sim",
+      "unit": "-",
+      "value_a": 10.0
+    }
+  ]
+}

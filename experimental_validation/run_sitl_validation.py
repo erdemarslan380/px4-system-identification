@@ -1865,9 +1865,10 @@ def run_validation_model(
                 ref_z=hold_z,
                 yaw=hover_yaw,
             )
+            set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             session.send("custom_pos_control start")
             session.send("trajectory_reader start")
-            session.send("custom_pos_control set px4_default")
             session.send(
                 "trajectory_reader abs_ref "
                 f"{float(latest_lpos.x):.3f} "
@@ -1875,7 +1876,6 @@ def run_validation_model(
                 f"{float(latest_lpos.z):.3f} "
                 f"{hover_yaw:.3f}"
             )
-            session.send("custom_pos_control enable")
         finally:
             stream_stop.set()
             stream_thread.join(timeout=1.0)
@@ -1931,6 +1931,7 @@ def run_validation_model(
             session.expect(TRAJECTORY_DONE_TEXT, timeout_s=max(20.0, trajectory_duration_s))
             assert match is not None
             tracking_log = _find_tracking_log(run_rootfs, match.group(1))
+            copied_log = _copy_log(tracking_log, result_root / "tracking_logs" / f"{entry.name}.csv")
             tracking_metrics = _tracking_log_error_metrics(tracking_log)
             if (
                 traj_failsafe
@@ -1944,7 +1945,6 @@ def run_validation_model(
                     f"max_tilt={traj_max_tilt:.2f}deg "
                     f"failsafe={traj_failsafe}"
                 )
-            copied_log = _copy_log(tracking_log, result_root / "tracking_logs" / f"{entry.name}.csv")
             results.append(
                 {
                     "traj_id": entry.traj_id,

@@ -92,11 +92,15 @@ def _load_run(csv_path: Path, kind: str, max_points: int) -> dict[str, object]:
 
 def _find_logs(log_root: Path) -> tuple[list[Path], list[Path]]:
     tracking = sorted((log_root / "tracking_logs").glob("*.csv")) if (log_root / "tracking_logs").exists() else []
-    ident = sorted((log_root / "identification_logs").glob("*.csv")) if (log_root / "identification_logs").exists() else []
+    ident = []
+    if (log_root / "identification_logs").exists():
+        ident.extend(sorted((log_root / "identification_logs").glob("*.csv")))
+    if (log_root / "identification_traces").exists():
+        ident.extend(sorted((log_root / "identification_traces").glob("*.csv")))
 
     if not tracking and not ident:
         tracking = sorted(log_root.rglob("tracking_logs/*.csv"))
-        ident = sorted(log_root.rglob("identification_logs/*.csv"))
+        ident = sorted(log_root.rglob("identification_logs/*.csv")) + sorted(log_root.rglob("identification_traces/*.csv"))
 
     return tracking, ident
 
@@ -105,8 +109,10 @@ def _copy_raw_logs(tracking_logs: list[Path], identification_logs: list[Path], o
     raw_root = out_dir / "raw"
     tracking_out = raw_root / "tracking_logs"
     identification_out = raw_root / "identification_logs"
+    identification_trace_out = raw_root / "identification_traces"
     tracking_out.mkdir(parents=True, exist_ok=True)
     identification_out.mkdir(parents=True, exist_ok=True)
+    identification_trace_out.mkdir(parents=True, exist_ok=True)
 
     mapping: dict[str, str] = {}
     for src in tracking_logs:
@@ -114,7 +120,8 @@ def _copy_raw_logs(tracking_logs: list[Path], identification_logs: list[Path], o
         shutil.copy2(src, dst)
         mapping[str(src)] = str(dst.relative_to(out_dir))
     for src in identification_logs:
-        dst = identification_out / src.name
+        dst_dir = identification_trace_out if src.parent.name == "identification_traces" else identification_out
+        dst = dst_dir / src.name
         shutil.copy2(src, dst)
         mapping[str(src)] = str(dst.relative_to(out_dir))
     return mapping
@@ -238,7 +245,7 @@ def _build_html(bundle: dict[str, object]) -> str:
   <div class="layout">
     <aside class="sidebar">
       <h1>HITL Log Review</h1>
-      <p>Interactive 3D inspection for <code>tracking_logs</code> and <code>identification_logs</code>. Rotate, zoom, and pan directly in the browser.</p>
+      <p>Interactive 3D inspection for <code>tracking_logs</code>, <code>identification_logs</code>, and <code>identification_traces</code>. Rotate, zoom, and pan directly in the browser.</p>
       <div class="card">
         <h3>Bundle</h3>
         <p id="bundleSummary"></p>
@@ -418,7 +425,9 @@ def _build_html(bundle: dict[str, object]) -> str:
 def build_bundle(log_root: Path, out_dir: Path, max_points: int) -> dict[str, object]:
     tracking_logs, identification_logs = _find_logs(log_root)
     if not tracking_logs and not identification_logs:
-        raise FileNotFoundError(f"No tracking_logs or identification_logs CSV files found under {log_root}")
+        raise FileNotFoundError(
+            f"No tracking_logs, identification_logs, or identification_traces CSV files found under {log_root}"
+        )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     raw_map = _copy_raw_logs(tracking_logs, identification_logs, out_dir)
@@ -448,7 +457,11 @@ def build_bundle(log_root: Path, out_dir: Path, max_points: int) -> dict[str, ob
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build an interactive HITL log review bundle from SD-card CSV logs.")
-    parser.add_argument("--log-root", required=True, help="Directory containing tracking_logs/ and optionally identification_logs/.")
+    parser.add_argument(
+        "--log-root",
+        required=True,
+        help="Directory containing tracking_logs/ and optionally identification_logs/ or identification_traces/.",
+    )
     parser.add_argument("--out-dir", required=True, help="Output directory for index.html, summary.json, and copied raw CSVs.")
     parser.add_argument("--max-points", type=int, default=DEFAULT_MAX_POINTS, help="Maximum plotted samples per run after decimation.")
     args = parser.parse_args()

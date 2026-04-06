@@ -26,9 +26,9 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn("_stabilize_direct_hover(", source)
         self.assertIn("SITL_ALLOW_UNSTABLE_CUSTOM_HOLD", source)
         self.assertIn("_start_direct_setpoint_stream(", source)
-        self.assertIn('session.send("custom_pos_control set px4_default")', source)
+        self.assertIn('set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
+        self.assertIn('set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
         self.assertIn('session.send(\n                "trajectory_reader abs_ref "', source)
-        self.assertIn('session.send("custom_pos_control enable")', source)
         self.assertIn("set_offboard(mav)", source)
         self.assertIn('set_param(mav, "TRJ_POS_ABS", 0', source)
         self.assertIn('set_param(mav, "TRJ_POS_YAW", hover_yaw', source)
@@ -49,11 +49,12 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertLess(source.index("_wait_for_takeoff_hover("), source.index("_start_direct_setpoint_stream("))
         self.assertLess(source.index("_start_direct_setpoint_stream("), source.index("set_offboard(mav)"))
         self.assertLess(source.index("set_offboard(mav)"), source.index("_stabilize_direct_hover("))
+        self.assertLess(source.index("_stabilize_direct_hover("), source.rindex('set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)'))
+        self.assertLess(source.index("_stabilize_direct_hover("), source.rindex('set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)'))
         self.assertLess(source.index("_stabilize_direct_hover("), source.index('session.send("custom_pos_control start")'))
+        self.assertLess(source.rindex('set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)'), source.index('session.send("custom_pos_control start")'))
+        self.assertLess(source.rindex('set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)'), source.index('session.send("custom_pos_control start")'))
         self.assertLess(source.index('session.send("custom_pos_control start")'), source.index('session.send("trajectory_reader start")'))
-        self.assertLess(source.index('session.send("trajectory_reader start")'), source.index('session.send("custom_pos_control set px4_default")'))
-        self.assertLess(source.index("_stabilize_direct_hover("), source.index('session.send("custom_pos_control enable")'))
-        self.assertLess(source.index("set_offboard(mav)"), source.index('session.send("custom_pos_control enable")'))
         self.assertLess(source.index("_wait_for_takeoff_hover("), source.rindex('session.set_mode("POSCTL")'))
 
     def test_validation_starts_built_in_trajectory_via_params(self) -> None:
@@ -66,6 +67,8 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn('set_param(mav, "CBRK_SUPPLY_CHK", 894281, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
         self.assertIn('set_param(mav, "COM_DISARM_PRFLT", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)', source)
         self.assertIn('set_param(mav, "MAV_0_BROADCAST", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
+        self.assertIn('set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
+        self.assertIn('set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
         self.assertIn('set_param(mav, "MIS_TAKEOFF_ALT", abs(SITL_HOVER_Z), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)', source)
         self.assertIn("if not headless and SITL_QGC_DISCOVERY_GRACE_SECONDS > 0.0:", source)
         self.assertIn("time.sleep(SITL_PARAM_PROPAGATION_SECONDS)", source)
@@ -82,6 +85,10 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn('set_param(mav, "TRJ_MODE_CMD", 1', source)
         self.assertIn("entry.nominal_duration_s", source)
         self.assertIn("freeze_yaw=SITL_FREEZE_TRAJECTORY_YAW", source)
+        self.assertLess(
+            source.index('copied_log = _copy_log(tracking_log, result_root / "tracking_logs" / f"{entry.name}.csv")'),
+            source.index("tracking_metrics = _tracking_log_error_metrics(tracking_log)"),
+        )
         self.assertNotIn('session.send_no_wait("commander mode offboard")', source)
 
     def test_yaw_lock_helpers_exist_for_manual_takeoff_and_landing(self) -> None:

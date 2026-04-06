@@ -1,0 +1,152 @@
+{
+  "label_a": "jMAVSim prior SDF",
+  "label_b": "Re-identified from SITL ident",
+  "candidate_a": "/home/earsub/px4-system-identification/examples/paper_assets/candidates/jmavsim_prior_v1/identified_parameters.json",
+  "candidate_b": "/tmp/sitl_reidentified_candidate_v2_2026-04-06/identified_parameters.json",
+  "rows": [
+    {
+      "label": "Mass",
+      "key": "mass_kg",
+      "unit": "kg",
+      "value_a": 0.8,
+      "value_b": 0.8,
+      "delta_abs": 0.0,
+      "delta_pct": 0.0
+    },
+    {
+      "label": "Thrust scale",
+      "key": "thrust_scale_n_per_cmd",
+      "unit": "N/cmd",
+      "value_a": 16.0,
+      "value_b": 11.541627744624371,
+      "delta_abs": -4.458372255375629,
+      "delta_pct": -27.86482659609768
+    },
+    {
+      "label": "Inertia X",
+      "key": "ixx_kgm2",
+      "unit": "kg*m^2",
+      "value_a": 0.005,
+      "value_b": 0.005,
+      "delta_abs": 0.0,
+      "delta_pct": 0.0
+    },
+    {
+      "label": "Inertia Y",
+      "key": "iyy_kgm2",
+      "unit": "kg*m^2",
+      "value_a": 0.005,
+      "value_b": 0.005,
+      "delta_abs": 0.0,
+      "delta_pct": 0.0
+    },
+    {
+      "label": "Inertia Z",
+      "key": "izz_kgm2",
+      "unit": "kg*m^2",
+      "value_a": 0.009,
+      "value_b": 0.009,
+      "delta_abs": 0.0,
+      "delta_pct": 0.0
+    },
+    {
+      "label": "Drag X",
+      "key": "drag_x",
+      "unit": "-",
+      "value_a": 0.01,
+      "value_b": -0.044725841183519695,
+      "delta_abs": -0.0547258411835197,
+      "delta_pct": -547.258411835197
+    },
+    {
+      "label": "Drag Y",
+      "key": "drag_y",
+      "unit": "-",
+      "value_a": 0.01,
+      "value_b": -0.053264199319688996,
+      "delta_abs": -0.06326419931968899,
+      "delta_pct": -632.6419931968899
+    },
+    {
+      "label": "Drag Z",
+      "key": "drag_z",
+      "unit": "-",
+      "value_a": 0.01,
+      "value_b": -0.005290586214425538,
+      "delta_abs": -0.015290586214425538,
+      "delta_pct": -152.9058621442554
+    },
+    {
+      "label": "Time constant up",
+      "key": "time_constant_up_s",
+      "unit": "s",
+      "value_a": 0.005,
+      "value_b": 0.0125,
+      "delta_abs": 0.007500000000000001,
+      "delta_pct": 150.0
+    },
+    {
+      "label": "Time constant down",
+      "key": "time_constant_down_s",
+      "unit": "s",
+      "value_a": 0.005,
+      "value_b": 0.025,
+      "delta_abs": 0.02,
+      "delta_pct": 400.0
+    },
+    {
+      "label": "Max rotor velocity",
+      "key": "max_rot_velocity_radps",
+      "unit": "rad/s",
+      "value_a": 1000.0,
+      "value_b": 1000.0,
+      "delta_abs": 0.0,
+      "delta_pct": 0.0
+    },
+    {
+      "label": "Motor constant",
+      "key": "motor_constant",
+      "unit": "N/(rad/s)^2",
+      "value_a": 4e-06,
+      "value_b": 8.54858e-06,
+      "delta_abs": 4.54858e-06,
+      "delta_pct": 113.7145
+    },
+    {
+      "label": "Moment constant",
+      "key": "moment_constant",
+      "unit": "-",
+      "value_a": 0.0125,
+      "value_b": 0.016,
+      "delta_abs": 0.0034999999999999996,
+      "delta_pct": 27.999999999999996
+    },
+    {
+      "label": "Rotor drag coeff",
+      "key": "rotor_drag_coefficient",
+      "unit": "-",
+      "value_a": 8.06428e-05,
+      "value_b": 8.06428e-05,
+      "delta_abs": 0.0,
+      "delta_pct": 0.0
+    },
+    {
+      "label": "Rolling moment coeff",
+      "key": "rolling_moment_coefficient",
+      "unit": "-",
+      "value_a": 1e-06,
+      "value_b": 1e-06,
+      "delta_abs": 0.0,
+      "delta_pct": 0.0
+    },
+    {
+      "label": "Velocity slowdown",
+      "key": "rotor_velocity_slowdown_sim",
+      "unit": "-",
+      "value_a": 10.0,
+      "value_b": 10.0,
+      "delta_abs": 0.0,
+      "delta_pct": 0.0
+    }
+  ]
+}

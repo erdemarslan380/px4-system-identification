@@ -1,0 +1,13 @@
+{
+  "section": "prior_ident",
+  "docs_root": "/home/earsub/px4-system-identification/docs/sitl_validation",
+  "target_root": "/home/earsub/px4-system-identification/docs/sitl_validation/prior_ident",
+  "review_root": "/home/earsub/px4-system-identification/docs/sitl_validation/prior_ident/review",
+  "review_files": [
+    "index.html",
+    "raw/identification_traces/eval_00000.csv",
+    "raw/tracking_logs/run_00000.csv",
+    "summary.json"
+  ],
+  "review_index": "/home/earsub/px4-system-identification/docs/sitl_validation/prior_ident/review/index.html"
+}

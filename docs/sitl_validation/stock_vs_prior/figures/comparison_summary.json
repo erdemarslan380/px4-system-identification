@@ -1,0 +1,67 @@
+{
+  "stock_label": "Stock x500 SITL",
+  "compare_label": "jMAVSim prior SDF",
+  "compare_label_2": null,
+  "cases": {
+    "circle": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.6616304074354088,
+      "shape_rmse_stock_m": 1.06920000880686,
+      "stock_samples": 710,
+      "rmse_compare_m": 0.27701240844207986,
+      "shape_rmse_compare_m": 0.262204184224424,
+      "compare_samples": 710
+    },
+    "hairpin": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.6448965975333557,
+      "shape_rmse_stock_m": 0.543748188640011,
+      "stock_samples": 1091,
+      "rmse_compare_m": 0.3502808848176845,
+      "shape_rmse_compare_m": 0.3193574378039406,
+      "compare_samples": 1091
+    },
+    "lemniscate": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.6466937537296584,
+      "shape_rmse_stock_m": 0.5392301569608068,
+      "stock_samples": 910,
+      "rmse_compare_m": 0.5066404780698532,
+      "shape_rmse_compare_m": 0.48158122829113387,
+      "compare_samples": 910
+    },
+    "time_optimal_30s": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.3896621970274636,
+      "shape_rmse_stock_m": 0.15779519817865917,
+      "stock_samples": 378,
+      "rmse_compare_m": 0.2833440856562581,
+      "shape_rmse_compare_m": 0.17630361125170818,
+      "compare_samples": 378
+    },
+    "minimum_snap_50s": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.5138488387112233,
+      "shape_rmse_stock_m": 0.35949148537370484,
+      "stock_samples": 535,
+      "rmse_compare_m": 0.5065301348804044,
+      "shape_rmse_compare_m": 0.39712286363292304,
+      "compare_samples": 535
+    }
+  },
+  "figures": {
+    "group_1_circle_hairpin_lemniscate": {
+      "png": "/tmp/sitl_stock_vs_prior_figures_2026-04-06/group_1_circle_hairpin_lemniscate.png",
+      "svg": "/tmp/sitl_stock_vs_prior_figures_2026-04-06/group_1_circle_hairpin_lemniscate.svg"
+    },
+    "group_2_time_optimal_minimum_snap": {
+      "png": "/tmp/sitl_stock_vs_prior_figures_2026-04-06/group_2_time_optimal_minimum_snap.png",
+      "svg": "/tmp/sitl_stock_vs_prior_figures_2026-04-06/group_2_time_optimal_minimum_snap.svg"
+    }
+  }
+}

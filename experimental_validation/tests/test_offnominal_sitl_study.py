@@ -207,6 +207,8 @@ class OffnominalSitlStudyTest(unittest.TestCase):
         self.assertIn('observe_hold_phase(', source)
         self.assertIn('session.set_mode("POSCTL")', source)
         self.assertIn('_land_in_posctl_with_manual_control(', source)
+        self.assertIn('Post-ident teardown gate bypassed for {profile}', source)
+        self.assertIn('results[-1]["post_ident_error"] = post_ident_error', source)
         self.assertIn('hover_yaw = _capture_locked_yaw(mav)', source)
         self.assertIn('_apply_x500_esc_scaling(session, min_value=sitl_esc_min, max_value=sitl_esc_max)', source)
 
@@ -217,7 +219,8 @@ class OffnominalSitlStudyTest(unittest.TestCase):
         self.assertLess(source.index('set_offboard(mav)'),
                         source.index('session.send("trajectory_reader start")'))
         self.assertLess(source.index('set_offboard(mav)'),
-                        source.index('session.send("custom_pos_control enable")'))
+                        source.index('set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)'))
+        self.assertIn('set_param(mav, "CST_POS_CTRL_TYP", 6, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
 
     def test_figure_builder_uses_error_colormaps_for_both_series(self) -> None:
         source = inspect.getsource(study.build_offnominal_figures)

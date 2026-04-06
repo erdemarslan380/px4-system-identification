@@ -1,0 +1,39 @@
+{
+  "section": "three_model",
+  "docs_root": "/home/earsub/px4-system-identification/docs/sitl_validation",
+  "target_root": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model",
+  "figures_root": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/figures",
+  "figure_files": [
+    "comparison_summary.json",
+    "group_1_circle_hairpin_lemniscate.png",
+    "group_1_circle_hairpin_lemniscate.svg",
+    "group_2_time_optimal_minimum_snap.png",
+    "group_2_time_optimal_minimum_snap.svg"
+  ],
+  "review_root": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/review",
+  "review_files": [
+    "index.html",
+    "raw/jmavsim_prior_sdf/circle.csv",
+    "raw/jmavsim_prior_sdf/hairpin.csv",
+    "raw/jmavsim_prior_sdf/lemniscate.csv",
+    "raw/jmavsim_prior_sdf/minimum_snap_50s.csv",
+    "raw/jmavsim_prior_sdf/time_optimal_30s.csv",
+    "raw/re_identified_from_sitl_ident/circle.csv",
+    "raw/re_identified_from_sitl_ident/hairpin.csv",
+    "raw/re_identified_from_sitl_ident/lemniscate.csv",
+    "raw/re_identified_from_sitl_ident/minimum_snap_50s.csv",
+    "raw/re_identified_from_sitl_ident/time_optimal_30s.csv",
+    "raw/stock/circle.csv",
+    "raw/stock/hairpin.csv",
+    "raw/stock/lemniscate.csv",
+    "raw/stock/minimum_snap_50s.csv",
+    "raw/stock/time_optimal_30s.csv",
+    "summary.json"
+  ],
+  "review_index": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/review/index.html",
+  "parameter_root": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/parameters",
+  "parameter_files": [
+    "parameter_summary.json",
+    "parameter_summary.md"
+  ]
+}

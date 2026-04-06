@@ -56,6 +56,47 @@ class HitlReviewBundleTests(unittest.TestCase):
             self.assertIn("raw/tracking_logs/id_100_run.csv", (out_dir / "index.html").read_text(encoding="utf-8"))
             self.assertIn("Plotly.newPlot('plot3d'", (out_dir / "index.html").read_text(encoding="utf-8"))
 
+    def test_build_bundle_accepts_identification_traces(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            log_root = tmp / "suite_case"
+            tracking_dir = log_root / "tracking_logs"
+            identification_dir = log_root / "identification_traces"
+            tracking_dir.mkdir(parents=True)
+            identification_dir.mkdir(parents=True)
+
+            (tracking_dir / "run_00000.csv").write_text(
+                "\n".join(
+                    [
+                        "timestamp_us,ref_x,ref_y,ref_z,pos_x,pos_y,pos_z,controller",
+                        "0,0,0,-3,0,0,-3,px4_default",
+                        "1000000,1,0,-3,1,0,-3,px4_default",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            trace_csv = identification_dir / "eval_00000.csv"
+            trace_csv.write_text(
+                "\n".join(
+                    [
+                        "timestamp_us,profile,ref_x,ref_y,ref_z,pos_x,pos_y,pos_z,controller",
+                        "0,drag_x,0,0,-3,0,0,-3,sysid",
+                        "500000,drag_x,0.3,0,-3,0.27,0,-3.02,sysid",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            out_dir = tmp / "review_bundle"
+            bundle = build_bundle(log_root, out_dir, max_points=100)
+
+            self.assertEqual(len(bundle["runs"]), 2)
+            self.assertTrue((out_dir / "raw" / "identification_traces" / trace_csv.name).exists())
+            self.assertIn(
+                "identification_traces",
+                (out_dir / "index.html").read_text(encoding="utf-8"),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

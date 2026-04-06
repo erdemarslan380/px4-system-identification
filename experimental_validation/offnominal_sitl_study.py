@@ -397,10 +397,10 @@ def run_validation_with_assets(
             assert session._mav is not None
             mav = session._mav
             session.send("param set MIS_TAKEOFF_ALT 5.0")
+            set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             session.send("custom_pos_control start")
             session.send("trajectory_reader start")
-            session.send("custom_pos_control set px4_default")
-            session.send("custom_pos_control enable")
             session.send("trajectory_reader set_mode position")
             session.expect("Ready for takeoff!", timeout_s=30)
             ground_state = session.sample_local_position()
@@ -627,9 +627,10 @@ def run_identification_with_assets(
                     ref_z=common_anchor[2],
                     yaw=hover_yaw,
                 )
+                set_param(mav, "CST_POS_CTRL_TYP", 6, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+                set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
                 session.send("custom_pos_control start")
                 session.send("trajectory_reader start")
-                session.send("custom_pos_control set sysid")
                 session.send("trajectory_reader set_mode position")
                 session.send(
                     "trajectory_reader abs_ref "
@@ -638,7 +639,6 @@ def run_identification_with_assets(
                     f"{float(latest_lpos.z):.3f} "
                     f"{hover_yaw:.3f}"
                 )
-                session.send("custom_pos_control enable")
             finally:
                 stream_stop.set()
                 stream_thread.join(timeout=1.0)
@@ -706,23 +706,30 @@ def run_identification_with_assets(
                     "console_log": str((run_rootfs / "px4_console.log").resolve()),
                 }
             )
-            session.send("trajectory_reader set_mode position")
-            session.send(
-                "trajectory_reader abs_ref "
-                f"{common_anchor[0]:.3f} {common_anchor[1]:.3f} {common_anchor[2]:.3f} {hover_yaw:.3f}"
-            )
-            session.wait_until_position(common_anchor, xy_tol_m=0.28, z_tol_m=0.28, timeout_s=20.0)
-            manual_control.update(x=0, y=0, z=500, r=0)
-            time.sleep(1.0)
-            session.set_mode("POSCTL")
-            set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-            set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-            _land_in_posctl_with_manual_control(
-                mav,
-                manual_control=manual_control,
-                ground_z_m=ground_anchor[2],
-                target_yaw=hover_yaw,
-            )
+            post_ident_error: str | None = None
+            try:
+                session.send("trajectory_reader set_mode position")
+                session.send(
+                    "trajectory_reader abs_ref "
+                    f"{common_anchor[0]:.3f} {common_anchor[1]:.3f} {common_anchor[2]:.3f} {hover_yaw:.3f}"
+                )
+                session.wait_until_position(common_anchor, xy_tol_m=0.28, z_tol_m=0.28, timeout_s=20.0)
+                manual_control.update(x=0, y=0, z=500, r=0)
+                time.sleep(1.0)
+                session.set_mode("POSCTL")
+                set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+                set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+                _land_in_posctl_with_manual_control(
+                    mav,
+                    manual_control=manual_control,
+                    ground_z_m=ground_anchor[2],
+                    target_yaw=hover_yaw,
+                )
+            except Exception as exc:
+                post_ident_error = str(exc)
+                print(f"Post-ident teardown gate bypassed for {profile}: {post_ident_error}", flush=True)
+            if post_ident_error is not None:
+                results[-1]["post_ident_error"] = post_ident_error
         finally:
             if manual_control is not None:
                 manual_control.stop()

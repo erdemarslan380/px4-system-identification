@@ -57,7 +57,8 @@ class BuildSitlTrajectoryReviewBundleTests(unittest.TestCase):
             self.assertTrue((out_dir / "index.html").exists())
             self.assertTrue((out_dir / "summary.json").exists())
             html = (out_dir / "index.html").read_text(encoding="utf-8")
-            self.assertIn("Plotly.newPlot('plot3d'", html)
+            self.assertIn("progressSlider", html)
+            self.assertIn("Track target", html)
             self.assertIn("Stock x500 SITL", html)
             self.assertEqual(len(bundle["cases"]), 5)
 

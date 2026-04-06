@@ -17,6 +17,17 @@ The workflow is intentionally visual-first:
 8. watch the visible `5/5` validation suite for the re-identified model
 9. build the final four-layer figures and pin them into `docs/sitl_validation`
 
+README rendering notes
+----------------------
+Two kinds of links are kept in this document:
+
+- local repo links such as `docs/sitl_validation/.../index.html`
+- GitHub-rendered HTML links served through `rawcdn.githack.com`
+
+The local links are best when you inspect the repo on the same machine.
+The rendered links are best when you inspect the same README from GitHub and
+want the HTML review to open directly instead of showing the file contents.
+
 Fixed project rules
 -------------------
 These are intentionally stable and should not be changed between tests:
@@ -172,7 +183,18 @@ Pinned docs outputs after the publish step:
 
 - [Stock grouped PNG 1](docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png)
 - [Stock grouped PNG 2](docs/sitl_validation/stock/figures/group_2_time_optimal_minimum_snap.png)
-- <a href="docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open stock interactive 3D review in a new tab</a>
+- <a href="docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open local stock interactive review</a>
+- <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open rendered stock interactive review from GitHub</a>
+
+Embedded stock figures:
+
+<a href="docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png" target="_blank" rel="noopener">
+  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png" alt="Stock grouped figure 1" style="max-width:100%; border-radius:14px;" />
+</a>
+
+<a href="docs/sitl_validation/stock/figures/group_2_time_optimal_minimum_snap.png" target="_blank" rel="noopener">
+  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock/figures/group_2_time_optimal_minimum_snap.png" alt="Stock grouped figure 2" style="max-width:100%; border-radius:14px;" />
+</a>
 
 Prepare the jMAVSim-prior SDF
 -----------------------------
@@ -233,6 +255,44 @@ python3 experimental_validation/publish_sitl_docs_assets.py \
 Pinned docs outputs after the publish step:
 
 - [jMAVSim prior parameter table](docs/sitl_validation/jmavsim_prior_parameters/parameters/parameter_summary.md)
+
+Legacy old-ident candidate snapshot
+-----------------------------------
+This is the older `HITL`-driven candidate that was tested before the current
+`jMAVSim`-prior and `SITL re-identification` flow. It is kept in the README so
+the parameter story grows in layers instead of hiding the older attempt.
+
+Source candidate:
+
+- `experimental_validation/outputs/x500_candidate_from_current_hil_ident/identified_parameters.json`
+
+Important note:
+
+- this older candidate is **not** used in the final Gazebo validation figures
+- the reason is physical invalidity in its inertia terms:
+  `Izz > Ixx + Iyy`
+- because of that, it is shown here as a comparison table, not as a trusted
+  flight model
+
+`jMAVSim prior` vs `old ident` parameter table:
+
+| Parameter | Unit | jMAVSim prior | Old ident |
+|---|---:|---:|---:|
+| Mass | kg | 0.8 | 1.0 |
+| Inertia X | kg*m^2 | 0.005 | 0.011913 |
+| Inertia Y | kg*m^2 | 0.005 | 3.170203e-08 |
+| Inertia Z | kg*m^2 | 0.009 | 0.163773 |
+| Drag X | - | 0.01 | 0 |
+| Drag Y | - | 0.01 | 0 |
+| Drag Z | - | 0.01 | 0 |
+| Time constant up | s | 0.005 | 0 |
+| Time constant down | s | 0.005 | 0 |
+| Max rotor velocity | rad/s | 1000 | 0 |
+| Motor constant | N/(rad/s)^2 | 4.000000e-06 | 0 |
+| Moment constant | - | 0.0125 | 0 |
+| Rotor drag coefficient | - | 8.064280e-05 | 0 |
+| Rolling moment coefficient | - | 1.000000e-06 | 0 |
+| Rotor velocity slowdown | - | 10 | 0 |
 
 jMAVSim-prior 5-trajectory validation set
 -----------------------------------------
@@ -312,8 +372,19 @@ Pinned docs outputs after the publish step:
 
 - [Stock vs prior grouped PNG 1](docs/sitl_validation/stock_vs_prior/figures/group_1_circle_hairpin_lemniscate.png)
 - [Stock vs prior grouped PNG 2](docs/sitl_validation/stock_vs_prior/figures/group_2_time_optimal_minimum_snap.png)
-- <a href="docs/sitl_validation/stock_vs_prior/review/index.html" target="_blank" rel="noopener">Open stock vs prior interactive 3D review in a new tab</a>
+- <a href="docs/sitl_validation/stock_vs_prior/review/index.html" target="_blank" rel="noopener">Open local stock vs prior interactive review</a>
+- <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock_vs_prior/review/index.html" target="_blank" rel="noopener">Open rendered stock vs prior interactive review from GitHub</a>
 - [Pinned prior parameter table](docs/sitl_validation/stock_vs_prior/parameters/parameter_summary.md)
+
+Embedded stock vs prior figures:
+
+<a href="docs/sitl_validation/stock_vs_prior/figures/group_1_circle_hairpin_lemniscate.png" target="_blank" rel="noopener">
+  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock_vs_prior/figures/group_1_circle_hairpin_lemniscate.png" alt="Stock vs prior grouped figure 1" style="max-width:100%; border-radius:14px;" />
+</a>
+
+<a href="docs/sitl_validation/stock_vs_prior/figures/group_2_time_optimal_minimum_snap.png" target="_blank" rel="noopener">
+  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock_vs_prior/figures/group_2_time_optimal_minimum_snap.png" alt="Stock vs prior grouped figure 2" style="max-width:100%; border-radius:14px;" />
+</a>
 
 jMAVSim-prior 9-profile SITL identification suite
 -------------------------------------------------
@@ -364,7 +435,14 @@ python3 experimental_validation/publish_sitl_docs_assets.py \
 
 Pinned docs outputs after the publish step:
 
-- <a href="docs/sitl_validation/prior_ident/review/index.html" target="_blank" rel="noopener">Open prior ident interactive review in a new tab</a>
+- <a href="docs/sitl_validation/prior_ident/review/index.html" target="_blank" rel="noopener">Open local prior ident interactive review</a>
+- <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/prior_ident/review/index.html" target="_blank" rel="noopener">Open rendered prior ident interactive review from GitHub</a>
+
+Review notes:
+
+- the bundle includes all `9` identification profiles
+- each profile contributes both a `tracking` trace and an `identification` trace
+- the interactive review therefore shows `18` selectable runs in total
 
 Build a new candidate from the SITL ident logs
 ----------------------------------------------
@@ -401,6 +479,26 @@ python3 experimental_validation/publish_sitl_docs_assets.py \
 Pinned docs outputs after the publish step:
 
 - [Prior vs re-identified parameter comparison](docs/sitl_validation/reidentified_parameters/parameters/parameter_summary.md)
+
+`jMAVSim prior` vs `old ident` vs `new SITL ident` parameter table:
+
+| Parameter | Unit | jMAVSim prior | Old ident | New SITL ident |
+|---|---:|---:|---:|---:|
+| Mass | kg | 0.8 | 1.0 | 0.8 |
+| Inertia X | kg*m^2 | 0.005 | 0.011913 | 0.005 |
+| Inertia Y | kg*m^2 | 0.005 | 3.170203e-08 | 0.005 |
+| Inertia Z | kg*m^2 | 0.009 | 0.163773 | 0.009 |
+| Drag X | - | 0.01 | 0 | -0.044726 |
+| Drag Y | - | 0.01 | 0 | -0.053264 |
+| Drag Z | - | 0.01 | 0 | -0.005291 |
+| Time constant up | s | 0.005 | 0 | 0.0125 |
+| Time constant down | s | 0.005 | 0 | 0.025 |
+| Max rotor velocity | rad/s | 1000 | 0 | 1000 |
+| Motor constant | N/(rad/s)^2 | 4.000000e-06 | 0 | 8.548580e-06 |
+| Moment constant | - | 0.0125 | 0 | 0.016 |
+| Rotor drag coefficient | - | 8.064280e-05 | 0 | 8.064280e-05 |
+| Rolling moment coefficient | - | 1.000000e-06 | 0 | 1.000000e-06 |
+| Rotor velocity slowdown | - | 10 | 0 | 10 |
 
 Prepare the re-identified SDF
 -----------------------------
@@ -502,8 +600,32 @@ Pinned docs outputs after the publish step:
 
 - [Final grouped PNG 1](docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png)
 - [Final grouped PNG 2](docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png)
-- <a href="docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open final interactive 3D review in a new tab</a>
+- <a href="docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open local final interactive review</a>
+- <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open rendered final interactive review from GitHub</a>
 - [Pinned prior vs re-identified parameter comparison](docs/sitl_validation/three_model/parameters/parameter_summary.md)
+
+Embedded final figures:
+
+<a href="docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png" target="_blank" rel="noopener">
+  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png" alt="Final grouped figure 1" style="max-width:100%; border-radius:14px;" />
+</a>
+
+<a href="docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png" target="_blank" rel="noopener">
+  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png" alt="Final grouped figure 2" style="max-width:100%; border-radius:14px;" />
+</a>
+
+Final 4-layer RMSE summary
+--------------------------
+This is the final trajectory-level scoreboard using the four visible layers in
+the grouped figures:
+
+| Trajectory | Stock RMSE [m] | jMAVSim prior RMSE [m] | Re-identified RMSE [m] |
+|---|---:|---:|---:|
+| Circle | 0.6616 | 0.2770 | 1.4062 |
+| Hairpin | 0.6449 | 0.3503 | 0.5630 |
+| Lemniscate | 0.6467 | 0.5066 | 0.5878 |
+| Time optimal 30 s | 0.3897 | 0.2833 | 0.3048 |
+| Minimum snap 50 s | 0.5138 | 0.5065 | 0.5136 |
 
 One-command shortcut
 --------------------

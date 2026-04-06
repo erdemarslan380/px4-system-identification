@@ -35,6 +35,11 @@ def _copy(path: Path, dst: Path) -> str:
     return str(dst.resolve())
 
 
+def _saved_case_log(case_root: Path, model_label: str, case_name: str) -> Path | None:
+    path = case_root / model_label / "tracking_logs" / f"{case_name}.csv"
+    return path if path.exists() else None
+
+
 def collect_tracking_dataset(
     *,
     px4_root: str | Path,
@@ -101,10 +106,14 @@ def collect_tracking_dataset(
                 f"[{case_index}/{len(trajectories)}] Finished with gate/error: {entry.name}: {error_text}",
                 flush=True,
             )
-            run_rootfs = case_root / "runtime" / model_spec.label / "rootfs"
-            latest = _latest_tracking_log(run_rootfs)
-            if latest is not None:
-                copied_log = _copy(latest, tracking_root / f"{entry.name}.csv")
+            saved = _saved_case_log(case_root, model_spec.label, entry.name)
+            if saved is not None:
+                copied_log = _copy(saved, tracking_root / f"{entry.name}.csv")
+            else:
+                run_rootfs = case_root / "runtime" / model_spec.label / "rootfs"
+                latest = _latest_tracking_log(run_rootfs)
+                if latest is not None:
+                    copied_log = _copy(latest, tracking_root / f"{entry.name}.csv")
 
         cases.append(
             {

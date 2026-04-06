@@ -1,0 +1,10 @@
+{
+  "section": "reidentified_parameters",
+  "docs_root": "/home/earsub/px4-system-identification/docs/sitl_validation",
+  "target_root": "/home/earsub/px4-system-identification/docs/sitl_validation/reidentified_parameters",
+  "parameter_root": "/home/earsub/px4-system-identification/docs/sitl_validation/reidentified_parameters/parameters",
+  "parameter_files": [
+    "parameter_summary.json",
+    "parameter_summary.md"
+  ]
+}
