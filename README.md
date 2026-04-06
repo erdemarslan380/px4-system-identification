@@ -32,7 +32,7 @@ Important limitation:
 
 - GitHub does not execute repo HTML files directly from normal file links, so a plain `index.html` repo link may still show source or download behavior
 - for a guaranteed rendered local view, start the local docs server once and then open the review URLs through `http://127.0.0.1:8765/...`
-- the generated review bundles now ship with a local `plotly-2.35.2.min.js`, so opening the `index.html` file directly in a browser also works
+- the generated review bundles are now self-contained single HTML files with inline Plotly and embedded CSV downloads, so opening the `index.html` file directly in a browser also works
 
 One-command local docs server:
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import math
 import re
@@ -37,11 +38,9 @@ class DatasetSpec:
     dash: str
 
 
-def _prepare_plotly_asset(out_dir: Path) -> str:
+def _plotly_script_tag() -> str:
     if PLOTLY_ASSET_PATH.exists():
-        target = out_dir / PLOTLY_ASSET_NAME
-        shutil.copy2(PLOTLY_ASSET_PATH, target)
-        return f'<script src="{PLOTLY_ASSET_NAME}"></script>'
+        return f"<script>{PLOTLY_ASSET_PATH.read_text(encoding='utf-8')}</script>"
     return '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
 
 
@@ -104,6 +103,7 @@ def _dataset_payload(case: str, spec: DatasetSpec, *, out_dir: Path, max_points:
 
     rel_raw = Path("raw") / spec.key / f"{case}.csv"
     _copy_raw_csv(csv_path, out_dir / rel_raw)
+    csv_b64 = base64.b64encode(csv_path.read_bytes()).decode("ascii")
 
     return {
         "key": spec.key,
@@ -111,6 +111,8 @@ def _dataset_payload(case: str, spec: DatasetSpec, *, out_dir: Path, max_points:
         "color": spec.color,
         "dash": spec.dash,
         "csv": str(rel_raw),
+        "csv_name": csv_path.name,
+        "csv_b64": csv_b64,
         "samples": len(ref_trimmed),
         "rmse_m": rmse_raw,
         "shape_rmse_m": shape_rmse,
@@ -479,6 +481,10 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       return `dx=${{fmt(values[0], 3)}} dy=${{fmt(values[1], 3)}} dz=${{fmt(values[2], 3)}}`;
     }}
 
+    function csvHref(csvB64) {{
+      return csvB64 ? `data:text/csv;base64,${{csvB64}}` : '#';
+    }}
+
     function buildLayers(caseData) {{
       const referenceLayer = {{
         key: 'reference',
@@ -494,6 +500,8 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
         progress: caseData.reference_progress,
         error_xyz: caseData.reference_plot.map(() => [0, 0, 0]),
         error_norm_m: caseData.reference_plot.map(() => 0),
+        csv_name: '',
+        csv_b64: '',
       }};
       return [referenceLayer].concat(caseData.datasets.map((dataset) => ({{
         key: dataset.key,
@@ -509,6 +517,8 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
         progress: dataset.progress,
         error_xyz: dataset.error_xyz,
         error_norm_m: dataset.error_norm_m,
+        csv_name: dataset.csv_name,
+        csv_b64: dataset.csv_b64,
       }})));
     }}
 
@@ -717,8 +727,9 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       selectionErrorVec.textContent = fmtErrorVec(selected.errorVec);
       progressLabel.textContent = `${{fmt(100.0 * selected.progress, 1)}}%`;
       currentCsvLink.style.display = target.csv ? 'inline-flex' : 'none';
-      currentCsvLink.href = target.csv || '#';
-      currentCsvLink.textContent = target.csv ? `Open ${{target.label}} raw CSV` : 'Reference has no raw CSV';
+      currentCsvLink.href = target.csv_b64 ? csvHref(target.csv_b64) : '#';
+      currentCsvLink.download = target.csv_name || '';
+      currentCsvLink.textContent = target.csv_b64 ? `Open ${{target.label}} raw CSV` : 'Reference has no raw CSV';
     }}
 
     function render(caseData) {{
@@ -745,7 +756,7 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
           <td>${{fmt(dataset.rmse_m)}}</td>
           <td>${{fmt(dataset.shape_rmse_m)}}</td>
           <td>${{dataset.samples}}</td>
-          <td><a href="${{dataset.csv}}" target="_blank" rel="noopener"><code>${{dataset.csv}}</code></a></td>
+          <td><a href="${{csvHref(dataset.csv_b64)}}" download="${{dataset.csv_name}}" target="_blank" rel="noopener"><code>${{dataset.csv_name}}</code></a></td>
         `;
         datasetRows.appendChild(row);
       }});
@@ -830,7 +841,7 @@ def build_bundle(
         raise ValueError("second comparison dataset requires the first comparison dataset")
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    plotly_script = _prepare_plotly_asset(out_dir)
+    plotly_script = _plotly_script_tag()
 
     datasets = [
         DatasetSpec(key="stock", label=stock_label, root=stock_root, color="#1f77b4", dash="solid"),

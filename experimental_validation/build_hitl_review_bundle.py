@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import json
 import math
@@ -15,11 +16,9 @@ PLOTLY_ASSET_NAME = "plotly-2.35.2.min.js"
 PLOTLY_ASSET_PATH = Path(__file__).resolve().parent / "assets" / PLOTLY_ASSET_NAME
 
 
-def _prepare_plotly_asset(out_dir: Path) -> str:
+def _plotly_script_tag() -> str:
     if PLOTLY_ASSET_PATH.exists():
-        target = out_dir / PLOTLY_ASSET_NAME
-        shutil.copy2(PLOTLY_ASSET_PATH, target)
-        return f'<script src="{PLOTLY_ASSET_NAME}"></script>'
+        return f"<script>{PLOTLY_ASSET_PATH.read_text(encoding='utf-8')}</script>"
     return '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
 
 
@@ -113,6 +112,8 @@ def _load_run(csv_path: Path, kind: str, max_points: int) -> dict[str, object]:
         "name": _run_display_name(csv_path, kind, profile),
         "kind": kind,
         "source_csv": str(csv_path),
+        "csv_name": csv_path.name,
+        "csv_b64": base64.b64encode(csv_path.read_bytes()).decode("ascii"),
         "controller": controller,
         "profile": profile,
         "duration_s": duration_s,
@@ -349,6 +350,10 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       return `${{Number(value).toFixed(digits)}}${{suffix}}`;
     }}
 
+    function csvHref(csvB64) {{
+      return csvB64 ? `data:text/csv;base64,${{csvB64}}` : '#';
+    }}
+
     function render(run) {{
       runTitle.textContent = run.name;
       runSubtitle.textContent = run.profile
@@ -358,7 +363,9 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       metaRows.textContent = String(run.num_rows);
       metaDuration.textContent = fmt(run.duration_s, 2, ' s');
       metaRmse.textContent = run.rmse_position_m === null ? 'n/a' : fmt(run.rmse_position_m, 3, ' m');
-      rawCsvPath.innerHTML = `Raw file: <code>${{run.bundle_csv}}</code>`;
+      rawCsvPath.innerHTML = run.csv_b64
+        ? `Raw file: <a href="${{csvHref(run.csv_b64)}}" download="${{run.csv_name}}" target="_blank" rel="noopener"><code>${{run.csv_name}}</code></a>`
+        : `Raw file: <code>${{run.bundle_csv}}</code>`;
 
       const refX = [];
       const refY = [];
@@ -478,7 +485,7 @@ def build_bundle(log_root: Path, out_dir: Path, max_points: int) -> dict[str, ob
         )
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    plotly_script = _prepare_plotly_asset(out_dir)
+    plotly_script = _plotly_script_tag()
     raw_map = _copy_raw_logs(tracking_logs, identification_logs, out_dir, log_root=log_root)
 
     runs = []

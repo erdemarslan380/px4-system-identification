@@ -61,9 +61,11 @@ class BuildSitlTrajectoryReviewBundleTests(unittest.TestCase):
             self.assertIn("Track target", html)
             self.assertIn("Trajectory Switcher", html)
             self.assertIn("caseTabs", html)
-            self.assertIn('src="plotly-2.35.2.min.js"', html)
+            self.assertNotIn('src="plotly-2.35.2.min.js"', html)
+            self.assertNotIn('<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>', html)
+            self.assertIn("data:text/csv;base64,", html)
             self.assertIn("Stock x500 SITL", html)
-            self.assertTrue((out_dir / "plotly-2.35.2.min.js").exists())
+            self.assertFalse((out_dir / "plotly-2.35.2.min.js").exists())
             self.assertEqual(len(bundle["cases"]), 5)
 
     def test_build_bundle_supports_three_datasets(self) -> None:
