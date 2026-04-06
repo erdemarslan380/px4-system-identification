@@ -91,6 +91,7 @@ Notes:
 - the console window is a live log viewer, not an interactive `pxh>` shell
 - visual mode uses the fixed near top-down follow view
 - the runner already applies the required no-RC/no-GCS SITL preflight settings
+- this is the first command to use when you want to watch the motion in Gazebo
 
 Current camera default:
 
@@ -109,6 +110,9 @@ make px4_sitl gz_x500
 Stock 5-trajectory validation set
 ---------------------------------
 This collects one tracking CSV per validation trajectory for the stock `x500`.
+
+If you want to watch the stock vehicle in Gazebo before running the full `5/5`
+set, use the visible smoke command above first.
 
 ```bash
 cd ~/px4-system-identification
@@ -149,6 +153,23 @@ Installed model paths:
 jMAVSim-prior 5-trajectory validation set
 -----------------------------------------
 The dataset collector now supports custom model labels and Gazebo model names.
+
+Visible `jMAVSim`-prior smoke test:
+
+```bash
+cd ~/px4-system-identification
+./examples/cleanup_px4_background_services.sh
+
+python3 experimental_validation/collect_sitl_tracking_dataset.py \
+  --candidate-dir examples/paper_assets/candidates/jmavsim_prior_v1 \
+  --model-label jmavsim_prior_sitl \
+  --gz-model x500_ident_matrix_prior \
+  --display-name "jMAVSim prior SDF" \
+  --trajectory-names circle \
+  --visual \
+  --show-console \
+  --out-root /tmp/sitl_jmavsim_prior_visual
+```
 
 ```bash
 cd ~/px4-system-identification
@@ -232,6 +253,23 @@ python3 experimental_validation/prepare_identified_model.py \
 
 Re-identified 5-trajectory validation set
 -----------------------------------------
+Visible re-identified smoke test:
+
+```bash
+cd ~/px4-system-identification
+./examples/cleanup_px4_background_services.sh
+
+python3 experimental_validation/collect_sitl_tracking_dataset.py \
+  --candidate-dir /tmp/sitl_reidentified_candidate \
+  --model-label reidentified_sitl \
+  --gz-model x500_ident_matrix_reidentified \
+  --display-name "Re-identified from SITL ident" \
+  --trajectory-names circle \
+  --visual \
+  --show-console \
+  --out-root /tmp/sitl_reidentified_visual
+```
+
 ```bash
 cd ~/px4-system-identification
 ./examples/cleanup_px4_background_services.sh
@@ -260,6 +298,13 @@ This overlays:
 - `jMAVSim`-prior SDF
 - re-identified SDF
 
+So each panel contains four curve layers in total:
+
+1. reference
+2. stock SITL result
+3. prior-SDF SITL result
+4. re-identified-SDF SITL result
+
 ```bash
 cd ~/px4-system-identification
 
@@ -277,6 +322,16 @@ Outputs:
 - `/tmp/sitl_three_model_figures/group_1_circle_hairpin_lemniscate.png`
 - `/tmp/sitl_three_model_figures/group_2_time_optimal_minimum_snap.png`
 - `/tmp/sitl_three_model_figures/comparison_summary.json`
+
+Figure interpretation:
+
+- the dashed black curve is the reference trajectory
+- the blue curve is the stock `x500` SITL result
+- the orange curve is the `jMAVSim`-prior SDF SITL result
+- the purple curve is the re-identified SDF SITL result
+- the title of each panel prints raw reference-frame `RMSE` for the three simulated curves
+- the reference itself has no RMSE entry because it is the target signal
+- the color bars still show along-path shape error, not the title RMSE
 
 One-command shortcut
 --------------------
@@ -298,6 +353,12 @@ This command:
 - builds the re-identified candidate
 - collects all three validation datasets
 - writes the final PNG figures and summary JSON
+
+Important:
+
+- this full-matrix command is meant for dataset production
+- for motion inspection in Gazebo, use the visible smoke commands first
+- do not rely on the headless full matrix when the goal is to visually inspect flight behavior
 
 Useful checks after each step
 -----------------------------
