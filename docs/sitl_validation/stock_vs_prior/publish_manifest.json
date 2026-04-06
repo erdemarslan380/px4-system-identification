@@ -5,6 +5,7 @@
   "review_root": "/home/earsub/px4-system-identification/docs/sitl_validation/stock_vs_prior/review",
   "review_files": [
     "index.html",
+    "plotly-2.35.2.min.js",
     "raw/jmavsim_prior_sdf/circle.csv",
     "raw/jmavsim_prior_sdf/hairpin.csv",
     "raw/jmavsim_prior_sdf/lemniscate.csv",

@@ -55,6 +55,8 @@ class HitlReviewBundleTests(unittest.TestCase):
             self.assertEqual(len(summary["runs"]), 2)
             self.assertIn("raw/tracking_logs/id_100_run.csv", (out_dir / "index.html").read_text(encoding="utf-8"))
             self.assertIn("Plotly.newPlot('plot3d'", (out_dir / "index.html").read_text(encoding="utf-8"))
+            self.assertIn('src="plotly-2.35.2.min.js"', (out_dir / "index.html").read_text(encoding="utf-8"))
+            self.assertTrue((out_dir / "plotly-2.35.2.min.js").exists())
 
     def test_build_bundle_accepts_identification_traces(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

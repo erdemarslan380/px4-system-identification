@@ -24,6 +24,8 @@ from experimental_validation.trajectory_comparison_figures import (
 
 DEFAULT_MAX_POINTS = 1800
 REF_COLOR = "#222222"
+PLOTLY_ASSET_NAME = "plotly-2.35.2.min.js"
+PLOTLY_ASSET_PATH = Path(__file__).resolve().parent / "assets" / PLOTLY_ASSET_NAME
 
 
 @dataclass(frozen=True)
@@ -35,13 +37,12 @@ class DatasetSpec:
     dash: str
 
 
-def _plotly_script_tag() -> str:
-    try:
-        from plotly.offline import get_plotlyjs
-
-        return f"<script>{get_plotlyjs()}</script>"
-    except Exception:
-        return '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
+def _prepare_plotly_asset(out_dir: Path) -> str:
+    if PLOTLY_ASSET_PATH.exists():
+        target = out_dir / PLOTLY_ASSET_NAME
+        shutil.copy2(PLOTLY_ASSET_PATH, target)
+        return f'<script src="{PLOTLY_ASSET_NAME}"></script>'
+    return '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
 
 
 def _safe_key(label: str) -> str:
@@ -121,9 +122,8 @@ def _dataset_payload(case: str, spec: DatasetSpec, *, out_dir: Path, max_points:
     }
 
 
-def _build_html(bundle: dict[str, object]) -> str:
+def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
     data_json = json.dumps(bundle, ensure_ascii=True)
-    plotly_script = _plotly_script_tag()
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -830,6 +830,7 @@ def build_bundle(
         raise ValueError("second comparison dataset requires the first comparison dataset")
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    plotly_script = _prepare_plotly_asset(out_dir)
 
     datasets = [
         DatasetSpec(key="stock", label=stock_label, root=stock_root, color="#1f77b4", dash="solid"),
@@ -884,7 +885,7 @@ def build_bundle(
         "cases": cases_payload,
     }
     (out_dir / "summary.json").write_text(json.dumps(bundle, indent=2), encoding="utf-8")
-    (out_dir / "index.html").write_text(_build_html(bundle), encoding="utf-8")
+    (out_dir / "index.html").write_text(_build_html(bundle, plotly_script), encoding="utf-8")
     return bundle
 
 

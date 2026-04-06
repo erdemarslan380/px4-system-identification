@@ -11,15 +11,16 @@ from pathlib import Path
 
 DEFAULT_MAX_POINTS = 4000
 SORTIE_PREFIX_RE = re.compile(r"^\d+[_-]+(.+)$")
+PLOTLY_ASSET_NAME = "plotly-2.35.2.min.js"
+PLOTLY_ASSET_PATH = Path(__file__).resolve().parent / "assets" / PLOTLY_ASSET_NAME
 
 
-def _plotly_script_tag() -> str:
-    try:
-        from plotly.offline import get_plotlyjs
-
-        return f"<script>{get_plotlyjs()}</script>"
-    except Exception:
-        return '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
+def _prepare_plotly_asset(out_dir: Path) -> str:
+    if PLOTLY_ASSET_PATH.exists():
+        target = out_dir / PLOTLY_ASSET_NAME
+        shutil.copy2(PLOTLY_ASSET_PATH, target)
+        return f'<script src="{PLOTLY_ASSET_NAME}"></script>'
+    return '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
 
 
 def _sortie_profile_from_path(csv_path: Path) -> str:
@@ -174,9 +175,8 @@ def _copy_raw_logs(
     return mapping
 
 
-def _build_html(bundle: dict[str, object]) -> str:
+def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
     data_json = json.dumps(bundle, ensure_ascii=True)
-    plotly_script = _plotly_script_tag()
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -478,6 +478,7 @@ def build_bundle(log_root: Path, out_dir: Path, max_points: int) -> dict[str, ob
         )
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    plotly_script = _prepare_plotly_asset(out_dir)
     raw_map = _copy_raw_logs(tracking_logs, identification_logs, out_dir, log_root=log_root)
 
     runs = []
@@ -499,7 +500,7 @@ def build_bundle(log_root: Path, out_dir: Path, max_points: int) -> dict[str, ob
     }
 
     (out_dir / "summary.json").write_text(json.dumps(bundle, indent=2), encoding="utf-8")
-    (out_dir / "index.html").write_text(_build_html(bundle), encoding="utf-8")
+    (out_dir / "index.html").write_text(_build_html(bundle, plotly_script), encoding="utf-8")
     return bundle
 
 
