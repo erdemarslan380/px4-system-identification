@@ -128,7 +128,7 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
     data_json = json.dumps(bundle, ensure_ascii=True)
     gallery_sections = "\n".join(
         f"""
-        <article class="gallery-card">
+        <article id="case-{case["name"]}" class="gallery-card">
           <h4>{case["name"]}</h4>
           <p class="legend-note">Always-visible overview for <code>{case["name"]}</code>. Use the plot legend to toggle layers directly.</p>
           <div id="galleryPlot{idx}" class="gallery-plot"></div>
@@ -146,6 +146,10 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
         </article>
         """
         for idx, case in enumerate(bundle["cases"])
+    )
+    case_anchor_links = "\n".join(
+        f'<a class="case-anchor" href="#case-{case["name"]}">{case["name"]}</a>'
+        for case in bundle["cases"]
     )
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -219,6 +223,24 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
+    }}
+    .case-anchor-bar {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }}
+    .case-anchor {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
     }}
     .case-tab {{
       display: inline-flex;
@@ -408,6 +430,20 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
         <div id="caseTabs" class="case-tabs"></div>
       </section>
       <section class="card">
+        <h3>Available Trajectories</h3>
+        <p class="legend-note">These five trajectories are all present in this file. Click any name to jump directly to its always-visible section below.</p>
+        <div class="case-anchor-bar">
+          {case_anchor_links}
+        </div>
+      </section>
+      <section class="card">
+        <h3>All Trajectories</h3>
+        <p class="legend-note">This section keeps all five validation trajectories visible in one file. You do not need to switch away from <code>circle</code> to verify that the others exist.</p>
+        <div class="gallery-grid">
+          {gallery_sections}
+        </div>
+      </section>
+      <section class="card">
         <h3>Inspection Controls</h3>
         <div class="controls-grid">
           <div class="control-block">
@@ -447,13 +483,6 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       <section class="card">
         <div class="footer-links">
           <a id="currentCsvLink" href="#" target="_blank" rel="noopener">Open selected raw CSV</a>
-        </div>
-      </section>
-      <section class="card">
-        <h3>All Trajectories</h3>
-        <p class="legend-note">This section keeps all five validation trajectories visible in one file. You do not need to switch away from <code>circle</code> to verify that the others exist.</p>
-        <div class="gallery-grid">
-          {gallery_sections}
         </div>
       </section>
       <section class="card">
