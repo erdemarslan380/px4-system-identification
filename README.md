@@ -186,6 +186,12 @@ Pinned docs outputs after the publish step:
 - <a href="docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open local stock interactive review</a>
 - <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock/review/index.html" target="_blank" rel="noopener">Open rendered stock interactive review from GitHub</a>
 
+Review notes:
+
+- the review opens on `circle` by default, but all `5` trajectories are selectable
+- use the top `Trajectory Switcher` pills if the left sidebar is not visible
+- each trajectory keeps its own raw CSV link inside the selected-point panel
+
 Embedded stock figures:
 
 <a href="docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png" target="_blank" rel="noopener">
@@ -443,6 +449,7 @@ Review notes:
 - the bundle includes all `9` identification profiles
 - each profile contributes both a `tracking` trace and an `identification` trace
 - the interactive review therefore shows `18` selectable runs in total
+- run labels now use profile names such as `mass_vertical [tracking]` and `mass_vertical [identification]`
 
 Build a new candidate from the SITL ident logs
 ----------------------------------------------
@@ -603,6 +610,12 @@ Pinned docs outputs after the publish step:
 - <a href="docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open local final interactive review</a>
 - <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open rendered final interactive review from GitHub</a>
 - [Pinned prior vs re-identified parameter comparison](docs/sitl_validation/three_model/parameters/parameter_summary.md)
+
+Review notes:
+
+- the final review contains all `5` trajectories
+- the active trajectory can be changed from the top `Trajectory Switcher`
+- layer visibility and track target selection are handled from the control panel inside the HTML
 
 Embedded final figures:
 

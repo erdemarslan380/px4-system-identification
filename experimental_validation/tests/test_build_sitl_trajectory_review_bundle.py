@@ -59,6 +59,8 @@ class BuildSitlTrajectoryReviewBundleTests(unittest.TestCase):
             html = (out_dir / "index.html").read_text(encoding="utf-8")
             self.assertIn("progressSlider", html)
             self.assertIn("Track target", html)
+            self.assertIn("Trajectory Switcher", html)
+            self.assertIn("caseTabs", html)
             self.assertIn("Stock x500 SITL", html)
             self.assertEqual(len(bundle["cases"]), 5)
 

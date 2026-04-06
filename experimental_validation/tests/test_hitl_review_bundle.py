@@ -97,6 +97,47 @@ class HitlReviewBundleTests(unittest.TestCase):
                 (out_dir / "index.html").read_text(encoding="utf-8"),
             )
 
+    def test_build_bundle_uses_profile_names_and_preserves_nested_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            log_root = tmp / "ident_suite"
+            tracking_dir = log_root / "01_mass_vertical" / "tracking_logs"
+            trace_dir = log_root / "01_mass_vertical" / "identification_traces"
+            tracking_dir.mkdir(parents=True)
+            trace_dir.mkdir(parents=True)
+
+            tracking_csv = tracking_dir / "run_00000.csv"
+            tracking_csv.write_text(
+                "\n".join(
+                    [
+                        "timestamp_us,ref_x,ref_y,ref_z,pos_x,pos_y,pos_z,controller",
+                        "0,0,0,-3,0,0,-3,px4_default",
+                        "1000000,0.2,0,-3,0.18,0,-3.01,px4_default",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            trace_csv = trace_dir / "eval_00000.csv"
+            trace_csv.write_text(
+                "\n".join(
+                    [
+                        "timestamp_us,profile,ref_x,ref_y,ref_z,pos_x,pos_y,pos_z,controller",
+                        "0,mass_vertical,0,0,-3,0,0,-3,sysid",
+                        "500000,mass_vertical,0,0,-2.7,0,0,-2.75,sysid",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            out_dir = tmp / "review_bundle"
+            bundle = build_bundle(log_root, out_dir, max_points=100)
+
+            names = [run["name"] for run in bundle["runs"]]
+            self.assertIn("mass_vertical [tracking]", names)
+            self.assertIn("mass_vertical [identification]", names)
+            self.assertTrue((out_dir / "raw" / "01_mass_vertical" / "tracking_logs" / "run_00000.csv").exists())
+            self.assertTrue((out_dir / "raw" / "01_mass_vertical" / "identification_traces" / "eval_00000.csv").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

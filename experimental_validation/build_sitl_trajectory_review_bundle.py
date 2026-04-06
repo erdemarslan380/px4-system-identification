@@ -182,6 +182,29 @@ def _build_html(bundle: dict[str, object]) -> str:
       border-color: var(--accent);
       background: #e6fffb;
     }}
+    .case-tabs {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }}
+    .case-tab {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--ink);
+      min-height: 42px;
+    }}
+    .case-tab.active {{
+      border-color: var(--accent);
+      background: #e6fffb;
+      font-weight: 600;
+    }}
     .controls-grid {{
       display: grid;
       grid-template-columns: 1.2fr 1fr;
@@ -330,6 +353,11 @@ def _build_html(bundle: dict[str, object]) -> str:
         </div>
       </section>
       <section class="card">
+        <h3>Trajectory Switcher</h3>
+        <p class="legend-note">All five validation trajectories are available here. Use these tabs if the left sidebar is out of view.</p>
+        <div id="caseTabs" class="case-tabs"></div>
+      </section>
+      <section class="card">
         <h3>Inspection Controls</h3>
         <div class="controls-grid">
           <div class="control-block">
@@ -391,6 +419,7 @@ def _build_html(bundle: dict[str, object]) -> str:
   <script>
     const bundle = {data_json};
     const caseList = document.getElementById('caseList');
+    const caseTabs = document.getElementById('caseTabs');
     const bundleSummary = document.getElementById('bundleSummary');
     const caseTitle = document.getElementById('caseTitle');
     const caseSubtitle = document.getElementById('caseSubtitle');
@@ -475,6 +504,11 @@ def _build_html(bundle: dict[str, object]) -> str:
 
     function currentCase() {{
       return bundle.cases.find((item) => item.name === state.caseName) || bundle.cases[0];
+    }}
+
+    function setActiveCaseButtons(caseName) {{
+      [...caseList.children].forEach(btn => btn.classList.toggle('active', btn.dataset.name === caseName));
+      [...caseTabs.children].forEach(btn => btn.classList.toggle('active', btn.dataset.name === caseName));
     }}
 
     function layerByKey(key) {{
@@ -723,7 +757,7 @@ def _build_html(bundle: dict[str, object]) -> str:
         }},
       }}, {{responsive: true}});
 
-      [...caseList.children].forEach(btn => btn.classList.toggle('active', btn.dataset.name === caseData.name));
+      setActiveCaseButtons(caseData.name);
     }}
 
     progressSlider.addEventListener('input', () => {{
@@ -731,15 +765,21 @@ def _build_html(bundle: dict[str, object]) -> str:
       render(currentCase());
     }});
 
-    bundle.cases.forEach((caseData, index) => {{
+    function appendCaseButton(container, caseData, className = '') {{
       const button = document.createElement('button');
       button.dataset.name = caseData.name;
       button.textContent = caseData.name;
+      if (className) button.className = className;
       button.addEventListener('click', () => {{
         state.sliderIndex = 0;
         render(caseData);
       }});
-      caseList.appendChild(button);
+      container.appendChild(button);
+    }}
+
+    bundle.cases.forEach((caseData, index) => {{
+      appendCaseButton(caseList, caseData);
+      appendCaseButton(caseTabs, caseData, 'case-tab');
       if (index === 0) render(caseData);
     }});
 

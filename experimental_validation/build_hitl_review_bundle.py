@@ -4,11 +4,32 @@ import argparse
 import csv
 import json
 import math
+import re
 import shutil
 from pathlib import Path
 
 
 DEFAULT_MAX_POINTS = 4000
+SORTIE_PREFIX_RE = re.compile(r"^\d+[_-]+(.+)$")
+
+
+def _sortie_profile_from_path(csv_path: Path) -> str:
+    parent = csv_path.parent
+    if parent.name not in {"tracking_logs", "identification_logs", "identification_traces"}:
+        return ""
+    sortie_name = parent.parent.name
+    match = SORTIE_PREFIX_RE.match(sortie_name)
+    return match.group(1) if match else ""
+
+
+def _run_display_name(csv_path: Path, kind: str, profile: str) -> str:
+    if profile:
+        return f"{profile} [{kind}]"
+    parent_name = csv_path.parent.parent.name if csv_path.parent.parent != csv_path.parent else ""
+    stem = csv_path.stem
+    if parent_name:
+        return f"{parent_name} / {stem}"
+    return stem
 
 
 def _read_float(row: dict[str, str], key: str) -> float | None:
@@ -61,6 +82,7 @@ def _load_run(csv_path: Path, kind: str, max_points: int) -> dict[str, object]:
             }
         )
 
+    profile = profile or _sortie_profile_from_path(csv_path)
     decimated = _decimate(samples, max_points=max_points)
 
     duration_s = 0.0
@@ -78,7 +100,7 @@ def _load_run(csv_path: Path, kind: str, max_points: int) -> dict[str, object]:
     rmse_position_m = math.sqrt(sum(point_pairs) / len(point_pairs)) if point_pairs else None
 
     return {
-        "name": csv_path.stem,
+        "name": _run_display_name(csv_path, kind, profile),
         "kind": kind,
         "source_csv": str(csv_path),
         "controller": controller,
@@ -105,7 +127,13 @@ def _find_logs(log_root: Path) -> tuple[list[Path], list[Path]]:
     return tracking, ident
 
 
-def _copy_raw_logs(tracking_logs: list[Path], identification_logs: list[Path], out_dir: Path) -> dict[str, str]:
+def _copy_raw_logs(
+    tracking_logs: list[Path],
+    identification_logs: list[Path],
+    out_dir: Path,
+    *,
+    log_root: Path,
+) -> dict[str, str]:
     raw_root = out_dir / "raw"
     tracking_out = raw_root / "tracking_logs"
     identification_out = raw_root / "identification_logs"
@@ -116,12 +144,22 @@ def _copy_raw_logs(tracking_logs: list[Path], identification_logs: list[Path], o
 
     mapping: dict[str, str] = {}
     for src in tracking_logs:
-        dst = tracking_out / src.name
+        try:
+            rel = src.relative_to(log_root)
+        except ValueError:
+            rel = Path("tracking_logs") / src.name
+        dst = raw_root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
         mapping[str(src)] = str(dst.relative_to(out_dir))
     for src in identification_logs:
-        dst_dir = identification_trace_out if src.parent.name == "identification_traces" else identification_out
-        dst = dst_dir / src.name
+        try:
+            rel = src.relative_to(log_root)
+        except ValueError:
+            dst_dir = identification_trace_out if src.parent.name == "identification_traces" else identification_out
+            rel = dst_dir.relative_to(raw_root) / src.name
+        dst = raw_root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
         mapping[str(src)] = str(dst.relative_to(out_dir))
     return mapping
@@ -430,7 +468,7 @@ def build_bundle(log_root: Path, out_dir: Path, max_points: int) -> dict[str, ob
         )
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    raw_map = _copy_raw_logs(tracking_logs, identification_logs, out_dir)
+    raw_map = _copy_raw_logs(tracking_logs, identification_logs, out_dir, log_root=log_root)
 
     runs = []
     for path in tracking_logs:

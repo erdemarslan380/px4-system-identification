@@ -2,14 +2,6 @@
   "section": "three_model",
   "docs_root": "/home/earsub/px4-system-identification/docs/sitl_validation",
   "target_root": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model",
-  "figures_root": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/figures",
-  "figure_files": [
-    "comparison_summary.json",
-    "group_1_circle_hairpin_lemniscate.png",
-    "group_1_circle_hairpin_lemniscate.svg",
-    "group_2_time_optimal_minimum_snap.png",
-    "group_2_time_optimal_minimum_snap.svg"
-  ],
   "review_root": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/review",
   "review_files": [
     "index.html",
@@ -30,10 +22,5 @@
     "raw/stock/time_optimal_30s.csv",
     "summary.json"
   ],
-  "review_index": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/review/index.html",
-  "parameter_root": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/parameters",
-  "parameter_files": [
-    "parameter_summary.json",
-    "parameter_summary.md"
-  ]
+  "review_index": "/home/earsub/px4-system-identification/docs/sitl_validation/three_model/review/index.html"
 }
