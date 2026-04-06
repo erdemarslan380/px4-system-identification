@@ -1,5 +1,5 @@
 {
-  "out_dir": "/tmp/sitl_stock_vs_prior_review_v6_2026-04-06",
+  "out_dir": "/tmp/sitl_stock_vs_prior_review_v7_2026-04-06",
   "max_points": 1800,
   "dataset_labels": [
     "Stock x500 SITL",

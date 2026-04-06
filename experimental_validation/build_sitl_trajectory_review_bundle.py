@@ -126,6 +126,27 @@ def _dataset_payload(case: str, spec: DatasetSpec, *, out_dir: Path, max_points:
 
 def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
     data_json = json.dumps(bundle, ensure_ascii=True)
+    gallery_sections = "\n".join(
+        f"""
+        <article class="gallery-card">
+          <h4>{case["name"]}</h4>
+          <p class="legend-note">Always-visible overview for <code>{case["name"]}</code>. Use the plot legend to toggle layers directly.</p>
+          <div id="galleryPlot{idx}" class="gallery-plot"></div>
+          <table class="dataset-table">
+            <thead>
+              <tr>
+                <th>Dataset</th>
+                <th>Ref RMSE [m]</th>
+                <th>Shape RMSE [m]</th>
+                <th>Raw CSV</th>
+              </tr>
+            </thead>
+            <tbody id="galleryMetrics{idx}"></tbody>
+          </table>
+        </article>
+        """
+        for idx, case in enumerate(bundle["cases"])
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -318,6 +339,23 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       flex-wrap: wrap;
       gap: 10px;
     }}
+    .gallery-grid {{
+      display: grid;
+      gap: 18px;
+    }}
+    .gallery-card {{
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: white;
+    }}
+    .gallery-card h4 {{
+      margin: 0 0 8px 0;
+      font-size: 18px;
+    }}
+    .gallery-plot {{
+      min-height: 460px;
+    }}
     .footer-links a {{
       color: var(--accent);
       text-decoration: none;
@@ -409,6 +447,13 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       <section class="card">
         <div class="footer-links">
           <a id="currentCsvLink" href="#" target="_blank" rel="noopener">Open selected raw CSV</a>
+        </div>
+      </section>
+      <section class="card">
+        <h3>All Trajectories</h3>
+        <p class="legend-note">This section keeps all five validation trajectories visible in one file. You do not need to switch away from <code>circle</code> to verify that the others exist.</p>
+        <div class="gallery-grid">
+          {gallery_sections}
         </div>
       </section>
       <section class="card">
@@ -520,6 +565,53 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
         csv_name: dataset.csv_name,
         csv_b64: dataset.csv_b64,
       }})));
+    }}
+
+    function buildGalleryTraces(caseData) {{
+      const layers = buildLayers(caseData);
+      const traces = [];
+      layers.forEach((layer) => {{
+        traces.push({{
+          type: 'scatter3d',
+          mode: 'lines',
+          name: layer.label,
+          legendgroup: layer.key,
+          showlegend: true,
+          x: layer.points.map((p) => p[0]),
+          y: layer.points.map((p) => p[1]),
+          z: layer.points.map((p) => p[2]),
+          hovertemplate: '<b>%{{fullData.name}}</b><extra></extra>',
+          line: {{ color: layer.color, width: layer.key === 'reference' ? 7 : 5, dash: layer.dash }},
+        }});
+        traces.push({{
+          type: 'scatter3d',
+          mode: 'markers',
+          name: `${{layer.label}} start`,
+          legendgroup: layer.key,
+          showlegend: false,
+          x: layer.points.length ? [layer.points[0][0]] : [],
+          y: layer.points.length ? [layer.points[0][1]] : [],
+          z: layer.points.length ? [layer.points[0][2]] : [],
+          marker: {{ size: 7, color: layer.color, symbol: 'circle' }},
+          hovertemplate: '<b>%{{fullData.name}}</b><extra></extra>',
+        }});
+        traces.push({{
+          type: 'scatter3d',
+          mode: 'markers+text',
+          name: `${{layer.label}} end`,
+          legendgroup: layer.key,
+          showlegend: false,
+          x: layer.points.length ? [layer.points[layer.points.length - 1][0]] : [],
+          y: layer.points.length ? [layer.points[layer.points.length - 1][1]] : [],
+          z: layer.points.length ? [layer.points[layer.points.length - 1][2]] : [],
+          text: layer.points.length ? ['▲'] : [],
+          textposition: 'top center',
+          textfont: {{ color: layer.color, size: 15 }},
+          marker: {{ size: 5, color: layer.color, symbol: 'circle-open' }},
+          hovertemplate: '<b>%{{fullData.name}}</b><extra></extra>',
+        }});
+      }});
+      return traces;
     }}
 
     function currentCase() {{
@@ -781,6 +873,40 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       setActiveCaseButtons(caseData.name);
     }}
 
+    function renderGallery() {{
+      bundle.cases.forEach((caseData, idx) => {{
+        const plotId = `galleryPlot${{idx}}`;
+        const metricBody = document.getElementById(`galleryMetrics${{idx}}`);
+        if (metricBody) {{
+          metricBody.innerHTML = '';
+          caseData.datasets.forEach((dataset) => {{
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td><strong>${{dataset.label}}</strong></td>
+              <td>${{fmt(dataset.rmse_m)}}</td>
+              <td>${{fmt(dataset.shape_rmse_m)}}</td>
+              <td><a href="${{csvHref(dataset.csv_b64)}}" download="${{dataset.csv_name}}" target="_blank" rel="noopener"><code>${{dataset.csv_name}}</code></a></td>
+            `;
+            metricBody.appendChild(row);
+          }});
+        }}
+
+        Plotly.react(plotId, buildGalleryTraces(caseData), {{
+          margin: {{ l: 0, r: 0, t: 20, b: 0 }},
+          paper_bgcolor: 'rgba(0,0,0,0)',
+          plot_bgcolor: 'rgba(0,0,0,0)',
+          legend: {{ orientation: 'h' }},
+          scene: {{
+            xaxis: {{ title: 'X [m]' }},
+            yaxis: {{ title: 'Y [m]' }},
+            zaxis: {{ title: 'Z (up) [m]' }},
+            aspectmode: 'data',
+            camera: {{ eye: {{ x: 1.25, y: 1.15, z: 0.9 }} }}
+          }},
+        }}, {{responsive: true}});
+      }});
+    }}
+
     progressSlider.addEventListener('input', () => {{
       state.sliderIndex = Number(progressSlider.value);
       render(currentCase());
@@ -803,6 +929,8 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       appendCaseButton(caseTabs, caseData, 'case-tab');
       if (index === 0) render(caseData);
     }});
+
+    renderGallery();
 
     document.getElementById(plotId).on('plotly_hover', (event) => {{
       const point = event.points && event.points[0];
