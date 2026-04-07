@@ -13,8 +13,8 @@
       "shape_rmse_compare_m": 0.262204184224424,
       "compare_samples": 710,
       "compare_label_2": "Re-identified from SITL ident",
-      "rmse_compare_2_m": 1.406190784188294,
-      "shape_rmse_compare_2_m": 1.3727269741741375,
+      "rmse_compare_2_m": 0.5293954007586577,
+      "shape_rmse_compare_2_m": 1.1382658102462475,
       "compare_2_samples": 710
     },
     "hairpin": {
@@ -76,12 +76,12 @@
   },
   "figures": {
     "group_1_circle_hairpin_lemniscate": {
-      "png": "/tmp/sitl_three_model_figures_v2_2026-04-06/group_1_circle_hairpin_lemniscate.png",
-      "svg": "/tmp/sitl_three_model_figures_v2_2026-04-06/group_1_circle_hairpin_lemniscate.svg"
+      "png": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/figures/three_model/group_1_circle_hairpin_lemniscate.png",
+      "svg": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/figures/three_model/group_1_circle_hairpin_lemniscate.svg"
     },
     "group_2_time_optimal_minimum_snap": {
-      "png": "/tmp/sitl_three_model_figures_v2_2026-04-06/group_2_time_optimal_minimum_snap.png",
-      "svg": "/tmp/sitl_three_model_figures_v2_2026-04-06/group_2_time_optimal_minimum_snap.svg"
+      "png": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/figures/three_model/group_2_time_optimal_minimum_snap.png",
+      "svg": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/figures/three_model/group_2_time_optimal_minimum_snap.svg"
     }
   }
 }

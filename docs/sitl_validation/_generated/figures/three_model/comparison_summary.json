@@ -1,0 +1,87 @@
+{
+  "stock_label": "Stock x500 SITL",
+  "compare_label": "jMAVSim prior SDF",
+  "compare_label_2": "Re-identified from SITL ident",
+  "cases": {
+    "circle": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.6616304074354088,
+      "shape_rmse_stock_m": 1.06920000880686,
+      "stock_samples": 710,
+      "rmse_compare_m": 0.27701240844207986,
+      "shape_rmse_compare_m": 0.262204184224424,
+      "compare_samples": 710,
+      "compare_label_2": "Re-identified from SITL ident",
+      "rmse_compare_2_m": 0.5293954007586577,
+      "shape_rmse_compare_2_m": 1.1382658102462475,
+      "compare_2_samples": 710
+    },
+    "hairpin": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.6448965975333557,
+      "shape_rmse_stock_m": 0.543748188640011,
+      "stock_samples": 1091,
+      "rmse_compare_m": 0.3502808848176845,
+      "shape_rmse_compare_m": 0.3193574378039406,
+      "compare_samples": 1091,
+      "compare_label_2": "Re-identified from SITL ident",
+      "rmse_compare_2_m": 0.5630349053594133,
+      "shape_rmse_compare_2_m": 0.5789606896663373,
+      "compare_2_samples": 1091
+    },
+    "lemniscate": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.6466937537296584,
+      "shape_rmse_stock_m": 0.5392301569608068,
+      "stock_samples": 910,
+      "rmse_compare_m": 0.5066404780698532,
+      "shape_rmse_compare_m": 0.48158122829113387,
+      "compare_samples": 910,
+      "compare_label_2": "Re-identified from SITL ident",
+      "rmse_compare_2_m": 0.5877622074251477,
+      "shape_rmse_compare_2_m": 0.4945243794969963,
+      "compare_2_samples": 910
+    },
+    "time_optimal_30s": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.3896621970274636,
+      "shape_rmse_stock_m": 0.15779519817865917,
+      "stock_samples": 378,
+      "rmse_compare_m": 0.2833440856562581,
+      "shape_rmse_compare_m": 0.17630361125170818,
+      "compare_samples": 378,
+      "compare_label_2": "Re-identified from SITL ident",
+      "rmse_compare_2_m": 0.30484346381897515,
+      "shape_rmse_compare_2_m": 0.15263339053517574,
+      "compare_2_samples": 378
+    },
+    "minimum_snap_50s": {
+      "stock_label": "Stock x500 SITL",
+      "compare_label": "jMAVSim prior SDF",
+      "rmse_stock_m": 0.5138488387112233,
+      "shape_rmse_stock_m": 0.35949148537370484,
+      "stock_samples": 535,
+      "rmse_compare_m": 0.5065301348804044,
+      "shape_rmse_compare_m": 0.39712286363292304,
+      "compare_samples": 535,
+      "compare_label_2": "Re-identified from SITL ident",
+      "rmse_compare_2_m": 0.513583283156194,
+      "shape_rmse_compare_2_m": 0.37784414552805884,
+      "compare_2_samples": 535
+    }
+  },
+  "figures": {
+    "group_1_circle_hairpin_lemniscate": {
+      "png": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/figures/three_model/group_1_circle_hairpin_lemniscate.png",
+      "svg": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/figures/three_model/group_1_circle_hairpin_lemniscate.svg"
+    },
+    "group_2_time_optimal_minimum_snap": {
+      "png": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/figures/three_model/group_2_time_optimal_minimum_snap.png",
+      "svg": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/figures/three_model/group_2_time_optimal_minimum_snap.svg"
+    }
+  }
+}

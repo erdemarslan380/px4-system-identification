@@ -105,6 +105,7 @@ SITL_ALLOW_UNSTABLE_CUSTOM_HOLD = True
 SITL_CUSTOM_HOLD_SECONDS = 5.0
 SITL_REPORT_PERIOD = 0.5
 SITL_ARM_ATTEMPTS = 3
+SITL_GROUND_QUIET_TIMEOUT_SECONDS = 45.0
 SITL_GROUND_XY_WINDOW = 0.25
 SITL_GROUND_Z_WINDOW = 0.25
 SITL_DIRECT_XY_LIMIT = 0.25
@@ -1787,7 +1788,7 @@ def run_validation_model(
         set_param(mav, "TRJ_POS_Z", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_POS_YAW", SITL_LOCKED_YAW_RAD, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         wait_for_sim_ready(mav, timeout=20.0, require_local_position=True, min_local_samples=3)
-        wait_for_ground_quiet(mav, duration_s=2.0, timeout=10.0)
+        wait_for_ground_quiet(mav, duration_s=2.0, timeout=SITL_GROUND_QUIET_TIMEOUT_SECONDS)
         baseline_x, baseline_y, baseline_z = robust_ground_baseline(mav)
         ground_xy = math.hypot(baseline_x, baseline_y)
         if ground_xy > SITL_GROUND_XY_WINDOW or abs(baseline_z) > SITL_GROUND_Z_WINDOW:

@@ -1,0 +1,106 @@
+{
+  "mass": {
+    "mass_kg": 0.8,
+    "sample_count": 0,
+    "std_kg": 0.0,
+    "gravity_mps2": 9.80665
+  },
+  "thrust_scale": {
+    "thrust_scale_n_per_cmd": 11.541627744624371,
+    "sample_count": 0,
+    "rmse_n": 0.0,
+    "gravity_mps2": 9.80665
+  },
+  "inertia": {
+    "x": {
+      "axis": "x",
+      "inertia_kgm2": 0.005,
+      "sample_count": 0,
+      "rmse_nm": 0.0
+    },
+    "y": {
+      "axis": "y",
+      "inertia_kgm2": 0.005,
+      "sample_count": 0,
+      "rmse_nm": 0.0
+    },
+    "z": {
+      "axis": "z",
+      "inertia_kgm2": 0.009,
+      "sample_count": 0,
+      "rmse_nm": 0.0
+    }
+  },
+  "drag": {
+    "x": {
+      "axis": "x",
+      "coefficient": -0.044725841183519695,
+      "sample_count": 0,
+      "rmse_n": 0.0
+    },
+    "y": {
+      "axis": "y",
+      "coefficient": -0.053264199319688996,
+      "sample_count": 0,
+      "rmse_n": 0.0
+    },
+    "z": {
+      "axis": "z",
+      "coefficient": -0.005290586214425538,
+      "sample_count": 0,
+      "rmse_n": 0.0
+    }
+  },
+  "motor_model": {
+    "time_constant_up_s": {
+      "value": 0.0125,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "time_constant_down_s": {
+      "value": 0.025,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "max_rot_velocity_radps": {
+      "value": 1000.0,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "motor_constant": {
+      "value": 8.54858e-06,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "moment_constant": {
+      "value": 0.016,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rotor_drag_coefficient": {
+      "value": 8.06428e-05,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rolling_moment_coefficient": {
+      "value": 1e-06,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rotor_velocity_slowdown_sim": {
+      "value": 10.0,
+      "sample_count": 0,
+      "rmse": 0.0
+    }
+  },
+  "warnings": [
+    "Reconstructed persistent candidate from docs/sitl_validation/three_model/parameters/parameter_summary.json after /tmp candidate was lost on reboot.",
+    "Values are the Re-identified from SITL ident column from the pinned parameter comparison table."
+  ],
+  "composite_sources": {
+    "mass": "docs:sitl_validation/three_model/parameters/parameter_summary.json:value_b",
+    "inertia": "docs:sitl_validation/three_model/parameters/parameter_summary.json:value_b",
+    "drag": "docs:sitl_validation/three_model/parameters/parameter_summary.json:value_b",
+    "motor_model": "docs:sitl_validation/three_model/parameters/parameter_summary.json:value_b"
+  }
+}
