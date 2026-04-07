@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import html
 import json
 import math
 import re
@@ -124,13 +125,102 @@ def _dataset_payload(case: str, spec: DatasetSpec, *, out_dir: Path, max_points:
     }
 
 
+def _svg_polyline(points: list[list[float]], *, color: str, dash: str) -> str:
+    if not points:
+        return ""
+    dash_attr = ' stroke-dasharray="10 8"' if dash == "dash" else ' stroke-dasharray="3 7"' if dash == "dot" else ""
+    point_text = " ".join(f"{x:.2f},{y:.2f}" for x, y in points)
+    return (
+        f'<polyline points="{point_text}" fill="none" stroke="{html.escape(color)}" '
+        f'stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"{dash_attr} />'
+    )
+
+
+def _static_case_svg(case: dict[str, object]) -> str:
+    layers: list[dict[str, object]] = [
+        {
+            "label": "Reference",
+            "color": REF_COLOR,
+            "dash": "dash",
+            "points": case.get("reference_plot", []),
+        }
+    ]
+    for dataset in case.get("datasets", []):  # type: ignore[assignment]
+        if isinstance(dataset, dict):
+            layers.append(
+                {
+                    "label": dataset.get("label", "dataset"),
+                    "color": dataset.get("color", "#1f77b4"),
+                    "dash": dataset.get("dash", "solid"),
+                    "points": dataset.get("position_plot", []),
+                }
+            )
+
+    raw_points: list[tuple[float, float]] = []
+    for layer in layers:
+        for point in layer["points"]:  # type: ignore[index]
+            if isinstance(point, list) and len(point) >= 2:
+                raw_points.append((float(point[0]), float(point[1])))
+    if not raw_points:
+        return '<p class="legend-note">No static top-down points available.</p>'
+
+    width, height, pad = 760.0, 460.0, 42.0
+    min_x = min(x for x, _ in raw_points)
+    max_x = max(x for x, _ in raw_points)
+    min_y = min(y for _, y in raw_points)
+    max_y = max(y for _, y in raw_points)
+    span_x = max(max_x - min_x, 1e-6)
+    span_y = max(max_y - min_y, 1e-6)
+    scale = min((width - 2 * pad) / span_x, (height - 2 * pad) / span_y)
+
+    def project(point: list[float]) -> list[float]:
+        x = pad + (float(point[0]) - min_x) * scale
+        y = height - pad - (float(point[1]) - min_y) * scale
+        return [x, y]
+
+    plot_items: list[str] = []
+    legend_items: list[str] = []
+    for idx, layer in enumerate(layers):
+        raw_layer_points = [point for point in layer["points"] if isinstance(point, list) and len(point) >= 2]  # type: ignore[index]
+        projected = [project(point) for point in raw_layer_points]
+        color = str(layer["color"])
+        dash = str(layer["dash"])
+        label = html.escape(str(layer["label"]))
+        plot_items.append(_svg_polyline(projected, color=color, dash=dash))
+        if projected:
+            start_x, start_y = projected[0]
+            end_x, end_y = projected[-1]
+            plot_items.append(f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="4.5" fill="{html.escape(color)}" />')
+            plot_items.append(
+                f'<polygon points="{end_x:.2f},{end_y - 6:.2f} {end_x - 5.5:.2f},{end_y + 5.0:.2f} {end_x + 5.5:.2f},{end_y + 5.0:.2f}" '
+                f'fill="{html.escape(color)}" />'
+            )
+        legend_y = 22 + idx * 18
+        legend_items.append(
+            f'<line x1="16" x2="44" y1="{legend_y}" y2="{legend_y}" stroke="{html.escape(color)}" stroke-width="3" />'
+            f'<text x="52" y="{legend_y + 4}" font-size="12" fill="#17202a">{label}</text>'
+        )
+
+    return f"""
+    <div class="static-svg-wrap">
+      <p class="legend-note">Static top-down fallback. This part does not need Plotly or CSV files.</p>
+      <svg class="static-svg" viewBox="0 0 {width:.0f} {height:.0f}" role="img" aria-label="Static top-down trajectory plot">
+        <rect x="0" y="0" width="{width:.0f}" height="{height:.0f}" rx="14" fill="#fffaf4" stroke="#d8cfc0" />
+        <g>{''.join(plot_items)}</g>
+        <g>{''.join(legend_items)}</g>
+      </svg>
+    </div>
+    """
+
+
 def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
     data_json = json.dumps(bundle, ensure_ascii=True)
     gallery_sections = "\n".join(
         f"""
         <article id="case-{case["name"]}" class="gallery-card">
           <h4>{case["name"]}</h4>
-          <p class="legend-note">Always-visible overview for <code>{case["name"]}</code>. Use the plot legend to toggle layers directly.</p>
+          <p class="legend-note">Always-visible overview for <code>{case["name"]}</code>. First the static fallback is shown, then the optional interactive Plotly view.</p>
+          {_static_case_svg(case)}
           <div id="galleryPlot{idx}" class="gallery-plot"></div>
           <table class="dataset-table">
             <thead>
@@ -377,6 +467,15 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
     }}
     .gallery-plot {{
       min-height: 460px;
+    }}
+    .static-svg-wrap {{
+      margin: 12px 0 16px 0;
+    }}
+    .static-svg {{
+      width: 100%;
+      height: auto;
+      min-height: 320px;
+      display: block;
     }}
     .footer-links a {{
       color: var(--accent);
