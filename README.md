@@ -77,6 +77,13 @@ Permanent generated review inputs:
 - the final files you open are still published under `docs/sitl_validation/<section>/review/index.html`
 - these paths are intentionally not under `/tmp`, so they survive reboot unless you delete them from the repo
 
+Determinism note:
+
+- `SITL` is not bitwise deterministic in this workflow; separate runs do not produce byte-identical CSVs
+- current `reidentified_sitl + circle` tracking-window repeatability is much tighter than the old outlier: the 10-run probe had RMSE mean `0.468 m`, std `0.008 m`, and range `0.458..0.482 m`
+- the probe report is pinned at `docs/sitl_validation/determinism/reidentified_circle_10x/summary.md`
+- that probe uses `--skip-landing-after-trajectory` so it measures only the trajectory tracking window; do not use that flag for normal visual validation runs
+
 Regenerate the permanent trajectory review HTMLs from the pinned CSVs:
 
 ```bash

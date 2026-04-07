@@ -52,6 +52,7 @@ def collect_tracking_dataset(
     sitl_hover_thrust: float | None = None,
     headless: bool = True,
     show_console: bool = False,
+    skip_landing_after_trajectories: bool = False,
 ) -> dict:
     px4_root = Path(px4_root).expanduser().resolve()
     out_root = Path(out_root).expanduser().resolve()
@@ -93,6 +94,7 @@ def collect_tracking_dataset(
                 sitl_hover_thrust=sitl_hover_thrust,
                 headless=headless,
                 show_console=show_console,
+                skip_landing_after_trajectories=skip_landing_after_trajectories,
             )
             if manifest.get("results"):
                 copied_log = _copy(Path(manifest["results"][0]["tracking_log"]), tracking_root / f"{entry.name}.csv")
@@ -169,6 +171,11 @@ def main() -> int:
     ap.add_argument("--sitl-hover-thrust", type=float, default=None)
     ap.add_argument("--visual", action="store_true")
     ap.add_argument("--show-console", action="store_true")
+    ap.add_argument(
+        "--skip-landing-after-trajectory",
+        action="store_true",
+        help="Stop after the tracking CSV is collected. Useful for repeatability probes; normal validation should leave this off.",
+    )
     args = ap.parse_args()
 
     trajectory_names = [item.strip() for item in args.trajectory_names.split(",") if item.strip()] or None
@@ -188,6 +195,7 @@ def main() -> int:
         sitl_hover_thrust=args.sitl_hover_thrust,
         headless=not args.visual,
         show_console=args.show_console,
+        skip_landing_after_trajectories=args.skip_landing_after_trajectory,
     )
     print(json.dumps(summary, indent=2))
     return 0

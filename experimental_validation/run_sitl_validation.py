@@ -1710,10 +1710,12 @@ def run_validation_model(
     sitl_hover_thrust: float | None = None,
     headless: bool = True,
     show_console: bool = False,
+    skip_landing_after_trajectories: bool = False,
 ) -> dict:
     px4_root = Path(px4_root).expanduser().resolve()
     out_root = Path(out_root).expanduser().resolve()
     candidate_dir = Path(candidate_dir).expanduser().resolve()
+    trajectories = tuple(trajectories)
 
     build_dir = px4_root / "build" / "px4_sitl_default"
     base_rootfs = build_dir / "rootfs"
@@ -1915,7 +1917,7 @@ def run_validation_model(
         )
         common_yaw = hover_yaw
 
-        for entry in trajectories:
+        for entry_index, entry in enumerate(trajectories):
             set_position_target_absolute(mav, common_anchor[0], common_anchor[1], common_anchor[2], common_yaw)
             set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             set_anchor_from_position(mav, common_anchor[0], common_anchor[1], common_anchor[2])
@@ -1954,27 +1956,32 @@ def run_validation_model(
                     "tracking_log": copied_log,
                 }
             )
+            if skip_landing_after_trajectories and entry_index == len(trajectories) - 1:
+                break
             set_position_target_absolute(mav, common_anchor[0], common_anchor[1], common_anchor[2], common_yaw)
             set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             session.wait_until_position(common_anchor, xy_tol_m=0.28, z_tol_m=0.28, timeout_s=20.0)
 
-        manual_control.update(x=0, y=0, z=500, r=0)
-        time.sleep(1.0)
-        session.set_mode("POSCTL")
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-        land_result = _land_in_posctl_with_manual_control(
-            mav,
-            manual_control=manual_control,
-            ground_z_m=float(baseline_z),
-            target_yaw=common_yaw,
-        )
-        print(
-            f"Landing complete x={land_result['x']:.3f} y={land_result['y']:.3f} "
-            f"z={land_result['z']:.3f} speed={land_result['speed_mps']:.3f} "
-            f"disarmed={land_result['disarmed']}",
-            flush=True,
-        )
+        if skip_landing_after_trajectories:
+            print("Skipping landing after trajectory tracking log collection.", flush=True)
+        else:
+            manual_control.update(x=0, y=0, z=500, r=0)
+            time.sleep(1.0)
+            session.set_mode("POSCTL")
+            land_result = _land_in_posctl_with_manual_control(
+                mav,
+                manual_control=manual_control,
+                ground_z_m=float(baseline_z),
+                target_yaw=common_yaw,
+            )
+            print(
+                f"Landing complete x={land_result['x']:.3f} y={land_result['y']:.3f} "
+                f"z={land_result['z']:.3f} speed={land_result['speed_mps']:.3f} "
+                f"disarmed={land_result['disarmed']}",
+                flush=True,
+            )
     finally:
         if manual_control is not None:
             manual_control.stop()
