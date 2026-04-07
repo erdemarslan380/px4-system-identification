@@ -1,5 +1,5 @@
 {
-  "out_dir": "/tmp/sitl_stock_vs_prior_review_v9_2026-04-06",
+  "out_dir": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/reviews/stock_vs_prior",
   "max_points": 1800,
   "dataset_labels": [
     "Stock x500 SITL",

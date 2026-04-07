@@ -51,6 +51,63 @@ cd ~/px4-system-identification
 xdg-open docs/sitl_validation/three_model/review/index.html
 ```
 
+Permanent generated review inputs:
+
+- the review source CSVs are pinned under `docs/sitl_validation/_generated/sources`
+- the intermediate self-contained HTML builds are pinned under `docs/sitl_validation/_generated/reviews`
+- the final files you open are still published under `docs/sitl_validation/<section>/review/index.html`
+- these paths are intentionally not under `/tmp`, so they survive reboot unless you delete them from the repo
+
+Regenerate the permanent trajectory review HTMLs from the pinned CSVs:
+
+```bash
+cd ~/px4-system-identification
+
+python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
+  --stock-root docs/sitl_validation/_generated/sources/stock \
+  --stock-label "Stock x500 SITL" \
+  --out-dir docs/sitl_validation/_generated/reviews/stock
+
+python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
+  --stock-root docs/sitl_validation/_generated/sources/stock \
+  --stock-label "Stock x500 SITL" \
+  --compare-root docs/sitl_validation/_generated/sources/jmavsim_prior_sdf \
+  --compare-label "jMAVSim prior SDF" \
+  --out-dir docs/sitl_validation/_generated/reviews/stock_vs_prior
+
+python3 experimental_validation/build_sitl_trajectory_review_bundle.py \
+  --stock-root docs/sitl_validation/_generated/sources/stock \
+  --stock-label "Stock x500 SITL" \
+  --compare-root docs/sitl_validation/_generated/sources/jmavsim_prior_sdf \
+  --compare-label "jMAVSim prior SDF" \
+  --compare-root-2 docs/sitl_validation/_generated/sources/re_identified_from_sitl_ident \
+  --compare-label-2 "Re-identified from SITL ident" \
+  --out-dir docs/sitl_validation/_generated/reviews/three_model
+```
+
+Publish those permanent review builds into the normal README links:
+
+```bash
+cd ~/px4-system-identification
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section stock \
+  --review-root docs/sitl_validation/_generated/reviews/stock
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section stock_vs_prior \
+  --review-root docs/sitl_validation/_generated/reviews/stock_vs_prior
+
+python3 experimental_validation/publish_sitl_docs_assets.py \
+  --section three_model \
+  --review-root docs/sitl_validation/_generated/reviews/three_model
+```
+
+If Firefox shows a blank `3D Path View`, use the top `Visible Static Review`
+section first. That section is inline SVG and does not need JavaScript, CSV
+files, internet, or the local docs server. It should show all five trajectories
+directly in the same `index.html`.
+
 Fixed project rules
 -------------------
 These are intentionally stable and should not be changed between tests:
@@ -212,18 +269,19 @@ Pinned docs outputs after the publish step:
 
 Review notes:
 
-- the review opens on `circle` by default, but all `5` trajectories are selectable
-- use the top `Trajectory Switcher` pills if the left sidebar is not visible
-- each trajectory keeps its own raw CSV link inside the selected-point panel
+- the review still opens the interactive inspector on `circle` by default
+- the top `Visible Static Review` section shows all `5` trajectories immediately as inline SVG
+- use the `Trajectory Switcher` pills for the interactive `3D Path View`
+- each trajectory keeps its own embedded raw CSV download link; no external CSV files are required for the HTML to render
 
 Embedded stock figures:
 
 <a href="docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png" target="_blank" rel="noopener">
-  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png" alt="Stock grouped figure 1" style="max-width:100%; border-radius:14px;" />
+  <img src="docs/sitl_validation/stock/figures/group_1_circle_hairpin_lemniscate.png" alt="Stock grouped figure 1" style="max-width:100%; border-radius:14px;" />
 </a>
 
 <a href="docs/sitl_validation/stock/figures/group_2_time_optimal_minimum_snap.png" target="_blank" rel="noopener">
-  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock/figures/group_2_time_optimal_minimum_snap.png" alt="Stock grouped figure 2" style="max-width:100%; border-radius:14px;" />
+  <img src="docs/sitl_validation/stock/figures/group_2_time_optimal_minimum_snap.png" alt="Stock grouped figure 2" style="max-width:100%; border-radius:14px;" />
 </a>
 
 Prepare the jMAVSim-prior SDF
@@ -410,11 +468,11 @@ Pinned docs outputs after the publish step:
 Embedded stock vs prior figures:
 
 <a href="docs/sitl_validation/stock_vs_prior/figures/group_1_circle_hairpin_lemniscate.png" target="_blank" rel="noopener">
-  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock_vs_prior/figures/group_1_circle_hairpin_lemniscate.png" alt="Stock vs prior grouped figure 1" style="max-width:100%; border-radius:14px;" />
+  <img src="docs/sitl_validation/stock_vs_prior/figures/group_1_circle_hairpin_lemniscate.png" alt="Stock vs prior grouped figure 1" style="max-width:100%; border-radius:14px;" />
 </a>
 
 <a href="docs/sitl_validation/stock_vs_prior/figures/group_2_time_optimal_minimum_snap.png" target="_blank" rel="noopener">
-  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/stock_vs_prior/figures/group_2_time_optimal_minimum_snap.png" alt="Stock vs prior grouped figure 2" style="max-width:100%; border-radius:14px;" />
+  <img src="docs/sitl_validation/stock_vs_prior/figures/group_2_time_optimal_minimum_snap.png" alt="Stock vs prior grouped figure 2" style="max-width:100%; border-radius:14px;" />
 </a>
 
 jMAVSim-prior 9-profile SITL identification suite
@@ -647,11 +705,11 @@ Review notes:
 Embedded final figures:
 
 <a href="docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png" target="_blank" rel="noopener">
-  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png" alt="Final grouped figure 1" style="max-width:100%; border-radius:14px;" />
+  <img src="docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png" alt="Final grouped figure 1" style="max-width:100%; border-radius:14px;" />
 </a>
 
 <a href="docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png" target="_blank" rel="noopener">
-  <img src="https://raw.githubusercontent.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png" alt="Final grouped figure 2" style="max-width:100%; border-radius:14px;" />
+  <img src="docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png" alt="Final grouped figure 2" style="max-width:100%; border-radius:14px;" />
 </a>
 
 Final 4-layer RMSE summary

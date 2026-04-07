@@ -266,15 +266,13 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
       background: linear-gradient(180deg, #eee5d7 0%, var(--bg) 100%);
     }}
     .layout {{
-      display: grid;
-      grid-template-columns: 320px 1fr;
+      display: block;
       min-height: 100vh;
     }}
     .sidebar {{
       padding: 24px;
-      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
       background: rgba(255, 250, 244, 0.94);
-      overflow-y: auto;
     }}
     .content {{
       padding: 24px;
@@ -524,6 +522,16 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
         </div>
       </section>
       <section class="card">
+        <h3>Visible Static Review</h3>
+        <p class="legend-note">Start here if the 3D Plotly panel is blank in Firefox. These five plots are embedded directly in this HTML as SVG, so they do not need JavaScript, CSV files, internet, or a local server.</p>
+        <div class="case-anchor-bar">
+          {case_anchor_links}
+        </div>
+        <div class="gallery-grid">
+          {gallery_sections}
+        </div>
+      </section>
+      <section class="card">
         <h3>Trajectory Switcher</h3>
         <p class="legend-note">All five validation trajectories are available here. Use these tabs if the left sidebar is out of view.</p>
         <div id="caseTabs" class="case-tabs"></div>
@@ -533,13 +541,6 @@ def _build_html(bundle: dict[str, object], plotly_script: str) -> str:
         <p class="legend-note">These five trajectories are all present in this file. Click any name to jump directly to its always-visible section below.</p>
         <div class="case-anchor-bar">
           {case_anchor_links}
-        </div>
-      </section>
-      <section class="card">
-        <h3>All Trajectories</h3>
-        <p class="legend-note">This section keeps all five validation trajectories visible in one file. You do not need to switch away from <code>circle</code> to verify that the others exist.</p>
-        <div class="gallery-grid">
-          {gallery_sections}
         </div>
       </section>
       <section class="card">

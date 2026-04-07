@@ -60,7 +60,11 @@ class BuildSitlTrajectoryReviewBundleTests(unittest.TestCase):
             self.assertIn("progressSlider", html)
             self.assertIn("Track target", html)
             self.assertIn("Trajectory Switcher", html)
+            self.assertIn("Visible Static Review", html)
+            self.assertIn("Static top-down fallback", html)
             self.assertIn("caseTabs", html)
+            for case in CASES:
+                self.assertIn(f"case-{case}", html)
             self.assertNotIn('src="plotly-2.35.2.min.js"', html)
             self.assertNotIn('<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>', html)
             self.assertIn("data:text/csv;base64,", html)
