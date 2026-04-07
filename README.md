@@ -53,7 +53,15 @@ This is the clearest review screen. It has:
 - all four layers: `reference`, `stock`, `jMAVSim prior SDF`, `re-identified from SITL ident`
 - local CSV reads from fixed repo paths
 - 3D zoom/pan/rotate through Plotly
-- a 2D top-down view, layer checkboxes, track target selection, and a progress slider
+- a reliable SVG inspector, a 2D top-down view, layer checkboxes, track target selection, and progress sliders near both the top and `Selected point` section
+
+How refresh works:
+
+- the app reads CSV files directly from `docs/sitl_validation/_generated/sources`
+- if you rerun one simulation and overwrite the matching CSV there, refresh the browser and the app will show the new data
+- for example, re-identified `circle` is read from `docs/sitl_validation/_generated/sources/re_identified_from_sitl_ident/tracking_logs/circle.csv`
+- if a new run writes to `/tmp/...`, it will not appear until that CSV is copied or published into the matching `_generated/sources/.../tracking_logs/<trajectory>.csv` path
+- use `Ctrl+F5` or add a URL suffix such as `?v=3` if Firefox keeps showing cached data
 
 Fallback direct open for the heavy generated HTML:
 

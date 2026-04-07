@@ -253,6 +253,10 @@
 
     <section class="card">
       <h3>Selected point</h3>
+      <div class="slider-row">
+        <input id="progressSliderSecondary" type="range" min="0" max="1000" step="1" value="0" />
+        <strong id="progressTextSecondary">0%</strong>
+      </div>
       <div class="meta-grid">
         <div class="meta"><span>Layer</span><strong id="selLayer">-</strong></div>
         <div class="meta"><span>Progress</span><strong id="selProgress">-</strong></div>
@@ -303,7 +307,9 @@
       layerChecks: document.getElementById("layerChecks"),
       trackSelect: document.getElementById("trackSelect"),
       progressSlider: document.getElementById("progressSlider"),
+      progressSliderSecondary: document.getElementById("progressSliderSecondary"),
       progressText: document.getElementById("progressText"),
+      progressTextSecondary: document.getElementById("progressTextSecondary"),
       title: document.getElementById("title"),
       metricsBody: document.getElementById("metricsBody"),
       svgInspector: document.getElementById("svgInspector"),
@@ -456,6 +462,7 @@
           state.progress = 0;
           state.svgView = null;
           el.progressSlider.value = "0";
+          el.progressSliderSecondary.value = "0";
           render();
         };
         el.trajectoryButtons.appendChild(button);
@@ -489,6 +496,13 @@
 
       el.progressSlider.oninput = event => {
         state.progress = Number(event.target.value) / 1000;
+        el.progressSliderSecondary.value = event.target.value;
+        renderSelectionAndMarkers();
+      };
+
+      el.progressSliderSecondary.oninput = event => {
+        state.progress = Number(event.target.value) / 1000;
+        el.progressSlider.value = event.target.value;
         renderSelectionAndMarkers();
       };
 
@@ -726,6 +740,7 @@
       const refPoint = nearest(ref?.pos, state.progress);
       const err = distance(trackedPoint, refPoint);
       el.progressText.textContent = `${Math.round(state.progress * 100)}%`;
+      el.progressTextSecondary.textContent = `${Math.round(state.progress * 100)}%`;
       el.selLayer.textContent = track?.label || "-";
       el.selProgress.textContent = `${Math.round(state.progress * 100)}%`;
       el.selError.textContent = Number.isFinite(err) ? `${fmt(err)} m` : "n/a";
@@ -745,6 +760,9 @@
       const layers = activeLayers();
       el.title.textContent = `${state.trajectory} (${layers.length} layers)`;
       el.progressText.textContent = `${Math.round(state.progress * 100)}%`;
+      el.progressTextSecondary.textContent = `${Math.round(state.progress * 100)}%`;
+      el.progressSlider.value = String(Math.round(state.progress * 1000));
+      el.progressSliderSecondary.value = String(Math.round(state.progress * 1000));
       [...el.trajectoryButtons.children].forEach(button => button.classList.toggle("active", button.textContent === state.trajectory));
 
       const traces3d = [];
