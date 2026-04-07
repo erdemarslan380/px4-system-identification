@@ -100,28 +100,6 @@
       overflow: hidden;
     }
     #plot2d { min-height: 620px; }
-    .svg-panel {
-      display: grid;
-      gap: 12px;
-    }
-    .svg-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-    }
-    #svgInspector {
-      width: 100%;
-      min-height: 620px;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      background: #fff;
-      touch-action: none;
-      cursor: grab;
-      display: block;
-    }
-    #svgInspector.dragging { cursor: grabbing; }
     .slider-row {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -227,17 +205,6 @@
       </div>
     </section>
 
-    <section class="card svg-panel">
-      <div class="svg-toolbar">
-        <div>
-          <h3>Reliable SVG inspector</h3>
-          <p class="note">Bu bölüm Plotly/WebGL kullanmaz. Mouse wheel ile zoom, sürükleme ile pan yapabilirsin. Katman ve trajectory seçimleri yukarıdaki kontrollerden gelir.</p>
-        </div>
-        <button id="resetSvg">Reset SVG zoom</button>
-      </div>
-      <svg id="svgInspector" role="img" aria-label="Reliable local top-down trajectory inspector"></svg>
-    </section>
-
     <section class="plot-grid">
       <div class="card">
         <h3>3D path view</h3>
@@ -298,8 +265,6 @@
       trackKey: "stock",
       progress: 0,
       data: {},
-      svgView: null,
-      svgDrag: null,
     };
 
     const el = {
@@ -312,8 +277,6 @@
       progressTextSecondary: document.getElementById("progressTextSecondary"),
       title: document.getElementById("title"),
       metricsBody: document.getElementById("metricsBody"),
-      svgInspector: document.getElementById("svgInspector"),
-      resetSvg: document.getElementById("resetSvg"),
       errorBox: document.getElementById("errorBox"),
       serverStatus: document.getElementById("serverStatus"),
       selLayer: document.getElementById("selLayer"),
@@ -336,10 +299,6 @@
     function fmtPoint(point) {
       if (!point) return "n/a";
       return `(${fmt(point.x, 2)}, ${fmt(point.y, 2)}, ${fmt(point.z, 2)})`;
-    }
-
-    function svgPoint(point) {
-      return { x: point.x, y: -point.y };
     }
 
     function parseCsv(text) {
@@ -460,7 +419,6 @@
         button.onclick = () => {
           state.trajectory = name;
           state.progress = 0;
-          state.svgView = null;
           el.progressSlider.value = "0";
           el.progressSliderSecondary.value = "0";
           render();
@@ -475,7 +433,6 @@
         label.innerHTML = `<input type="checkbox" ${state.visible[layer.key] ? "checked" : ""}> <span>${layer.label}</span>`;
         label.querySelector("input").onchange = event => {
           state.visible[layer.key] = event.target.checked;
-          state.svgView = null;
           render();
         };
         el.layerChecks.appendChild(label);
@@ -505,53 +462,6 @@
         el.progressSlider.value = event.target.value;
         renderSelectionAndMarkers();
       };
-
-      el.resetSvg.onclick = () => {
-        state.svgView = null;
-        renderSvgInspector();
-      };
-
-      el.svgInspector.addEventListener("wheel", event => {
-        event.preventDefault();
-        if (!state.svgView) return;
-        const rect = el.svgInspector.getBoundingClientRect();
-        const cx = state.svgView.x + ((event.clientX - rect.left) / rect.width) * state.svgView.width;
-        const cy = state.svgView.y + ((event.clientY - rect.top) / rect.height) * state.svgView.height;
-        const scale = event.deltaY < 0 ? 0.82 : 1.22;
-        state.svgView = {
-          x: cx - (cx - state.svgView.x) * scale,
-          y: cy - (cy - state.svgView.y) * scale,
-          width: state.svgView.width * scale,
-          height: state.svgView.height * scale,
-        };
-        renderSvgInspector();
-      }, { passive: false });
-
-      el.svgInspector.addEventListener("pointerdown", event => {
-        if (!state.svgView) return;
-        el.svgInspector.setPointerCapture(event.pointerId);
-        el.svgInspector.classList.add("dragging");
-        state.svgDrag = { x: event.clientX, y: event.clientY, view: { ...state.svgView } };
-      });
-
-      el.svgInspector.addEventListener("pointermove", event => {
-        if (!state.svgDrag || !state.svgView) return;
-        const rect = el.svgInspector.getBoundingClientRect();
-        const dx = ((event.clientX - state.svgDrag.x) / rect.width) * state.svgDrag.view.width;
-        const dy = ((event.clientY - state.svgDrag.y) / rect.height) * state.svgDrag.view.height;
-        state.svgView = {
-          ...state.svgDrag.view,
-          x: state.svgDrag.view.x - dx,
-          y: state.svgDrag.view.y - dy,
-        };
-        renderSvgInspector();
-      });
-
-      el.svgInspector.addEventListener("pointerup", event => {
-        state.svgDrag = null;
-        el.svgInspector.classList.remove("dragging");
-        try { el.svgInspector.releasePointerCapture(event.pointerId); } catch (_) {}
-      });
     }
 
     function traceForLayer(layer, mode) {
@@ -620,103 +530,6 @@
       return LAYERS.map(layer => current[layer.key]).filter(Boolean);
     }
 
-    function svgEl(name, attrs = {}) {
-      const node = document.createElementNS("http://www.w3.org/2000/svg", name);
-      Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
-      return node;
-    }
-
-    function renderSvgInspector() {
-      const layers = activeLayers().filter(layer => state.visible[layer.key]);
-      const allPoints = layers.flatMap(layer => layer.pos || []).map(svgPoint);
-      el.svgInspector.innerHTML = "";
-      if (!allPoints.length) {
-        const empty = svgEl("text", { x: 20, y: 40, fill: "#64748b" });
-        empty.textContent = "No points loaded.";
-        el.svgInspector.appendChild(empty);
-        return;
-      }
-
-      if (!state.svgView) {
-        const minX = Math.min(...allPoints.map(point => point.x));
-        const maxX = Math.max(...allPoints.map(point => point.x));
-        const minY = Math.min(...allPoints.map(point => point.y));
-        const maxY = Math.max(...allPoints.map(point => point.y));
-        const width = Math.max(maxX - minX, 1e-3);
-        const height = Math.max(maxY - minY, 1e-3);
-        const pad = Math.max(width, height) * 0.12 + 0.2;
-        state.svgView = { x: minX - pad, y: minY - pad, width: width + 2 * pad, height: height + 2 * pad };
-      }
-
-      const view = state.svgView;
-      el.svgInspector.setAttribute("viewBox", `${view.x} ${view.y} ${view.width} ${view.height}`);
-      el.svgInspector.appendChild(svgEl("rect", { x: view.x, y: view.y, width: view.width, height: view.height, fill: "#ffffff" }));
-
-      const grid = svgEl("g", { opacity: "0.18", stroke: "#94a3b8", "stroke-width": view.width / 900 });
-      const gridStep = Math.max(0.5, Math.pow(10, Math.floor(Math.log10(Math.max(view.width, view.height) / 8))));
-      for (let x = Math.floor(view.x / gridStep) * gridStep; x <= view.x + view.width; x += gridStep) {
-        grid.appendChild(svgEl("line", { x1: x, y1: view.y, x2: x, y2: view.y + view.height }));
-      }
-      for (let y = Math.floor(view.y / gridStep) * gridStep; y <= view.y + view.height; y += gridStep) {
-        grid.appendChild(svgEl("line", { x1: view.x, y1: y, x2: view.x + view.width, y2: y }));
-      }
-      el.svgInspector.appendChild(grid);
-
-      layers.forEach(layer => {
-        const group = svgEl("g", { "data-layer": layer.key });
-        const points = layer.pos.map(svgPoint);
-        group.appendChild(svgEl("polyline", {
-          points: points.map(point => `${point.x},${point.y}`).join(" "),
-          fill: "none",
-          stroke: layer.color,
-          "stroke-width": layer.key === "reference" ? view.width / 180 : view.width / 240,
-          "stroke-linecap": "round",
-          "stroke-linejoin": "round",
-          "stroke-dasharray": layer.dash === "dash" ? `${view.width / 90} ${view.width / 120}` : "",
-        }));
-        if (points.length) {
-          const start = points[0];
-          const end = points[points.length - 1];
-          group.appendChild(svgEl("circle", { cx: start.x, cy: start.y, r: view.width / 95, fill: layer.color }));
-          group.appendChild(svgEl("polygon", {
-            points: `${end.x},${end.y - view.width / 75} ${end.x - view.width / 90},${end.y + view.width / 95} ${end.x + view.width / 90},${end.y + view.width / 95}`,
-            fill: layer.color,
-          }));
-        }
-        el.svgInspector.appendChild(group);
-      });
-
-      const ref = state.data[state.trajectory]?.reference;
-      const track = state.data[state.trajectory]?.[state.trackKey];
-      const refPoint = nearest(ref?.pos, state.progress);
-      const trackedPoint = nearest(track?.pos, state.progress);
-      if (refPoint && trackedPoint) {
-        const a = svgPoint(refPoint);
-        const b = svgPoint(trackedPoint);
-        el.svgInspector.appendChild(svgEl("line", {
-          x1: a.x,
-          y1: a.y,
-          x2: b.x,
-          y2: b.y,
-          stroke: "#ef4444",
-          "stroke-width": view.width / 220,
-          "stroke-dasharray": `${view.width / 120} ${view.width / 130}`,
-        }));
-        el.svgInspector.appendChild(svgEl("circle", { cx: a.x, cy: a.y, r: view.width / 80, fill: "#111827", stroke: "#fff", "stroke-width": view.width / 300 }));
-        el.svgInspector.appendChild(svgEl("circle", { cx: b.x, cy: b.y, r: view.width / 70, fill: track.color, stroke: "#fff", "stroke-width": view.width / 260 }));
-      }
-
-      const legend = svgEl("g", { transform: `translate(${view.x + view.width * 0.02},${view.y + view.height * 0.06})` });
-      layers.forEach((layer, idx) => {
-        const y = idx * view.height * 0.045;
-        legend.appendChild(svgEl("line", { x1: 0, y1: y, x2: view.width * 0.055, y2: y, stroke: layer.color, "stroke-width": view.width / 180 }));
-        const text = svgEl("text", { x: view.width * 0.065, y: y + view.height * 0.01, fill: "#17202a", "font-size": view.height * 0.026 });
-        text.textContent = layer.label;
-        legend.appendChild(text);
-      });
-      el.svgInspector.appendChild(legend);
-    }
-
     function renderMetrics() {
       el.metricsBody.innerHTML = "";
       activeLayers().forEach(layer => {
@@ -753,7 +566,6 @@
       const plot2d = document.getElementById("plot2d");
       if (window.Plotly && plot3d.data && plot3d.data.length) Plotly.restyle("plot3d", update3d, [plot3d.data.length - 1]);
       if (window.Plotly && plot2d.data && plot2d.data.length) Plotly.restyle("plot2d", update2d, [plot2d.data.length - 1]);
-      renderSvgInspector();
     }
 
     function render() {
@@ -801,7 +613,7 @@
           Plotly.react("plot3d", traces3d, layout3d, config);
           Plotly.react("plot2d", traces2d, layout2d, config);
         } catch (error) {
-          showError(`Plotly panel failed, but SVG inspector should still work:\n${error.stack || error.message || error}`);
+          showError(`Plotly panel failed:\n${error.stack || error.message || error}`);
         }
       }
       renderMetrics();
@@ -818,7 +630,7 @@
       render();
       loadPlotly()
         .then(() => render())
-        .catch(error => showError(`Plotly yüklenemedi; 3D panel kapanabilir ama Reliable SVG inspector çalışmaya devam eder.\n${error.message}`));
+        .catch(error => showError(`Plotly yüklenemedi; 3D/2D Plotly panelleri çizilemeyebilir.\n${error.message}`));
     }
 
     main().catch(error => showError(error.stack || error.message || String(error)));

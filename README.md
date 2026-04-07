@@ -53,7 +53,7 @@ This is the clearest review screen. It has:
 - all four layers: `reference`, `stock`, `jMAVSim prior SDF`, `re-identified from SITL ident`
 - local CSV reads from fixed repo paths
 - 3D zoom/pan/rotate through Plotly
-- a reliable SVG inspector, a 2D top-down view, layer checkboxes, track target selection, and progress sliders near both the top and `Selected point` section
+- a 3D path view, a 2D top-down view, layer checkboxes, track target selection, and progress sliders near both the top and `Selected point` section
 
 How refresh works:
 
