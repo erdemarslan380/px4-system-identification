@@ -122,10 +122,11 @@ python3 experimental_validation/publish_sitl_docs_assets.py \
   --review-root docs/sitl_validation/_generated/reviews/three_model
 ```
 
-If Firefox shows a blank `3D Path View`, use the top `Visible Static Review`
-section first. That section is inline SVG and does not need JavaScript, CSV
-files, internet, or the local docs server. It should show all five trajectories
-directly in the same `index.html`.
+If Firefox shows a blank `3D Path View`, refresh the local docs server page
+with `Ctrl+F5` or add a cache-bust suffix such as `?v=6`. The maintained
+review path is the local server app at
+`docs/sitl_validation/local_review/index.html`; it reads the fixed CSV sources
+under `docs/sitl_validation/_generated/sources`.
 
 Fixed project rules
 -------------------
@@ -288,9 +289,9 @@ Pinned docs outputs after the publish step:
 
 Review notes:
 
-- the review still opens the interactive inspector on `circle` by default
-- the top `Visible Static Review` section shows all `5` trajectories immediately as inline SVG
-- use the `Trajectory Switcher` pills for the interactive `3D Path View`
+- the review opens on `circle` by default
+- use the trajectory controls to switch between all `5` trajectories
+- use the Plotly modebar for the interactive `3D Path View`
 - each trajectory keeps its own embedded raw CSV download link; no external CSV files are required for the HTML to render
 
 Embedded stock figures:
