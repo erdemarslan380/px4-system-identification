@@ -31,20 +31,31 @@ want the HTML review to open directly instead of showing the file contents.
 Important limitation:
 
 - GitHub does not execute repo HTML files directly from normal file links, so a plain `index.html` repo link may still show source or download behavior
-- for a guaranteed rendered local view, start the local docs server once and then open the review URLs through `http://127.0.0.1:8765/...`
-- the generated review bundles are now self-contained single HTML files with inline Plotly and embedded CSV downloads, so opening the `index.html` file directly in a browser also works
+- for a guaranteed rendered local view, start the local docs server once and use the dedicated local review app
+- the dedicated local review app reads fixed CSV files from `docs/sitl_validation/_generated/sources`
+- avoid opening the heavy generated review HTML directly if Firefox shows a blank `3D Path View`
 
-One-command local docs server:
+Recommended local review web app:
 
 ```bash
 cd ~/px4-system-identification
 python3 experimental_validation/serve_sitl_docs.py \
-  --open-path docs/sitl_validation/three_model/review/index.html
+  --open-path docs/sitl_validation/local_review/index.html
 ```
 
-This serves the repo at `http://127.0.0.1:8765/` and opens the requested review in your default browser.
+This serves the repo at `http://127.0.0.1:8765/` and opens:
 
-Direct browser open without the server:
+`http://127.0.0.1:8765/docs/sitl_validation/local_review/index.html`
+
+This is the clearest review screen. It has:
+
+- all five trajectories: `circle`, `hairpin`, `lemniscate`, `time_optimal_30s`, `minimum_snap_50s`
+- all four layers: `reference`, `stock`, `jMAVSim prior SDF`, `re-identified from SITL ident`
+- local CSV reads from fixed repo paths
+- 3D zoom/pan/rotate through Plotly
+- a 2D top-down view, layer checkboxes, track target selection, and a progress slider
+
+Fallback direct open for the heavy generated HTML:
 
 ```bash
 cd ~/px4-system-identification
@@ -691,16 +702,19 @@ Pinned docs outputs after the publish step:
 
 - [Final grouped PNG 1](docs/sitl_validation/three_model/figures/group_1_circle_hairpin_lemniscate.png)
 - [Final grouped PNG 2](docs/sitl_validation/three_model/figures/group_2_time_optimal_minimum_snap.png)
-- <a href="docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open local final interactive review</a>
-- <a href="http://127.0.0.1:8765/docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open rendered final review from local docs server</a>
+- <a href="http://127.0.0.1:8765/docs/sitl_validation/local_review/index.html" target="_blank" rel="noopener">Open recommended local webserver review app</a>
+- <a href="docs/sitl_validation/local_review/index.html" target="_blank" rel="noopener">Open local review app file path</a>
+- <a href="docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open heavy generated final review fallback</a>
+- <a href="http://127.0.0.1:8765/docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open heavy generated final review from local docs server</a>
 - <a href="https://rawcdn.githack.com/erdemarslan380/px4-system-identification/main/docs/sitl_validation/three_model/review/index.html" target="_blank" rel="noopener">Open rendered final interactive review from GitHub</a>
 - [Pinned prior vs re-identified parameter comparison](docs/sitl_validation/three_model/parameters/parameter_summary.md)
 
 Review notes:
 
-- the final review contains all `5` trajectories
-- the active trajectory can be changed from the top `Trajectory Switcher`
-- layer visibility and track target selection are handled from the control panel inside the HTML
+- use the recommended local webserver review app first
+- the app contains all `5` trajectories and the four comparison layers
+- layer visibility and track target selection are handled from the top control panel
+- the heavy generated final review is kept as a fallback/archive, but the webserver app is easier to debug
 
 Embedded final figures:
 

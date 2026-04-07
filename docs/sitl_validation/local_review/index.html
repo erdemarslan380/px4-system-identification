@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SITL Trajectory Local Review</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffaf2;
+      --panel-2: #ffffff;
+      --ink: #17202a;
+      --muted: #64748b;
+      --border: #d7cdbc;
+      --accent: #0f766e;
+      --danger: #b45309;
+      --shadow: rgba(23, 32, 42, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 10% 5%, rgba(15, 118, 110, 0.12), transparent 28rem),
+        linear-gradient(180deg, #efe5d5 0%, var(--bg) 100%);
+      color: var(--ink);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    }
+    header {
+      padding: 22px clamp(16px, 4vw, 42px);
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 250, 242, 0.92);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(8px);
+    }
+    h1, h2, h3 { margin: 0; }
+    h1 { font-size: clamp(24px, 4vw, 42px); letter-spacing: -0.04em; }
+    p { line-height: 1.55; }
+    main {
+      padding: 20px clamp(14px, 3vw, 34px) 42px;
+      display: grid;
+      gap: 18px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 14px 38px var(--shadow);
+      padding: 18px;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .pill-row, .check-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    button, select {
+      color: var(--ink);
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 10px 13px;
+      min-height: 42px;
+      cursor: pointer;
+      font: inherit;
+    }
+    button.active {
+      border-color: var(--accent);
+      background: #ddf7f1;
+      font-weight: 700;
+    }
+    label.check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      cursor: pointer;
+    }
+    label.check input { margin: 0; }
+    .plot-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
+      gap: 16px;
+    }
+    .plot {
+      min-height: 620px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: white;
+      overflow: hidden;
+    }
+    #plot2d { min-height: 620px; }
+    .svg-panel {
+      display: grid;
+      gap: 12px;
+    }
+    .svg-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #svgInspector {
+      width: 100%;
+      min-height: 620px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #fff;
+      touch-action: none;
+      cursor: grab;
+      display: block;
+    }
+    #svgInspector.dragging { cursor: grabbing; }
+    .slider-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: center;
+      margin-top: 12px;
+    }
+    input[type="range"] { width: 100%; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .meta {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #fff;
+      padding: 13px;
+    }
+    .meta span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .meta strong { font-size: 18px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    a { color: var(--accent); font-weight: 700; text-decoration: none; }
+    .note { color: var(--muted); margin: 8px 0 0; }
+    .error {
+      display: none;
+      color: #7f1d1d;
+      background: #fee2e2;
+      border: 1px solid #fecaca;
+      padding: 12px;
+      border-radius: 14px;
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #fff7ed;
+      color: var(--danger);
+      border: 1px solid #fed7aa;
+      font-weight: 700;
+      margin-top: 10px;
+    }
+    @media (max-width: 1180px) {
+      .toolbar, .plot-grid, .meta-grid { grid-template-columns: 1fr; }
+      .plot, #plot2d { min-height: 480px; }
+      header { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SITL trajectory local review</h1>
+    <p class="note">Kalıcı CSV kaynakları `docs/sitl_validation/_generated/sources` altından okunur. Bu sayfa dosya olarak değil, yerel webserver üzerinden açılmak için tasarlandı.</p>
+    <div id="serverStatus" class="status">Yükleniyor...</div>
+    <div id="errorBox" class="error"></div>
+  </header>
+  <main>
+    <section class="card toolbar">
+      <div>
+        <h3>Trajectory</h3>
+        <div id="trajectoryButtons" class="pill-row"></div>
+      </div>
+      <div>
+        <h3>Layers</h3>
+        <div id="layerChecks" class="check-row"></div>
+      </div>
+      <div>
+        <h3>Track target</h3>
+        <select id="trackSelect"></select>
+        <p class="note">Slider bu katmanın noktasını takip eder; hata aynı andaki referansa göre hesaplanır.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 id="title">-</h2>
+      <div class="slider-row">
+        <input id="progressSlider" type="range" min="0" max="1000" step="1" value="0" />
+        <strong id="progressText">0%</strong>
+      </div>
+    </section>
+
+    <section class="card svg-panel">
+      <div class="svg-toolbar">
+        <div>
+          <h3>Reliable SVG inspector</h3>
+          <p class="note">Bu bölüm Plotly/WebGL kullanmaz. Mouse wheel ile zoom, sürükleme ile pan yapabilirsin. Katman ve trajectory seçimleri yukarıdaki kontrollerden gelir.</p>
+        </div>
+        <button id="resetSvg">Reset SVG zoom</button>
+      </div>
+      <svg id="svgInspector" role="img" aria-label="Reliable local top-down trajectory inspector"></svg>
+    </section>
+
+    <section class="plot-grid">
+      <div class="card">
+        <h3>3D path view</h3>
+        <p class="note">Plotly modebar ile zoom, pan, rotate yapılabilir. Lejanttan da katman aç/kapat yapılabilir.</p>
+        <div id="plot3d" class="plot"></div>
+      </div>
+      <div class="card">
+        <h3>Top-down XY view</h3>
+        <p class="note">Daha hızlı kontrol için 2D görünüm. Başlangıç yuvarlak, bitiş üçgen metin işaretidir.</p>
+        <div id="plot2d" class="plot"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Selected point</h3>
+      <div class="meta-grid">
+        <div class="meta"><span>Layer</span><strong id="selLayer">-</strong></div>
+        <div class="meta"><span>Progress</span><strong id="selProgress">-</strong></div>
+        <div class="meta"><span>Error norm</span><strong id="selError">-</strong></div>
+        <div class="meta"><span>Tracked xyz</span><strong id="selPoint">-</strong></div>
+        <div class="meta"><span>Reference xyz</span><strong id="selRef">-</strong></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Metrics and source CSV</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Samples</th>
+            <th>RMSE [m]</th>
+            <th>Max error [m]</th>
+            <th>CSV</th>
+          </tr>
+        </thead>
+        <tbody id="metricsBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const TRAJECTORIES = ["circle", "hairpin", "lemniscate", "time_optimal_30s", "minimum_snap_50s"];
+    const LAYERS = [
+      { key: "reference", label: "Reference", color: "#222222", dash: "dash", source: null },
+      { key: "stock", label: "Stock x500 SITL", color: "#1f77b4", dash: "solid", source: "../_generated/sources/stock/tracking_logs" },
+      { key: "jmavsim_prior_sdf", label: "jMAVSim prior SDF", color: "#d95f02", dash: "solid", source: "../_generated/sources/jmavsim_prior_sdf/tracking_logs" },
+      { key: "re_identified_from_sitl_ident", label: "Re-identified from SITL ident", color: "#6a3d9a", dash: "solid", source: "../_generated/sources/re_identified_from_sitl_ident/tracking_logs" },
+    ];
+
+    const state = {
+      trajectory: TRAJECTORIES[0],
+      visible: Object.fromEntries(LAYERS.map(layer => [layer.key, true])),
+      trackKey: "stock",
+      progress: 0,
+      data: {},
+      svgView: null,
+      svgDrag: null,
+    };
+
+    const el = {
+      trajectoryButtons: document.getElementById("trajectoryButtons"),
+      layerChecks: document.getElementById("layerChecks"),
+      trackSelect: document.getElementById("trackSelect"),
+      progressSlider: document.getElementById("progressSlider"),
+      progressText: document.getElementById("progressText"),
+      title: document.getElementById("title"),
+      metricsBody: document.getElementById("metricsBody"),
+      svgInspector: document.getElementById("svgInspector"),
+      resetSvg: document.getElementById("resetSvg"),
+      errorBox: document.getElementById("errorBox"),
+      serverStatus: document.getElementById("serverStatus"),
+      selLayer: document.getElementById("selLayer"),
+      selProgress: document.getElementById("selProgress"),
+      selError: document.getElementById("selError"),
+      selPoint: document.getElementById("selPoint"),
+      selRef: document.getElementById("selRef"),
+    };
+
+    function showError(message) {
+      el.errorBox.style.display = "block";
+      el.errorBox.textContent = message;
+    }
+
+    function fmt(value, digits = 3) {
+      if (value === undefined || value === null || Number.isNaN(value)) return "n/a";
+      return Number(value).toFixed(digits);
+    }
+
+    function fmtPoint(point) {
+      if (!point) return "n/a";
+      return `(${fmt(point.x, 2)}, ${fmt(point.y, 2)}, ${fmt(point.z, 2)})`;
+    }
+
+    function svgPoint(point) {
+      return { x: point.x, y: -point.y };
+    }
+
+    function parseCsv(text) {
+      const lines = text.trim().split(/\r?\n/);
+      const headers = lines.shift().split(",");
+      return lines.filter(Boolean).map(line => {
+        const cells = line.split(",");
+        const row = {};
+        headers.forEach((header, idx) => {
+          const value = cells[idx];
+          row[header] = value === undefined ? "" : value;
+        });
+        return row;
+      });
+    }
+
+    function rowToPoints(rows, prefix) {
+      return rows.map((row, idx) => ({
+        x: Number(row[`${prefix}_x`]),
+        y: Number(row[`${prefix}_y`]),
+        z: Number(row[`${prefix}_z`]),
+        idx,
+        progress: rows.length <= 1 ? 0 : idx / (rows.length - 1),
+      })).filter(point => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z));
+    }
+
+    function distance(a, b) {
+      if (!a || !b) return NaN;
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dz = a.z - b.z;
+      return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    function nearest(points, progress) {
+      if (!points || points.length === 0) return null;
+      const idx = Math.max(0, Math.min(points.length - 1, Math.round(progress * (points.length - 1))));
+      return points[idx];
+    }
+
+    function rmse(layer) {
+      if (!layer || !layer.pos || !layer.ref) return NaN;
+      const n = Math.min(layer.pos.length, layer.ref.length);
+      if (!n) return NaN;
+      let sum = 0;
+      for (let idx = 0; idx < n; idx += 1) {
+        const e = distance(layer.pos[idx], layer.ref[idx]);
+        sum += e * e;
+      }
+      return Math.sqrt(sum / n);
+    }
+
+    function maxError(layer) {
+      if (!layer || !layer.pos || !layer.ref) return NaN;
+      const n = Math.min(layer.pos.length, layer.ref.length);
+      let max = 0;
+      for (let idx = 0; idx < n; idx += 1) {
+        max = Math.max(max, distance(layer.pos[idx], layer.ref[idx]));
+      }
+      return max;
+    }
+
+    async function loadCsv(path) {
+      const response = await fetch(path, { cache: "no-store" });
+      if (!response.ok) throw new Error(`${path} -> HTTP ${response.status}`);
+      return parseCsv(await response.text());
+    }
+
+    function loadPlotly() {
+      if (window.Plotly) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "../../../experimental_validation/assets/plotly-2.35.2.min.js";
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("Plotly local asset could not be loaded."));
+        document.head.appendChild(script);
+      });
+    }
+
+    async function loadAll() {
+      const errors = [];
+      for (const trajectory of TRAJECTORIES) {
+        state.data[trajectory] = {};
+        for (const layer of LAYERS.filter(item => item.source)) {
+          const path = `${layer.source}/${trajectory}.csv`;
+          try {
+            const rows = await loadCsv(path);
+            state.data[trajectory][layer.key] = {
+              ...layer,
+              path,
+              rows,
+              ref: rowToPoints(rows, "ref"),
+              pos: rowToPoints(rows, "pos"),
+            };
+          } catch (error) {
+            errors.push(`${layer.label} / ${trajectory}: ${error.message}`);
+          }
+        }
+        const first = state.data[trajectory].stock || Object.values(state.data[trajectory])[0];
+        if (first) {
+          state.data[trajectory].reference = {
+            ...LAYERS[0],
+            path: "",
+            rows: first.rows,
+            ref: first.ref,
+            pos: first.ref,
+          };
+        }
+      }
+      if (errors.length) showError(`Bazı CSV dosyaları okunamadı:\n${errors.join("\n")}`);
+    }
+
+    function initControls() {
+      el.trajectoryButtons.innerHTML = "";
+      TRAJECTORIES.forEach(name => {
+        const button = document.createElement("button");
+        button.textContent = name;
+        button.onclick = () => {
+          state.trajectory = name;
+          state.progress = 0;
+          state.svgView = null;
+          el.progressSlider.value = "0";
+          render();
+        };
+        el.trajectoryButtons.appendChild(button);
+      });
+
+      el.layerChecks.innerHTML = "";
+      LAYERS.forEach(layer => {
+        const label = document.createElement("label");
+        label.className = "check";
+        label.innerHTML = `<input type="checkbox" ${state.visible[layer.key] ? "checked" : ""}> <span>${layer.label}</span>`;
+        label.querySelector("input").onchange = event => {
+          state.visible[layer.key] = event.target.checked;
+          state.svgView = null;
+          render();
+        };
+        el.layerChecks.appendChild(label);
+      });
+
+      el.trackSelect.innerHTML = "";
+      LAYERS.filter(layer => layer.key !== "reference").forEach(layer => {
+        const option = document.createElement("option");
+        option.value = layer.key;
+        option.textContent = layer.label;
+        el.trackSelect.appendChild(option);
+      });
+      el.trackSelect.value = state.trackKey;
+      el.trackSelect.onchange = event => {
+        state.trackKey = event.target.value;
+        render();
+      };
+
+      el.progressSlider.oninput = event => {
+        state.progress = Number(event.target.value) / 1000;
+        renderSelectionAndMarkers();
+      };
+
+      el.resetSvg.onclick = () => {
+        state.svgView = null;
+        renderSvgInspector();
+      };
+
+      el.svgInspector.addEventListener("wheel", event => {
+        event.preventDefault();
+        if (!state.svgView) return;
+        const rect = el.svgInspector.getBoundingClientRect();
+        const cx = state.svgView.x + ((event.clientX - rect.left) / rect.width) * state.svgView.width;
+        const cy = state.svgView.y + ((event.clientY - rect.top) / rect.height) * state.svgView.height;
+        const scale = event.deltaY < 0 ? 0.82 : 1.22;
+        state.svgView = {
+          x: cx - (cx - state.svgView.x) * scale,
+          y: cy - (cy - state.svgView.y) * scale,
+          width: state.svgView.width * scale,
+          height: state.svgView.height * scale,
+        };
+        renderSvgInspector();
+      }, { passive: false });
+
+      el.svgInspector.addEventListener("pointerdown", event => {
+        if (!state.svgView) return;
+        el.svgInspector.setPointerCapture(event.pointerId);
+        el.svgInspector.classList.add("dragging");
+        state.svgDrag = { x: event.clientX, y: event.clientY, view: { ...state.svgView } };
+      });
+
+      el.svgInspector.addEventListener("pointermove", event => {
+        if (!state.svgDrag || !state.svgView) return;
+        const rect = el.svgInspector.getBoundingClientRect();
+        const dx = ((event.clientX - state.svgDrag.x) / rect.width) * state.svgDrag.view.width;
+        const dy = ((event.clientY - state.svgDrag.y) / rect.height) * state.svgDrag.view.height;
+        state.svgView = {
+          ...state.svgDrag.view,
+          x: state.svgDrag.view.x - dx,
+          y: state.svgDrag.view.y - dy,
+        };
+        renderSvgInspector();
+      });
+
+      el.svgInspector.addEventListener("pointerup", event => {
+        state.svgDrag = null;
+        el.svgInspector.classList.remove("dragging");
+        try { el.svgInspector.releasePointerCapture(event.pointerId); } catch (_) {}
+      });
+    }
+
+    function traceForLayer(layer, mode) {
+      const points = layer.pos || [];
+      const dash = layer.dash === "dash" ? "dash" : "solid";
+      if (mode === "2d") {
+        return {
+          type: "scatter",
+          mode: "lines",
+          name: layer.label,
+          x: points.map(point => point.x),
+          y: points.map(point => point.y),
+          line: { color: layer.color, width: layer.key === "reference" ? 4 : 3, dash },
+          hovertemplate: `<b>${layer.label}</b><br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>`,
+          visible: state.visible[layer.key] ? true : "legendonly",
+        };
+      }
+      return {
+        type: "scatter3d",
+        mode: "lines",
+        name: layer.label,
+        x: points.map(point => point.x),
+        y: points.map(point => point.y),
+        z: points.map(point => point.z),
+        line: { color: layer.color, width: layer.key === "reference" ? 7 : 5, dash },
+        customdata: points.map((_, idx) => idx),
+        hovertemplate: `<b>${layer.label}</b><br>x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra></extra>`,
+        visible: state.visible[layer.key] ? true : "legendonly",
+      };
+    }
+
+    function markerTraces(layer, mode) {
+      const points = layer.pos || [];
+      if (!points.length) return [];
+      const start = points[0];
+      const end = points[points.length - 1];
+      if (mode === "2d") {
+        return [
+          { type: "scatter", mode: "markers", name: `${layer.label} start`, x: [start.x], y: [start.y], marker: { color: layer.color, size: 10, symbol: "circle" }, showlegend: false, hoverinfo: "skip", visible: state.visible[layer.key] ? true : "legendonly" },
+          { type: "scatter", mode: "markers+text", name: `${layer.label} end`, x: [end.x], y: [end.y], text: ["▲"], textposition: "top center", marker: { color: layer.color, size: 7, symbol: "circle-open" }, textfont: { color: layer.color, size: 16 }, showlegend: false, hoverinfo: "skip", visible: state.visible[layer.key] ? true : "legendonly" },
+        ];
+      }
+      return [
+        { type: "scatter3d", mode: "markers", name: `${layer.label} start`, x: [start.x], y: [start.y], z: [start.z], marker: { color: layer.color, size: 5, symbol: "circle" }, showlegend: false, hoverinfo: "skip", visible: state.visible[layer.key] ? true : "legendonly" },
+        { type: "scatter3d", mode: "markers+text", name: `${layer.label} end`, x: [end.x], y: [end.y], z: [end.z], text: ["▲"], textposition: "top center", marker: { color: layer.color, size: 3, symbol: "circle-open" }, textfont: { color: layer.color, size: 16 }, showlegend: false, hoverinfo: "skip", visible: state.visible[layer.key] ? true : "legendonly" },
+      ];
+    }
+
+    function selectorTrace(mode) {
+      const layers = activeLayers();
+      const xs = [], ys = [], zs = [], labels = [], colors = [];
+      layers.forEach(layer => {
+        if (!state.visible[layer.key]) return;
+        const point = nearest(layer.pos, state.progress);
+        if (!point) return;
+        xs.push(point.x); ys.push(point.y); zs.push(point.z); labels.push(layer.label); colors.push(layer.color);
+      });
+      if (mode === "2d") {
+        return { type: "scatter", mode: "markers+text", name: "Selected progress", x: xs, y: ys, text: labels, textposition: "bottom center", marker: { color: colors, size: 12, symbol: "x" }, showlegend: false, hoverinfo: "skip" };
+      }
+      return { type: "scatter3d", mode: "markers+text", name: "Selected progress", x: xs, y: ys, z: zs, text: labels, textposition: "bottom center", marker: { color: colors, size: 6, symbol: "x" }, showlegend: false, hoverinfo: "skip" };
+    }
+
+    function activeLayers() {
+      const current = state.data[state.trajectory] || {};
+      return LAYERS.map(layer => current[layer.key]).filter(Boolean);
+    }
+
+    function svgEl(name, attrs = {}) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+      Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+      return node;
+    }
+
+    function renderSvgInspector() {
+      const layers = activeLayers().filter(layer => state.visible[layer.key]);
+      const allPoints = layers.flatMap(layer => layer.pos || []).map(svgPoint);
+      el.svgInspector.innerHTML = "";
+      if (!allPoints.length) {
+        const empty = svgEl("text", { x: 20, y: 40, fill: "#64748b" });
+        empty.textContent = "No points loaded.";
+        el.svgInspector.appendChild(empty);
+        return;
+      }
+
+      if (!state.svgView) {
+        const minX = Math.min(...allPoints.map(point => point.x));
+        const maxX = Math.max(...allPoints.map(point => point.x));
+        const minY = Math.min(...allPoints.map(point => point.y));
+        const maxY = Math.max(...allPoints.map(point => point.y));
+        const width = Math.max(maxX - minX, 1e-3);
+        const height = Math.max(maxY - minY, 1e-3);
+        const pad = Math.max(width, height) * 0.12 + 0.2;
+        state.svgView = { x: minX - pad, y: minY - pad, width: width + 2 * pad, height: height + 2 * pad };
+      }
+
+      const view = state.svgView;
+      el.svgInspector.setAttribute("viewBox", `${view.x} ${view.y} ${view.width} ${view.height}`);
+      el.svgInspector.appendChild(svgEl("rect", { x: view.x, y: view.y, width: view.width, height: view.height, fill: "#ffffff" }));
+
+      const grid = svgEl("g", { opacity: "0.18", stroke: "#94a3b8", "stroke-width": view.width / 900 });
+      const gridStep = Math.max(0.5, Math.pow(10, Math.floor(Math.log10(Math.max(view.width, view.height) / 8))));
+      for (let x = Math.floor(view.x / gridStep) * gridStep; x <= view.x + view.width; x += gridStep) {
+        grid.appendChild(svgEl("line", { x1: x, y1: view.y, x2: x, y2: view.y + view.height }));
+      }
+      for (let y = Math.floor(view.y / gridStep) * gridStep; y <= view.y + view.height; y += gridStep) {
+        grid.appendChild(svgEl("line", { x1: view.x, y1: y, x2: view.x + view.width, y2: y }));
+      }
+      el.svgInspector.appendChild(grid);
+
+      layers.forEach(layer => {
+        const group = svgEl("g", { "data-layer": layer.key });
+        const points = layer.pos.map(svgPoint);
+        group.appendChild(svgEl("polyline", {
+          points: points.map(point => `${point.x},${point.y}`).join(" "),
+          fill: "none",
+          stroke: layer.color,
+          "stroke-width": layer.key === "reference" ? view.width / 180 : view.width / 240,
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round",
+          "stroke-dasharray": layer.dash === "dash" ? `${view.width / 90} ${view.width / 120}` : "",
+        }));
+        if (points.length) {
+          const start = points[0];
+          const end = points[points.length - 1];
+          group.appendChild(svgEl("circle", { cx: start.x, cy: start.y, r: view.width / 95, fill: layer.color }));
+          group.appendChild(svgEl("polygon", {
+            points: `${end.x},${end.y - view.width / 75} ${end.x - view.width / 90},${end.y + view.width / 95} ${end.x + view.width / 90},${end.y + view.width / 95}`,
+            fill: layer.color,
+          }));
+        }
+        el.svgInspector.appendChild(group);
+      });
+
+      const ref = state.data[state.trajectory]?.reference;
+      const track = state.data[state.trajectory]?.[state.trackKey];
+      const refPoint = nearest(ref?.pos, state.progress);
+      const trackedPoint = nearest(track?.pos, state.progress);
+      if (refPoint && trackedPoint) {
+        const a = svgPoint(refPoint);
+        const b = svgPoint(trackedPoint);
+        el.svgInspector.appendChild(svgEl("line", {
+          x1: a.x,
+          y1: a.y,
+          x2: b.x,
+          y2: b.y,
+          stroke: "#ef4444",
+          "stroke-width": view.width / 220,
+          "stroke-dasharray": `${view.width / 120} ${view.width / 130}`,
+        }));
+        el.svgInspector.appendChild(svgEl("circle", { cx: a.x, cy: a.y, r: view.width / 80, fill: "#111827", stroke: "#fff", "stroke-width": view.width / 300 }));
+        el.svgInspector.appendChild(svgEl("circle", { cx: b.x, cy: b.y, r: view.width / 70, fill: track.color, stroke: "#fff", "stroke-width": view.width / 260 }));
+      }
+
+      const legend = svgEl("g", { transform: `translate(${view.x + view.width * 0.02},${view.y + view.height * 0.06})` });
+      layers.forEach((layer, idx) => {
+        const y = idx * view.height * 0.045;
+        legend.appendChild(svgEl("line", { x1: 0, y1: y, x2: view.width * 0.055, y2: y, stroke: layer.color, "stroke-width": view.width / 180 }));
+        const text = svgEl("text", { x: view.width * 0.065, y: y + view.height * 0.01, fill: "#17202a", "font-size": view.height * 0.026 });
+        text.textContent = layer.label;
+        legend.appendChild(text);
+      });
+      el.svgInspector.appendChild(legend);
+    }
+
+    function renderMetrics() {
+      el.metricsBody.innerHTML = "";
+      activeLayers().forEach(layer => {
+        const tr = document.createElement("tr");
+        const csv = layer.path ? `<a href="${layer.path}" target="_blank" rel="noopener">open CSV</a>` : "-";
+        tr.innerHTML = `
+          <td><strong style="color:${layer.color}">${layer.label}</strong></td>
+          <td>${layer.pos.length}</td>
+          <td>${layer.key === "reference" ? "0.000" : fmt(rmse(layer))}</td>
+          <td>${layer.key === "reference" ? "0.000" : fmt(maxError(layer))}</td>
+          <td>${csv}</td>
+        `;
+        el.metricsBody.appendChild(tr);
+      });
+    }
+
+    function renderSelectionAndMarkers() {
+      const track = state.data[state.trajectory]?.[state.trackKey];
+      const ref = state.data[state.trajectory]?.reference;
+      const trackedPoint = nearest(track?.pos, state.progress);
+      const refPoint = nearest(ref?.pos, state.progress);
+      const err = distance(trackedPoint, refPoint);
+      el.progressText.textContent = `${Math.round(state.progress * 100)}%`;
+      el.selLayer.textContent = track?.label || "-";
+      el.selProgress.textContent = `${Math.round(state.progress * 100)}%`;
+      el.selError.textContent = Number.isFinite(err) ? `${fmt(err)} m` : "n/a";
+      el.selPoint.textContent = fmtPoint(trackedPoint);
+      el.selRef.textContent = fmtPoint(refPoint);
+
+      const update3d = { x: [selectorTrace("3d").x], y: [selectorTrace("3d").y], z: [selectorTrace("3d").z], text: [selectorTrace("3d").text], "marker.color": [selectorTrace("3d").marker.color] };
+      const update2d = { x: [selectorTrace("2d").x], y: [selectorTrace("2d").y], text: [selectorTrace("2d").text], "marker.color": [selectorTrace("2d").marker.color] };
+      const plot3d = document.getElementById("plot3d");
+      const plot2d = document.getElementById("plot2d");
+      if (window.Plotly && plot3d.data && plot3d.data.length) Plotly.restyle("plot3d", update3d, [plot3d.data.length - 1]);
+      if (window.Plotly && plot2d.data && plot2d.data.length) Plotly.restyle("plot2d", update2d, [plot2d.data.length - 1]);
+      renderSvgInspector();
+    }
+
+    function render() {
+      const layers = activeLayers();
+      el.title.textContent = `${state.trajectory} (${layers.length} layers)`;
+      el.progressText.textContent = `${Math.round(state.progress * 100)}%`;
+      [...el.trajectoryButtons.children].forEach(button => button.classList.toggle("active", button.textContent === state.trajectory));
+
+      const traces3d = [];
+      const traces2d = [];
+      layers.forEach(layer => {
+        traces3d.push(traceForLayer(layer, "3d"), ...markerTraces(layer, "3d"));
+        traces2d.push(traceForLayer(layer, "2d"), ...markerTraces(layer, "2d"));
+      });
+      traces3d.push(selectorTrace("3d"));
+      traces2d.push(selectorTrace("2d"));
+
+      const layout3d = {
+        margin: { l: 0, r: 0, t: 10, b: 0 },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+        legend: { orientation: "h", y: 1.05 },
+        scene: {
+          xaxis: { title: "x [m]" },
+          yaxis: { title: "y [m]" },
+          zaxis: { title: "z [m]" },
+          aspectmode: "data",
+          camera: { eye: { x: 1.35, y: 1.35, z: 0.9 } },
+        },
+      };
+      const layout2d = {
+        margin: { l: 50, r: 20, t: 10, b: 45 },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+        legend: { orientation: "h", y: 1.05 },
+        xaxis: { title: "x [m]", scaleanchor: "y", scaleratio: 1 },
+        yaxis: { title: "y [m]" },
+      };
+      const config = { responsive: true, displaylogo: false, scrollZoom: true };
+      if (window.Plotly) {
+        try {
+          Plotly.react("plot3d", traces3d, layout3d, config);
+          Plotly.react("plot2d", traces2d, layout2d, config);
+        } catch (error) {
+          showError(`Plotly panel failed, but SVG inspector should still work:\n${error.stack || error.message || error}`);
+        }
+      }
+      renderMetrics();
+      renderSelectionAndMarkers();
+    }
+
+    async function main() {
+      if (window.location.protocol === "file:") {
+        showError("Bu sayfa file:// olarak açılmış. CSV fetch için yerel webserver üzerinden aç:\npython3 experimental_validation/serve_sitl_docs.py --open-path docs/sitl_validation/local_review/index.html");
+      }
+      el.serverStatus.textContent = `Serving mode: ${window.location.href}`;
+      initControls();
+      await loadAll();
+      render();
+      loadPlotly()
+        .then(() => render())
+        .catch(error => showError(`Plotly yüklenemedi; 3D panel kapanabilir ama Reliable SVG inspector çalışmaya devam eder.\n${error.message}`));
+    }
+
+    main().catch(error => showError(error.stack || error.message || String(error)));
+  </script>
+</body>
+</html>
