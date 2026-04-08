@@ -26,6 +26,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from experimental_validation.collect_sitl_tracking_dataset import collect_tracking_dataset
 from experimental_validation.prepare_identified_model import prepare_identified_model
+from experimental_validation.repeatability_tube_figures import build_repeatability_tube_outputs
 from experimental_validation.run_sitl_validation import ValidationModelSpec
 from experimental_validation.trajectory_comparison_figures import (
     _interp_curve_at_progress,
@@ -196,6 +197,7 @@ def _write_summary_markdown(summary: dict, path: Path) -> None:
 def _write_summary_outputs(summary: dict, out_root: Path) -> None:
     (out_root / "repeatability_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     _write_summary_markdown(summary, out_root / "repeatability_summary.md")
+    build_repeatability_tube_outputs(summary=summary, out_root=out_root)
 
 
 def run_repeatability_matrix(

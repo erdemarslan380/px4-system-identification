@@ -3,379 +3,379 @@
   "repetitions": 10,
   "aggregate_sources": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources",
   "cases": {
-    "hairpin": {
+    "lemniscate": {
       "stock": {
         "label": "Stock x500 SITL",
-        "aggregate_csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/stock/tracking_logs/hairpin.csv",
+        "aggregate_csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/stock/tracking_logs/lemniscate.csv",
         "aggregate": {
-          "path": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/stock/tracking_logs/hairpin.csv",
+          "path": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/stock/tracking_logs/lemniscate.csv",
           "samples": 700,
           "source_count": 10
         },
         "rmse_m": {
-          "mean": 0.6166187113980234,
-          "median": 0.6138923634854296,
-          "std": 0.006583145231439767,
-          "min": 0.6094031689911097,
-          "max": 0.6318747848493124
+          "mean": 0.6310275649261758,
+          "median": 0.6303764085576722,
+          "std": 0.004792024173914626,
+          "min": 0.6233469697344435,
+          "max": 0.6386470002028103
         },
         "max_error_m": {
-          "mean": 1.034976792830957,
-          "median": 1.0335231362411497,
-          "std": 0.01788350239037724,
-          "min": 1.0023766525857432,
-          "max": 1.0673201871252131
+          "mean": 1.0572634695356526,
+          "median": 1.0555930566551264,
+          "std": 0.014062259364487469,
+          "min": 1.0319786220474727,
+          "max": 1.0812268967742156
         },
         "runs": [
           {
-            "samples": 1091,
-            "rmse_m": 0.6253941348502366,
-            "max_error_m": 1.0589174927448313,
-            "mean_error_m": 0.5682153510449243,
+            "samples": 910,
+            "rmse_m": 0.6280188459696286,
+            "max_error_m": 1.054775800583233,
+            "mean_error_m": 0.5852795312939647,
             "repeat": 1,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_01.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_01.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.6154551151699438,
-            "max_error_m": 1.0673201871252131,
-            "mean_error_m": 0.5604115523613208,
+            "samples": 910,
+            "rmse_m": 0.6233469697344435,
+            "max_error_m": 1.0319786220474727,
+            "mean_error_m": 0.5840183617997149,
             "repeat": 2,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_02.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_02.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.612371777020383,
-            "max_error_m": 1.0350815339315065,
-            "mean_error_m": 0.560211538509319,
+            "samples": 910,
+            "rmse_m": 0.6317670884978877,
+            "max_error_m": 1.05641031272702,
+            "mean_error_m": 0.5895810707142376,
             "repeat": 3,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_03.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_03.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.6128561739069892,
-            "max_error_m": 1.0023766525857432,
-            "mean_error_m": 0.5583375808793005,
+            "samples": 910,
+            "rmse_m": 0.6264744339151763,
+            "max_error_m": 1.0536476502408194,
+            "mean_error_m": 0.5840879776878881,
             "repeat": 4,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_04.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_04.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.6130090330961604,
-            "max_error_m": 1.0332445680118527,
-            "mean_error_m": 0.5580231424822951,
+            "samples": 910,
+            "rmse_m": 0.6289857286174567,
+            "max_error_m": 1.0658451887112876,
+            "mean_error_m": 0.5847823697471843,
             "repeat": 5,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_05.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_05.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.6124263535558582,
-            "max_error_m": 1.0338017044704466,
-            "mean_error_m": 0.5579514392836531,
+            "samples": 910,
+            "rmse_m": 0.6386470002028103,
+            "max_error_m": 1.07149511699634,
+            "mean_error_m": 0.5957714883374978,
             "repeat": 6,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_06.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_06.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.6186208786655423,
-            "max_error_m": 1.0252709222137335,
-            "mean_error_m": 0.5641057237283561,
+            "samples": 910,
+            "rmse_m": 0.6343566235201218,
+            "max_error_m": 1.0457068470202344,
+            "mean_error_m": 0.5921812760661668,
             "repeat": 7,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_07.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_07.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.6094031689911097,
-            "max_error_m": 1.0450291964323295,
-            "mean_error_m": 0.5568691819706066,
+            "samples": 910,
+            "rmse_m": 0.6269211943970556,
+            "max_error_m": 1.0686141850953506,
+            "mean_error_m": 0.5822911167264815,
             "repeat": 8,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_08.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_08.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.6318747848493124,
-            "max_error_m": 1.0176094720490765,
-            "mean_error_m": 0.580221823417301,
+            "samples": 910,
+            "rmse_m": 0.6346393723578051,
+            "max_error_m": 1.0812268967742156,
+            "mean_error_m": 0.5908581564159241,
             "repeat": 9,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_09.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_09.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.6147756938746988,
-            "max_error_m": 1.031116198744836,
-            "mean_error_m": 0.5606396563090524,
+            "samples": 910,
+            "rmse_m": 0.6371183920493735,
+            "max_error_m": 1.042934075160554,
+            "mean_error_m": 0.5942876873826148,
             "repeat": 10,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/hairpin/repeat_10.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/stock/tracking_logs/lemniscate/repeat_10.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           }
         ],
         "bitwise_identical": false
       },
       "jmavsim_prior_sdf": {
         "label": "jMAVSim prior SDF",
-        "aggregate_csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/jmavsim_prior_sdf/tracking_logs/hairpin.csv",
+        "aggregate_csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/jmavsim_prior_sdf/tracking_logs/lemniscate.csv",
         "aggregate": {
-          "path": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/jmavsim_prior_sdf/tracking_logs/hairpin.csv",
+          "path": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/jmavsim_prior_sdf/tracking_logs/lemniscate.csv",
           "samples": 700,
           "source_count": 10
         },
         "rmse_m": {
-          "mean": 0.3717015935381592,
-          "median": 0.35744945530472527,
-          "std": 0.04788947137358487,
-          "min": 0.34972915200051463,
-          "max": 0.5150100935101831
+          "mean": 0.5115236515374815,
+          "median": 0.509572487017738,
+          "std": 0.005552268031266078,
+          "min": 0.5054412308103292,
+          "max": 0.5208725322087856
         },
         "max_error_m": {
-          "mean": 0.6921965882098385,
-          "median": 0.6568478545710768,
-          "std": 0.1122958649423897,
-          "min": 0.6311858332907989,
-          "max": 1.025398621182514
+          "mean": 0.8952769033791039,
+          "median": 0.9005919756121799,
+          "std": 0.0356454022957044,
+          "min": 0.8408361946360301,
+          "max": 0.9468180900627111
         },
         "runs": [
           {
-            "samples": 1091,
-            "rmse_m": 0.3593371051200613,
-            "max_error_m": 0.677438219030341,
-            "mean_error_m": 0.32563938281246585,
+            "samples": 910,
+            "rmse_m": 0.5101142446001324,
+            "max_error_m": 0.8408361946360301,
+            "mean_error_m": 0.47601078709957506,
             "repeat": 1,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_01.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_01.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.5150100935101831,
-            "max_error_m": 1.025398621182514,
-            "mean_error_m": 0.45554719890843515,
+            "samples": 910,
+            "rmse_m": 0.5090307294353437,
+            "max_error_m": 0.9195198353564757,
+            "mean_error_m": 0.4604852438579395,
             "repeat": 2,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_02.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_02.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.35804186510132263,
-            "max_error_m": 0.6416293678004461,
-            "mean_error_m": 0.32810748712722965,
+            "samples": 910,
+            "rmse_m": 0.5133454773545838,
+            "max_error_m": 0.8443028660249827,
+            "mean_error_m": 0.47993544421529644,
             "repeat": 3,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_03.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_03.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3502097287368154,
-            "max_error_m": 0.6359883180098517,
-            "mean_error_m": 0.3206162878294386,
+            "samples": 910,
+            "rmse_m": 0.5208725322087856,
+            "max_error_m": 0.9171665143304131,
+            "mean_error_m": 0.4697544266764132,
             "repeat": 4,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_04.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_04.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3595404886862048,
-            "max_error_m": 0.6678133762938566,
-            "mean_error_m": 0.3285172699548107,
+            "samples": 910,
+            "rmse_m": 0.5066957726156086,
+            "max_error_m": 0.8956334711046702,
+            "mean_error_m": 0.4634069161065372,
             "repeat": 5,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_05.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_05.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3554198321911852,
-            "max_error_m": 0.6500135878310547,
-            "mean_error_m": 0.3244139139695352,
+            "samples": 910,
+            "rmse_m": 0.5194390065977762,
+            "max_error_m": 0.9055504801196894,
+            "mean_error_m": 0.4718393789059443,
             "repeat": 6,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_06.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_06.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.35685704550812797,
-            "max_error_m": 0.6458061404392189,
-            "mean_error_m": 0.3265944563886927,
+            "samples": 910,
+            "rmse_m": 0.5072508824921943,
+            "max_error_m": 0.9468180900627111,
+            "mean_error_m": 0.4616637750086226,
             "repeat": 7,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_07.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_07.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.35899107122171026,
-            "max_error_m": 0.6830102969092048,
-            "mean_error_m": 0.3255254817717235,
+            "samples": 910,
+            "rmse_m": 0.505686306814296,
+            "max_error_m": 0.8840022129802617,
+            "mean_error_m": 0.4640489423176297,
             "repeat": 8,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_08.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_08.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.34972915200051463,
-            "max_error_m": 0.6636821213110988,
-            "mean_error_m": 0.3184835338159991,
+            "samples": 910,
+            "rmse_m": 0.5173603324457648,
+            "max_error_m": 0.9391715992815158,
+            "mean_error_m": 0.46338924875107096,
             "repeat": 9,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_09.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_09.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3538795533054664,
-            "max_error_m": 0.6311858332907989,
-            "mean_error_m": 0.32351122485774353,
+            "samples": 910,
+            "rmse_m": 0.5054412308103292,
+            "max_error_m": 0.8597677698942895,
+            "mean_error_m": 0.4696422940960285,
             "repeat": 10,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/hairpin/repeat_10.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/jmavsim_prior_sdf/tracking_logs/lemniscate/repeat_10.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           }
         ],
         "bitwise_identical": false
       },
       "re_identified_from_sitl_ident": {
         "label": "Re-identified from SITL ident",
-        "aggregate_csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/hairpin.csv",
+        "aggregate_csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/lemniscate.csv",
         "aggregate": {
-          "path": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/hairpin.csv",
+          "path": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/lemniscate.csv",
           "samples": 700,
           "source_count": 10
         },
         "rmse_m": {
-          "mean": 0.3500039162614502,
-          "median": 0.35090499923855434,
-          "std": 0.008135232649427627,
-          "min": 0.3310601873146173,
-          "max": 0.3599263972516578
+          "mean": 0.5102454387047967,
+          "median": 0.5100319323649221,
+          "std": 0.005704973246380064,
+          "min": 0.5024363679669975,
+          "max": 0.5194184404074638
         },
         "max_error_m": {
-          "mean": 0.6462796847569139,
-          "median": 0.6489677771863185,
-          "std": 0.02155639579808521,
-          "min": 0.6023821660980677,
-          "max": 0.6724258641255552
+          "mean": 0.8794447602672056,
+          "median": 0.8747454591064241,
+          "std": 0.03921034888849279,
+          "min": 0.8279214638394151,
+          "max": 0.9596095621496276
         },
         "runs": [
           {
-            "samples": 1091,
-            "rmse_m": 0.3584496801885197,
-            "max_error_m": 0.650178622283138,
-            "mean_error_m": 0.3266041195499832,
+            "samples": 910,
+            "rmse_m": 0.5056990159285831,
+            "max_error_m": 0.838533129905432,
+            "mean_error_m": 0.47209646694766605,
             "repeat": 1,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_01.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_01.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.35031321938953763,
-            "max_error_m": 0.6331163668370924,
-            "mean_error_m": 0.31958502524147664,
+            "samples": 910,
+            "rmse_m": 0.5054239122722574,
+            "max_error_m": 0.845555787659809,
+            "mean_error_m": 0.4700014026780293,
             "repeat": 2,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_02.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_02.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3410221145374195,
-            "max_error_m": 0.6183708673304393,
-            "mean_error_m": 0.31316132571628824,
+            "samples": 910,
+            "rmse_m": 0.5024363679669975,
+            "max_error_m": 0.8279214638394151,
+            "mean_error_m": 0.46924585973675365,
             "repeat": 3,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_03.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_03.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3599263972516578,
-            "max_error_m": 0.6621007674500915,
-            "mean_error_m": 0.32743897727441545,
+            "samples": 910,
+            "rmse_m": 0.5108585299803838,
+            "max_error_m": 0.9003388228939149,
+            "mean_error_m": 0.4623839790503401,
             "repeat": 4,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_04.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_04.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.35531109454630455,
-            "max_error_m": 0.6719233003386621,
-            "mean_error_m": 0.3235000973706025,
+            "samples": 910,
+            "rmse_m": 0.5119924011408108,
+            "max_error_m": 0.8647882761618593,
+            "mean_error_m": 0.4762244807420776,
             "repeat": 5,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_05.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_05.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3514967790875711,
-            "max_error_m": 0.6588632194484678,
-            "mean_error_m": 0.3213270609254458,
+            "samples": 910,
+            "rmse_m": 0.5159044443500534,
+            "max_error_m": 0.9003081062558527,
+            "mean_error_m": 0.4631054750017864,
             "repeat": 6,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_06.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_06.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.34906848843743465,
-            "max_error_m": 0.6477569320894989,
-            "mean_error_m": 0.3186228276451151,
+            "samples": 910,
+            "rmse_m": 0.5178065613853325,
+            "max_error_m": 0.8527166277791233,
+            "mean_error_m": 0.4836946863970286,
             "repeat": 7,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_07.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_07.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3544711052295026,
-            "max_error_m": 0.6724258641255552,
-            "mean_error_m": 0.3229490066101885,
+            "samples": 910,
+            "rmse_m": 0.5194184404074638,
+            "max_error_m": 0.9596095621496276,
+            "mean_error_m": 0.4639336829294217,
             "repeat": 8,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_08.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_08.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 551,
-            "rmse_m": 0.3310601873146173,
-            "max_error_m": 0.6456787415681268,
-            "mean_error_m": 0.29305634731218866,
+            "samples": 910,
+            "rmse_m": 0.5092053347494603,
+            "max_error_m": 0.8847026420509888,
+            "mean_error_m": 0.47167612549649585,
             "repeat": 9,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_09.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_09.csv",
             "ok": true,
-            "reused": true
+            "reused": false
           },
           {
-            "samples": 1091,
-            "rmse_m": 0.3489200966319376,
-            "max_error_m": 0.6023821660980677,
-            "mean_error_m": 0.3201289003313441,
+            "samples": 910,
+            "rmse_m": 0.5037093788666238,
+            "max_error_m": 0.919973183976033,
+            "mean_error_m": 0.46491658692727356,
             "repeat": 10,
-            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_10.csv",
+            "csv": "/home/earsub/px4-system-identification/docs/sitl_validation/repeatability_matrix/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_10.csv",
             "ok": true,
             "reused": false
           }

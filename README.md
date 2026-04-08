@@ -101,9 +101,11 @@ Important fixed SDF-routing note:
 - for each model and trajectory, run `10` headless tracking-window repeats
 - report `mean`, `median`, `std`, and `min..max` RMSE for the decision table
 - publish a single representative curve per layer by averaging the 10 runs in normalized trajectory-progress space
+- also publish a `tube` view for each trajectory: mean centerline + XY `1σ` transparent corridor from the 10 runs
+- the local review app shows this in a separate `10-run tube view` panel, with a prior-vs-reidentified overlap zoom and overlap metrics
 - the local review app then stays four-layered: `reference`, `stock`, `jMAVSim prior SDF`, `re-identified from SITL ident`
 - the repeatability matrix is resume-safe: if `raw_repeats/<model>/tracking_logs/<trajectory>/repeat_XX.csv` already exists, it is reused instead of flown again
-- the local review app also reads `docs/sitl_validation/repeatability_matrix/repeatability_summary.json` and shows the selected trajectory's 10-repeat decision table when that file exists
+- the local review app also reads `docs/sitl_validation/repeatability_matrix/repeatability_summary.json` and `docs/sitl_validation/repeatability_matrix/tube_summary.json` when they exist
 
 Run the full 10-repeat matrix and publish the aggregate curves:
 
@@ -124,6 +126,9 @@ Outputs:
 - aggregate mean CSVs: `docs/sitl_validation/repeatability_matrix/aggregate_sources`
 - decision table: `docs/sitl_validation/repeatability_matrix/repeatability_summary.md`
 - machine-readable summary: `docs/sitl_validation/repeatability_matrix/repeatability_summary.json`
+- tube figures: `docs/sitl_validation/repeatability_matrix/tube_figures`
+- per-trajectory tube JSON: `docs/sitl_validation/repeatability_matrix/tube_stats`
+- machine-readable tube summary: `docs/sitl_validation/repeatability_matrix/tube_summary.json`
 - local review source CSVs are also refreshed under `docs/sitl_validation/_generated/sources`
 
 Regenerate the permanent trajectory review HTMLs from the pinned CSVs:

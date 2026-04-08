@@ -4,6 +4,6 @@ Repetitions per model/trajectory: `10`
 
 | Trajectory | Model | RMSE mean [m] | RMSE median [m] | RMSE std [m] | RMSE min..max [m] | Bitwise identical |
 |---|---|---:|---:|---:|---:|---:|
-| hairpin | Stock x500 SITL | 0.6166 | 0.6139 | 0.0066 | 0.6094..0.6319 | False |
-| hairpin | jMAVSim prior SDF | 0.3717 | 0.3574 | 0.0479 | 0.3497..0.5150 | False |
-| hairpin | Re-identified from SITL ident | 0.3500 | 0.3509 | 0.0081 | 0.3311..0.3599 | False |
+| lemniscate | Stock x500 SITL | 0.6310 | 0.6304 | 0.0048 | 0.6233..0.6386 | False |
+| lemniscate | jMAVSim prior SDF | 0.5115 | 0.5096 | 0.0056 | 0.5054..0.5209 | False |
+| lemniscate | Re-identified from SITL ident | 0.5102 | 0.5100 | 0.0057 | 0.5024..0.5194 | False |

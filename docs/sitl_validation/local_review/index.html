@@ -266,6 +266,28 @@
         <tbody id="repeatabilityBody"></tbody>
       </table>
     </section>
+
+    <section id="tubeCard" class="card" style="display:none">
+      <h3>10-run tube view</h3>
+      <p class="note">Her katmanda orta çizgi 10 uçuşun progress-aligned ortalamasıdır. Transparan gövde XY düzlemindeki 1-sigma tüpü gösterir. Prior ve re-identified tüplerinin örtüşmesi, alttaki metriğe dökülür.</p>
+      <div class="plot-grid">
+        <div class="card">
+          <h3>Mean path + 1σ tube</h3>
+          <div id="tubePlot" class="plot"></div>
+        </div>
+        <div class="card">
+          <h3>Overlap zoom</h3>
+          <div id="tubeZoomPlot" class="plot"></div>
+        </div>
+      </div>
+      <div class="meta-grid" style="margin-top:14px">
+        <div class="meta"><span>Prior vs Re-id IoU</span><strong id="tubeOverlap">-</strong></div>
+        <div class="meta"><span>Contact</span><strong id="tubeContact">-</strong></div>
+        <div class="meta"><span>Mean center dist.</span><strong id="tubeDistance">-</strong></div>
+        <div class="meta"><span>Focus window</span><strong id="tubeWindow">-</strong></div>
+        <div class="meta"><span>Assets</span><strong><a id="tubePngLink" href="#" target="_blank" rel="noopener">PNG</a> / <a id="tubeSvgLink" href="#" target="_blank" rel="noopener">SVG</a></strong></div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -284,6 +306,7 @@
       progress: 0,
       data: {},
       repeatability: null,
+      tubeSummary: null,
     };
 
     const el = {
@@ -298,6 +321,13 @@
       metricsBody: document.getElementById("metricsBody"),
       repeatabilityCard: document.getElementById("repeatabilityCard"),
       repeatabilityBody: document.getElementById("repeatabilityBody"),
+      tubeCard: document.getElementById("tubeCard"),
+      tubeOverlap: document.getElementById("tubeOverlap"),
+      tubeContact: document.getElementById("tubeContact"),
+      tubeDistance: document.getElementById("tubeDistance"),
+      tubeWindow: document.getElementById("tubeWindow"),
+      tubePngLink: document.getElementById("tubePngLink"),
+      tubeSvgLink: document.getElementById("tubeSvgLink"),
       errorBox: document.getElementById("errorBox"),
       serverStatus: document.getElementById("serverStatus"),
       selLayer: document.getElementById("selLayer"),
@@ -320,6 +350,16 @@
     function fmtPoint(point) {
       if (!point) return "n/a";
       return `(${fmt(point.x, 2)}, ${fmt(point.y, 2)}, ${fmt(point.z, 2)})`;
+    }
+
+    function hexToRgba(hex, alpha) {
+      if (!hex) return `rgba(0,0,0,${alpha})`;
+      const normalized = hex.replace("#", "");
+      const bigint = parseInt(normalized.length === 3 ? normalized.split("").map(item => item + item).join("") : normalized, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
     function parseCsv(text) {
@@ -439,6 +479,16 @@
         state.repeatability = await response.json();
       } catch (_error) {
         state.repeatability = null;
+      }
+    }
+
+    async function loadTubeSummary() {
+      try {
+        const response = await fetch("../repeatability_matrix/tube_summary.json", { cache: "no-store" });
+        if (!response.ok) return;
+        state.tubeSummary = await response.json();
+      } catch (_error) {
+        state.tubeSummary = null;
       }
     }
 
@@ -601,6 +651,123 @@
       });
     }
 
+    function tubeTraceForLayer(layerKey, payload, { zoom = false } = {}) {
+      const lineColor = payload.color;
+      const fillColor = hexToRgba(payload.color, zoom ? 0.26 : 0.18);
+      const polygon = payload.tube_xy || {};
+      const center = payload.centerline || {};
+      const polygonTrace = {
+        type: "scatter",
+        mode: "lines",
+        name: `${payload.label} 1σ tube`,
+        legendgroup: layerKey,
+        x: polygon.polygon_x || [],
+        y: polygon.polygon_y || [],
+        fill: "toself",
+        fillcolor: fillColor,
+        line: { color: hexToRgba(payload.color, zoom ? 0.46 : 0.34), width: 1 },
+        hoverinfo: "skip",
+        showlegend: false,
+        visible: state.visible[layerKey] ? true : "legendonly",
+      };
+      const centerTrace = {
+        type: "scatter",
+        mode: "lines",
+        name: payload.label,
+        legendgroup: layerKey,
+        x: center.x || [],
+        y: center.y || [],
+        line: { color: lineColor, width: zoom ? 3.4 : 3 },
+        hovertemplate: `<b>${payload.label}</b><br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>`,
+        visible: state.visible[layerKey] ? true : "legendonly",
+      };
+      return [polygonTrace, centerTrace];
+    }
+
+    function renderTubeView() {
+      const payload = state.tubeSummary?.cases?.[state.trajectory];
+      if (!payload || !window.Plotly) {
+        el.tubeCard.style.display = "none";
+        return;
+      }
+
+      el.tubeCard.style.display = "block";
+      const overlap = payload.prior_vs_reidentified || null;
+      el.tubeOverlap.textContent = overlap ? `${fmt(overlap.mean_iou_pct, 1)} %` : "n/a";
+      el.tubeContact.textContent = overlap ? `${fmt(overlap.contact_pct, 1)} %` : "n/a";
+      el.tubeDistance.textContent = overlap ? `${fmt(overlap.mean_center_distance_m)} m` : "n/a";
+      el.tubeWindow.textContent = overlap ? `${fmt(overlap.focus_window_progress_pct[0], 1)}%..${fmt(overlap.focus_window_progress_pct[1], 1)}%` : "n/a";
+      el.tubePngLink.href = payload.figures?.png || "#";
+      el.tubeSvgLink.href = payload.figures?.svg || "#";
+
+      const traces = [];
+      const zoomTraces = [];
+      const ref = payload.reference || {};
+      traces.push({
+        type: "scatter",
+        mode: "lines",
+        name: "Reference",
+        x: ref.x || [],
+        y: ref.y || [],
+        line: { color: "#222222", width: 2.5, dash: "dash" },
+        visible: state.visible.reference ? true : "legendonly",
+      });
+      zoomTraces.push({
+        type: "scatter",
+        mode: "lines",
+        name: "Reference",
+        x: ref.x || [],
+        y: ref.y || [],
+        line: { color: "#222222", width: 2.2, dash: "dash" },
+        visible: state.visible.reference ? true : "legendonly",
+        showlegend: false,
+      });
+
+      ["stock", "jmavsim_prior_sdf", "re_identified_from_sitl_ident"].forEach(layerKey => {
+        const model = payload.models?.[layerKey];
+        if (!model) return;
+        traces.push(...tubeTraceForLayer(layerKey, model));
+        zoomTraces.push(...tubeTraceForLayer(layerKey, model, { zoom: true }).map(trace => ({ ...trace, showlegend: false })));
+      });
+
+      const layout = {
+        margin: { l: 50, r: 20, t: 10, b: 45 },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+        legend: { orientation: "h", y: 1.08 },
+        xaxis: { title: "x [m]", scaleanchor: "y", scaleratio: 1 },
+        yaxis: { title: "y [m]" },
+      };
+      const zoomLayout = {
+        margin: { l: 50, r: 20, t: 10, b: 45 },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+        xaxis: { title: "x [m]", scaleanchor: "y", scaleratio: 1 },
+        yaxis: { title: "y [m]" },
+        showlegend: false,
+        annotations: overlap ? [{
+          xref: "paper",
+          yref: "paper",
+          x: 0.02,
+          y: 0.98,
+          xanchor: "left",
+          yanchor: "top",
+          align: "left",
+          bgcolor: "#fff7ed",
+          bordercolor: "#fed7aa",
+          text: `IoU ${fmt(overlap.mean_iou_pct, 1)}%<br>Contact ${fmt(overlap.contact_pct, 1)}%`,
+          showarrow: false,
+        }] : [],
+      };
+      if (overlap?.focus_bbox_xy) {
+        zoomLayout.xaxis.range = [overlap.focus_bbox_xy.xmin, overlap.focus_bbox_xy.xmax];
+        zoomLayout.yaxis.range = [overlap.focus_bbox_xy.ymin, overlap.focus_bbox_xy.ymax];
+      }
+      const config = { responsive: true, displaylogo: false, scrollZoom: true };
+      Plotly.react("tubePlot", traces, layout, config);
+      Plotly.react("tubeZoomPlot", zoomTraces, zoomLayout, config);
+    }
+
     function renderSelectionAndMarkers() {
       const track = state.data[state.trajectory]?.[state.trackKey];
       const ref = state.data[state.trajectory]?.reference;
@@ -673,6 +840,7 @@
       }
       renderMetrics();
       renderRepeatability();
+      renderTubeView();
       renderSelectionAndMarkers();
     }
 
@@ -684,6 +852,7 @@
       initControls();
       await loadAll();
       await loadRepeatabilitySummary();
+      await loadTubeSummary();
       render();
       loadPlotly()
         .then(() => render())
