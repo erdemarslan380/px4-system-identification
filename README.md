@@ -84,6 +84,48 @@ Determinism note:
 - the probe report is pinned at `docs/sitl_validation/determinism/reidentified_circle_10x/summary.md`
 - that probe uses `--skip-landing-after-trajectory` so it measures only the trajectory tracking window; do not use that flag for normal visual validation runs
 
+Important fixed SDF-routing note:
+
+- changed-model SITL runs must force both `GZ_SIM_RESOURCE_PATH` and `PX4_GZ_MODELS` to the run-local override model directory
+- this matters because PX4 spawns models with `file://${PX4_GZ_MODELS}/${MODEL_NAME}/model.sdf`
+- without that patch, a changed model can silently load the global or stale Gazebo model even if the run directory contains the correct SDF
+- this was the root cause of the earlier mismatch where `jMAVSim prior` ident logs recovered stock x500 motor constants
+- the current fixed round-trip recovers the jMAVSim prior exactly:
+  `mass=0.8`, `I=(0.005, 0.005, 0.009)`, `motor_constant=4e-6`, `moment_constant=0.0125`, `tau_up=tau_down=0.005`
+- important nuance: this “exact recovery” statement applies to the fields that map directly into the Gazebo SDF / motor model
+- the candidate JSON still contains identification-only summaries such as `thrust_scale_n_per_cmd` and generic body `drag_x/y/z`; those can differ even when the SDF-comparable fields are recovered exactly
+
+10-repeat validation policy:
+
+- final SITL validation should not rely on a single run
+- for each model and trajectory, run `10` headless tracking-window repeats
+- report `mean`, `median`, `std`, and `min..max` RMSE for the decision table
+- publish a single representative curve per layer by averaging the 10 runs in normalized trajectory-progress space
+- the local review app then stays four-layered: `reference`, `stock`, `jMAVSim prior SDF`, `re-identified from SITL ident`
+- the repeatability matrix is resume-safe: if `raw_repeats/<model>/tracking_logs/<trajectory>/repeat_XX.csv` already exists, it is reused instead of flown again
+- the local review app also reads `docs/sitl_validation/repeatability_matrix/repeatability_summary.json` and shows the selected trajectory's 10-repeat decision table when that file exists
+
+Run the full 10-repeat matrix and publish the aggregate curves:
+
+```bash
+cd ~/px4-system-identification
+./examples/cleanup_px4_background_services.sh
+
+python3 experimental_validation/run_sitl_repeatability_matrix.py \
+  --out-root docs/sitl_validation/repeatability_matrix \
+  --repetitions 10
+```
+
+If one repeat ends without a tracking CSV because of a flaky post-transition or mode handover, the matrix now retries that repeat automatically up to `3` times. You can change that with `--repeat-attempts`.
+
+Outputs:
+
+- raw repeat CSVs: `docs/sitl_validation/repeatability_matrix/raw_repeats`
+- aggregate mean CSVs: `docs/sitl_validation/repeatability_matrix/aggregate_sources`
+- decision table: `docs/sitl_validation/repeatability_matrix/repeatability_summary.md`
+- machine-readable summary: `docs/sitl_validation/repeatability_matrix/repeatability_summary.json`
+- local review source CSVs are also refreshed under `docs/sitl_validation/_generated/sources`
+
 Regenerate the permanent trajectory review HTMLs from the pinned CSVs:
 
 ```bash

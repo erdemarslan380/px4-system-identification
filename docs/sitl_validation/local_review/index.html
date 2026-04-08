@@ -248,6 +248,24 @@
         <tbody id="metricsBody"></tbody>
       </table>
     </section>
+
+    <section id="repeatabilityCard" class="card" style="display:none">
+      <h3>10-repeat decision table</h3>
+      <p class="note">Bu tablo `docs/sitl_validation/repeatability_matrix/repeatability_summary.json` dosyasından okunur. Eğriler 10 tekrarın progress-aligned ortalama CSV'sidir.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>RMSE mean [m]</th>
+            <th>RMSE median [m]</th>
+            <th>RMSE std [m]</th>
+            <th>RMSE min..max [m]</th>
+            <th>Bitwise identical</th>
+          </tr>
+        </thead>
+        <tbody id="repeatabilityBody"></tbody>
+      </table>
+    </section>
   </main>
 
   <script>
@@ -265,6 +283,7 @@
       trackKey: "stock",
       progress: 0,
       data: {},
+      repeatability: null,
     };
 
     const el = {
@@ -277,6 +296,8 @@
       progressTextSecondary: document.getElementById("progressTextSecondary"),
       title: document.getElementById("title"),
       metricsBody: document.getElementById("metricsBody"),
+      repeatabilityCard: document.getElementById("repeatabilityCard"),
+      repeatabilityBody: document.getElementById("repeatabilityBody"),
       errorBox: document.getElementById("errorBox"),
       serverStatus: document.getElementById("serverStatus"),
       selLayer: document.getElementById("selLayer"),
@@ -409,6 +430,16 @@
         }
       }
       if (errors.length) showError(`Bazı CSV dosyaları okunamadı:\n${errors.join("\n")}`);
+    }
+
+    async function loadRepeatabilitySummary() {
+      try {
+        const response = await fetch("../repeatability_matrix/repeatability_summary.json", { cache: "no-store" });
+        if (!response.ok) return;
+        state.repeatability = await response.json();
+      } catch (_error) {
+        state.repeatability = null;
+      }
     }
 
     function initControls() {
@@ -546,6 +577,30 @@
       });
     }
 
+    function renderRepeatability() {
+      const rows = state.repeatability?.cases?.[state.trajectory];
+      if (!rows) {
+        el.repeatabilityCard.style.display = "none";
+        el.repeatabilityBody.innerHTML = "";
+        return;
+      }
+      el.repeatabilityCard.style.display = "block";
+      el.repeatabilityBody.innerHTML = "";
+      Object.values(rows).forEach(payload => {
+        const rmse = payload.rmse_m || {};
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${payload.label || "-"}</strong></td>
+          <td>${fmt(rmse.mean, 4)}</td>
+          <td>${fmt(rmse.median, 4)}</td>
+          <td>${fmt(rmse.std, 4)}</td>
+          <td>${fmt(rmse.min, 4)}..${fmt(rmse.max, 4)}</td>
+          <td>${payload.bitwise_identical ? "yes" : "no"}</td>
+        `;
+        el.repeatabilityBody.appendChild(tr);
+      });
+    }
+
     function renderSelectionAndMarkers() {
       const track = state.data[state.trajectory]?.[state.trackKey];
       const ref = state.data[state.trajectory]?.reference;
@@ -617,6 +672,7 @@
         }
       }
       renderMetrics();
+      renderRepeatability();
       renderSelectionAndMarkers();
     }
 
@@ -627,6 +683,7 @@
       el.serverStatus.textContent = `Serving mode: ${window.location.href}`;
       initControls();
       await loadAll();
+      await loadRepeatabilitySummary();
       render();
       loadPlotly()
         .then(() => render())

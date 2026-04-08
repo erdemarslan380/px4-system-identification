@@ -1,0 +1,87 @@
+{
+  "logs": [
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/01_mass_vertical/identification_traces/eval_00000.csv",
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/02_hover_thrust/identification_traces/eval_00000.csv",
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/03_roll_sweep/identification_traces/eval_00000.csv",
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/04_pitch_sweep/identification_traces/eval_00000.csv",
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/05_yaw_sweep/identification_traces/eval_00000.csv",
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/06_drag_x/identification_traces/eval_00000.csv",
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/07_drag_y/identification_traces/eval_00000.csv",
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/08_drag_z/identification_traces/eval_00000.csv",
+    "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/09_motor_step/identification_traces/eval_00000.csv"
+  ],
+  "primary_mode": "truth_assisted",
+  "modes": {
+    "px4_only": {
+      "truth_policy": "none",
+      "effective_truth_policy": "none",
+      "truth_available": false,
+      "truth_csvs": [],
+      "profile_counts": {
+        "mass_vertical": 1801,
+        "hover_thrust": 1301,
+        "roll_sweep": 1401,
+        "pitch_sweep": 1401,
+        "yaw_sweep": 1201,
+        "drag_x": 1501,
+        "drag_y": 1501,
+        "drag_z": 1501,
+        "motor_step": 1201
+      }
+    },
+    "telemetry_augmented": {
+      "truth_policy": "telemetry",
+      "effective_truth_policy": "telemetry",
+      "truth_available": true,
+      "truth_csvs": [
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/01_mass_vertical/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/02_hover_thrust/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/03_roll_sweep/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/04_pitch_sweep/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/05_yaw_sweep/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/06_drag_x/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/07_drag_y/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/08_drag_z/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/09_motor_step/gazebo_truth_traces/eval_00000.csv"
+      ],
+      "profile_counts": {
+        "mass_vertical": 6308,
+        "hover_thrust": 4558,
+        "roll_sweep": 4908,
+        "pitch_sweep": 4908,
+        "yaw_sweep": 4208,
+        "drag_x": 5258,
+        "drag_y": 5258,
+        "drag_z": 5258,
+        "motor_step": 4208
+      }
+    },
+    "truth_assisted": {
+      "truth_policy": "full",
+      "effective_truth_policy": "full",
+      "truth_available": true,
+      "truth_csvs": [
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/01_mass_vertical/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/02_hover_thrust/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/03_roll_sweep/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/04_pitch_sweep/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/05_yaw_sweep/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/06_drag_x/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/07_drag_y/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/08_drag_z/gazebo_truth_traces/eval_00000.csv",
+        "/tmp/sitl_ident_roundtrip_jmavsim_prior_full_fixed3_2026-04-07/jmavsim_prior_ident_suite/09_motor_step/gazebo_truth_traces/eval_00000.csv"
+      ],
+      "profile_counts": {
+        "mass_vertical": 6308,
+        "hover_thrust": 4558,
+        "roll_sweep": 4908,
+        "pitch_sweep": 4908,
+        "yaw_sweep": 4208,
+        "drag_x": 5258,
+        "drag_y": 5258,
+        "drag_z": 5258,
+        "motor_step": 4208
+      }
+    }
+  }
+}

@@ -280,11 +280,12 @@ def _resolve_model_specs(labels: Iterable[str] | None) -> tuple[ValidationModelS
 
 def _append_path_list(existing: str, *entries: Path) -> str:
     parts = [part for part in str(existing or "").split(":") if part]
+    priority: list[str] = []
     for entry in entries:
         text = str(entry.resolve())
-        if text not in parts:
-            parts.insert(0, text)
-    return ":".join(parts)
+        if text not in priority and text not in parts:
+            priority.append(text)
+    return ":".join(priority + parts)
 
 
 def _indent(elem: ET.Element, level: int = 0) -> None:
@@ -469,6 +470,26 @@ def _patch_gz_env_world_override(run_rootfs: Path, override_worlds_root: Path) -
     gz_env.write_text(text, encoding="utf-8")
 
 
+def _patch_gz_env_model_override(run_rootfs: Path, override_models_root: Path) -> None:
+    gz_env = run_rootfs / "gz_env.sh"
+    if not gz_env.exists():
+        return
+
+    text = gz_env.read_text(encoding="utf-8")
+    models_line = f"export PX4_GZ_MODELS={override_models_root.resolve()}"
+    text, count = re.subn(
+        r"^export PX4_GZ_MODELS=.*$",
+        models_line,
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count == 0:
+        text = f"{text.rstrip()}\n{models_line}\n"
+
+    gz_env.write_text(text, encoding="utf-8")
+
+
 def _kill_matching_processes(pattern: re.Pattern[str]) -> None:
     proc = subprocess.run(
         ["ps", "-eo", "pid=,args="],
@@ -519,9 +540,20 @@ def _kill_matching_processes(pattern: re.Pattern[str]) -> None:
                 continue
 
 
+def _clear_px4_daemon_socket() -> None:
+    for path in (Path("/tmp/px4_lock-0"), Path("/tmp/px4-sock-0")):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        except IsADirectoryError:
+            pass
+
+
 def _cleanup_stale_sitl_processes() -> None:
     _kill_matching_processes(PX4_BIN_PATTERN)
     _kill_matching_processes(GZ_SIM_PATTERN)
+    _clear_px4_daemon_socket()
 
 
 def _cleanup_background_services() -> None:
@@ -537,6 +569,7 @@ def _cleanup_background_services() -> None:
 
     _kill_matching_processes(XEPHYR_PATTERN)
     _cleanup_stale_sitl_processes()
+    _clear_px4_daemon_socket()
 
 
 def _prepare_model_override(px4_root: Path, model_name: str, override_models_root: Path) -> None:
@@ -548,6 +581,12 @@ def _prepare_model_override(px4_root: Path, model_name: str, override_models_roo
         shutil.rmtree(target_dir)
     override_models_root.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_dir, target_dir, symlinks=True)
+    source_base_dir = source_dir.parent / f"{model_name}_base"
+    if source_base_dir.exists():
+        target_base_dir = override_models_root / source_base_dir.name
+        if target_base_dir.exists():
+            shutil.rmtree(target_base_dir)
+        shutil.copytree(source_base_dir, target_base_dir, symlinks=True)
     _inject_truth_logger_plugin(target_dir / "model.sdf")
 
 
@@ -1348,27 +1387,76 @@ class _ManualControlThread:
         self._stop.set()
         self._thread.join(timeout=1.0)
 
+    def send_once(self) -> None:
+        with self._lock:
+            x = self._x
+            y = self._y
+            z = self._z
+            r = self._r
+        self._mav.mav.manual_control_send(
+            0,
+            x,
+            y,
+            z,
+            r,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+
     def _run(self) -> None:
         while not self._stop.is_set():
-            with self._lock:
-                x = self._x
-                y = self._y
-                z = self._z
-                r = self._r
-            self._mav.mav.manual_control_send(
-                self._mav.target_system,
-                x,
-                y,
-                z,
-                r,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-            )
+            self.send_once()
             self._stop.wait(self._period_s)
+
+
+def _enter_posctl_with_manual_control(
+    session: Px4SitlSession,
+    mav,
+    manual_control: _ManualControlThread,
+    *,
+    attempts: int = 8,
+    timeout_s: float = 18.0,
+    preroll_s: float = 2.0,
+) -> None:
+    """Enter POSCTL after MAVLink manual-control samples have reached PX4."""
+    set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    manual_control.update(x=0, y=0, z=500, r=0)
+    preroll_deadline = time.time() + max(preroll_s, SITL_PARAM_PROPAGATION_SECONDS)
+    while time.time() < preroll_deadline:
+        manual_control.send_once()
+        time.sleep(SITL_MANUAL_CONTROL_PERIOD)
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        mav.set_mode_px4("POSCTL", 0, 0)
+        deadline = time.time() + timeout_s
+        try:
+            while time.time() < deadline:
+                manual_control.send_once()
+                heartbeat = mav.recv_match(type="HEARTBEAT", blocking=True, timeout=0.2)
+                if heartbeat is None:
+                    continue
+                current_mode = mav.flightmode
+                if isinstance(current_mode, str) and current_mode.upper() == "POSCTL":
+                    return
+            raise RuntimeError("vehicle did not enter POSCTL mode in time")
+        except Exception as exc:
+            last_error = exc
+            try:
+                failsafe = session.send("listener failsafe_flags 1", timeout_s=8.0)
+                print(
+                    "POSCTL entry retry "
+                    f"{attempt}/{attempts} failed: {exc}\n{failsafe}",
+                    flush=True,
+                )
+            except Exception:
+                print(f"POSCTL entry retry {attempt}/{attempts} failed: {exc}", flush=True)
+            manual_control.update(x=0, y=0, z=500, r=0)
+            time.sleep(max(0.5, SITL_PARAM_PROPAGATION_SECONDS))
+    raise RuntimeError(f"vehicle did not enter POSCTL mode after {attempts} attempts: {last_error}")
 
 
 def _wrap_pi(angle_rad: float) -> float:
@@ -1735,6 +1823,7 @@ def run_validation_model(
     )
     if model_spec.label != "stock_sitl_placeholder":
         _prepare_model_override(px4_root, model_spec.gz_model, override_models_root)
+        _patch_gz_env_model_override(run_rootfs, override_models_root)
     env = _build_px4_env(px4_root, build_dir, run_rootfs, override_models_root, model_spec.gz_model, headless)
     world_name, override_worlds_root, world_sdf = _prepare_reference_world(px4_root, runtime_root)
     _patch_gz_env_world_override(run_rootfs, override_worlds_root)
@@ -1819,10 +1908,7 @@ def run_validation_model(
         manual_control = _ManualControlThread(mav)
         manual_control.update(x=0, y=0, z=500, r=0)
         manual_control.start()
-        set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-        if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
-            time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
-        session.set_mode("POSCTL")
+        _enter_posctl_with_manual_control(session, mav, manual_control)
         time.sleep(1.0)
         latest_lpos, latest_att = _wait_for_takeoff_hover(
             mav,
@@ -1969,7 +2055,7 @@ def run_validation_model(
         else:
             manual_control.update(x=0, y=0, z=500, r=0)
             time.sleep(1.0)
-            session.set_mode("POSCTL")
+            _enter_posctl_with_manual_control(session, mav, manual_control)
             land_result = _land_in_posctl_with_manual_control(
                 mav,
                 manual_control=manual_control,

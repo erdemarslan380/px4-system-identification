@@ -1,0 +1,6 @@
+# Gazebo candidate parameters
+mass_kg: 0.800000
+thrust_scale_n_per_cmd: 11.542075
+drag_coeff_x: -0.041538
+drag_coeff_y: -0.054996
+drag_coeff_z: -0.025292

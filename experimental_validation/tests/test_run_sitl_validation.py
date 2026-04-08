@@ -11,6 +11,24 @@ import experimental_validation.run_sitl_validation as sitl_validation
 
 
 class RunSitlValidationFlowTests(unittest.TestCase):
+    def test_append_path_list_preserves_priority_order(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            override = root / "override_models"
+            models = root / "models"
+            worlds = root / "worlds"
+            existing = root / "existing"
+            result = sitl_validation._append_path_list(str(existing), override, models, worlds)
+            self.assertEqual(
+                result.split(":"),
+                [
+                    str(override.resolve()),
+                    str(models.resolve()),
+                    str(worlds.resolve()),
+                    str(existing),
+                ],
+            )
+
     def test_validation_uses_takeoff_hover_then_offboard_handover(self) -> None:
         source = inspect.getsource(sitl_validation.run_validation_model)
         self.assertIn("_wait_for_ready_for_takeoff(session)", source)
@@ -22,7 +40,7 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn('_land_in_posctl_with_manual_control(', source)
         self.assertIn("land_result = _land_in_posctl_with_manual_control(", source)
         self.assertIn('disarmed={land_result[\'disarmed\']}', source)
-        self.assertIn('session.set_mode("POSCTL")', source)
+        self.assertIn("_enter_posctl_with_manual_control(session, mav, manual_control)", source)
         self.assertIn("_stabilize_direct_hover(", source)
         self.assertIn("SITL_ALLOW_UNSTABLE_CUSTOM_HOLD", source)
         self.assertIn("_start_direct_setpoint_stream(", source)
@@ -55,14 +73,14 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertLess(source.rindex('set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)'), source.index('session.send("custom_pos_control start")'))
         self.assertLess(source.rindex('set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)'), source.index('session.send("custom_pos_control start")'))
         self.assertLess(source.index('session.send("custom_pos_control start")'), source.index('session.send("trajectory_reader start")'))
-        self.assertLess(source.index("_wait_for_takeoff_hover("), source.rindex('session.set_mode("POSCTL")'))
+        self.assertLess(source.index("_wait_for_takeoff_hover("), source.rindex("_enter_posctl_with_manual_control(session, mav, manual_control)"))
 
     def test_validation_starts_built_in_trajectory_via_params(self) -> None:
         source = inspect.getsource(sitl_validation.run_validation_model)
         helper_source = inspect.getsource(sitl_validation._arm_via_internal_command)
         preflight_source = inspect.getsource(sitl_validation._wait_for_preflight_ok)
         self.assertIn('set_param(mav, "COM_RC_IN_MODE", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
-        self.assertIn('set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
+        self.assertIn('set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', inspect.getsource(sitl_validation._enter_posctl_with_manual_control))
         self.assertIn('set_param(mav, "NAV_DLL_ACT", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
         self.assertIn('set_param(mav, "CBRK_SUPPLY_CHK", 894281, mavutil.mavlink.MAV_PARAM_TYPE_INT32)', source)
         self.assertIn('set_param(mav, "COM_DISARM_PRFLT", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)', source)
@@ -123,6 +141,7 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn("_cleanup_background_services()", model_source)
         self.assertIn('if model_spec.label != "stock_sitl_placeholder":', model_source)
         self.assertIn("_prepare_model_override(px4_root, model_spec.gz_model, override_models_root)", model_source)
+        self.assertIn("_patch_gz_env_model_override(run_rootfs, override_models_root)", model_source)
         self.assertIn("_prepare_reference_world(px4_root, runtime_root)", model_source)
         self.assertIn("_patch_gz_env_world_override(run_rootfs, override_worlds_root)", model_source)
         self.assertIn('if sitl_esc_max is not None:', model_source)
@@ -257,6 +276,26 @@ class RunSitlValidationFlowTests(unittest.TestCase):
             text = gz_env.read_text(encoding="utf-8")
             self.assertIn(f"export PX4_GZ_WORLDS={override_worlds_root.resolve()}", text)
             self.assertNotIn("export PX4_GZ_WORLDS=/tmp/worlds", text)
+
+    def test_patch_gz_env_model_override_rewrites_px4_model_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            run_rootfs = Path(td) / "rootfs"
+            run_rootfs.mkdir(parents=True)
+            gz_env = run_rootfs / "gz_env.sh"
+            gz_env.write_text(
+                "export PX4_GZ_MODELS=/tmp/models\n"
+                "export PX4_GZ_WORLDS=/tmp/worlds\n"
+                "export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$PX4_GZ_MODELS:$PX4_GZ_WORLDS\n",
+                encoding="utf-8",
+            )
+            override_models_root = Path(td) / "override_models"
+            override_models_root.mkdir()
+
+            sitl_validation._patch_gz_env_model_override(run_rootfs, override_models_root)
+
+            text = gz_env.read_text(encoding="utf-8")
+            self.assertIn(f"export PX4_GZ_MODELS={override_models_root.resolve()}", text)
+            self.assertNotIn("export PX4_GZ_MODELS=/tmp/models", text)
 
     def test_patch_run_rootfs_gcs_link_enables_broadcast_on_gcs_port(self) -> None:
         with tempfile.TemporaryDirectory() as td:

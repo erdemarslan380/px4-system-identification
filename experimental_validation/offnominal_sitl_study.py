@@ -64,8 +64,10 @@ from experimental_validation.run_sitl_validation import (
     _capture_locked_yaw,
     _find_tracking_log,
     _inject_truth_logger_plugin,
+    _enter_posctl_with_manual_control,
     _land_in_posctl_with_manual_control,
     _open_console_window,
+    _patch_gz_env_model_override,
     _sample_attitude,
     _start_direct_setpoint_stream,
     _stabilize_direct_hover,
@@ -299,6 +301,12 @@ def _prepare_model_override_from_dir(source_model_dir: Path, target_model_name: 
         shutil.rmtree(target_dir)
     override_models_root.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_model_dir, target_dir)
+    source_base_dir = source_model_dir.parent / f"{source_model_dir.name}_base"
+    if source_base_dir.exists():
+        target_base_dir = override_models_root / source_base_dir.name
+        if target_base_dir.exists():
+            shutil.rmtree(target_base_dir)
+        shutil.copytree(source_base_dir, target_base_dir)
     _inject_truth_logger_plugin(target_dir / "model.sdf")
 
 
@@ -373,6 +381,7 @@ def run_validation_with_assets(
         _prepare_run_rootfs(base_rootfs, run_rootfs)
         export_manifest = export_validation_trajectories(run_rootfs / "trajectories")
         _prepare_model_override_from_dir(source_model_dir, model_name, override_models_root)
+        _patch_gz_env_model_override(run_rootfs, override_models_root)
         env = _build_env_with_world(
             px4_root=px4_root,
             build_dir=build_dir,
@@ -416,9 +425,7 @@ def run_validation_with_assets(
             manual_control = _ManualControlThread(mav)
             manual_control.update(x=0, y=0, z=500, r=0)
             manual_control.start()
-            set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-            time.sleep(max(0.5, SITL_PARAM_PROPAGATION_SECONDS))
-            session.set_mode("POSCTL")
+            _enter_posctl_with_manual_control(session, mav, manual_control)
             time.sleep(1.0)
             latest_lpos, _ = _wait_for_takeoff_hover(
                 mav,
@@ -463,7 +470,7 @@ def run_validation_with_assets(
         finally:
             if manual_control is not None and mav is not None:
                 try:
-                    session.set_mode("POSCTL")
+                    _enter_posctl_with_manual_control(session, mav, manual_control)
                     _land_in_posctl_with_manual_control(
                         mav,
                         manual_control=manual_control,
@@ -496,10 +503,12 @@ def run_identification_with_assets(
     label: str,
     source_model_dir: Path,
     model_name: str,
+    profiles: Iterable[str] | None = None,
     headless: bool = True,
     show_console: bool = False,
     sitl_esc_min: int = SITL_ESC_MIN,
     sitl_esc_max: int | None = SITL_ESC_MAX,
+    skip_landing_after_profile: bool = False,
 ) -> dict:
     build_dir = px4_root / "build" / "px4_sitl_default"
     base_rootfs = build_dir / "rootfs"
@@ -507,12 +516,17 @@ def run_identification_with_assets(
     result_root = out_root / label
     results: list[dict] = []
     truth_csvs: list[str] = []
-    for idx, profile in enumerate(IDENT_PROFILES, start=1):
+    profiles = tuple(profiles or IDENT_PROFILES)
+    unknown_profiles = sorted(set(profiles) - set(IDENT_PROFILES))
+    if unknown_profiles:
+        raise ValueError(f"unknown identification profile(s): {', '.join(unknown_profiles)}")
+    for idx, profile in enumerate(profiles, start=1):
         profile_runtime_root = runtime_root / f"{idx:02d}_{profile}"
         run_rootfs = profile_runtime_root / "rootfs"
         override_models_root = profile_runtime_root / "override_models"
         _prepare_run_rootfs(base_rootfs, run_rootfs)
         _prepare_model_override_from_dir(source_model_dir, model_name, override_models_root)
+        _patch_gz_env_model_override(run_rootfs, override_models_root)
         env = _build_env_with_world(
             px4_root=px4_root,
             build_dir=build_dir,
@@ -575,10 +589,7 @@ def run_identification_with_assets(
             manual_control = _ManualControlThread(mav)
             manual_control.update(x=0, y=0, z=500, r=0)
             manual_control.start()
-            set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-            if SITL_PARAM_PROPAGATION_SECONDS > 0.0:
-                time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
-            session.set_mode("POSCTL")
+            _enter_posctl_with_manual_control(session, mav, manual_control)
             time.sleep(1.0)
             latest_lpos, latest_att = _wait_for_takeoff_hover(
                 mav,
@@ -708,6 +719,9 @@ def run_identification_with_assets(
             )
             post_ident_error: str | None = None
             try:
+                if skip_landing_after_profile:
+                    results[-1]["post_ident_skipped"] = "skip_landing_after_profile"
+                    continue
                 session.send("trajectory_reader set_mode position")
                 session.send(
                     "trajectory_reader abs_ref "
@@ -716,7 +730,7 @@ def run_identification_with_assets(
                 session.wait_until_position(common_anchor, xy_tol_m=0.28, z_tol_m=0.28, timeout_s=20.0)
                 manual_control.update(x=0, y=0, z=500, r=0)
                 time.sleep(1.0)
-                session.set_mode("POSCTL")
+                _enter_posctl_with_manual_control(session, mav, manual_control)
                 set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
                 set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
                 _land_in_posctl_with_manual_control(
@@ -739,6 +753,8 @@ def run_identification_with_assets(
     payload = {
         "label": label,
         "model_name": model_name,
+        "profiles": list(profiles),
+        "skip_landing_after_profile": skip_landing_after_profile,
         "truth_csvs": truth_csvs,
         "results": results,
     }

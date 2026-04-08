@@ -1,152 +1,152 @@
 {
-  "label_a": "jMAVSim prior",
+  "label_a": "Old HITL ident",
   "label_b": "Re-identified from SITL ident",
-  "candidate_a": "/home/earsub/px4-system-identification/examples/paper_assets/candidates/jmavsim_prior_v1/identified_parameters.json",
+  "candidate_a": "/home/earsub/px4-system-identification/experimental_validation/outputs/x500_candidate_from_current_hil_ident/identified_parameters.json",
   "candidate_b": "/home/earsub/px4-system-identification/docs/sitl_validation/_generated/candidates/re_identified_from_sitl_ident/identified_parameters.json",
   "rows": [
     {
       "label": "Mass",
       "key": "mass_kg",
       "unit": "kg",
-      "value_a": 0.8,
+      "value_a": 1.0,
       "value_b": 0.8,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": -0.19999999999999996,
+      "delta_pct": -19.999999999999996
     },
     {
       "label": "Thrust scale",
       "key": "thrust_scale_n_per_cmd",
       "unit": "N/cmd",
-      "value_a": 16.0,
+      "value_a": 19.956376423420412,
       "value_b": 11.542075249563318,
-      "delta_abs": -4.457924750436682,
-      "delta_pct": -27.862029690229264
+      "delta_abs": -8.414301173857094,
+      "delta_pct": -42.16347194164084
     },
     {
       "label": "Inertia X",
       "key": "ixx_kgm2",
       "unit": "kg*m^2",
-      "value_a": 0.005,
+      "value_a": 0.011913440105646975,
       "value_b": 0.005,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": -0.0069134401056469745,
+      "delta_pct": -58.03059439036422
     },
     {
       "label": "Inertia Y",
       "key": "iyy_kgm2",
       "unit": "kg*m^2",
-      "value_a": 0.005,
+      "value_a": 3.170203416015064e-08,
       "value_b": 0.005,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 0.00499996829796584,
+      "delta_pct": 15771758.596647985
     },
     {
       "label": "Inertia Z",
       "key": "izz_kgm2",
       "unit": "kg*m^2",
-      "value_a": 0.009,
+      "value_a": 0.16377265533281443,
       "value_b": 0.009,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": -0.15477265533281442,
+      "delta_pct": -94.50457710311258
     },
     {
       "label": "Drag X",
       "key": "drag_x",
       "unit": "-",
-      "value_a": 0.01,
+      "value_a": 0.0,
       "value_b": -0.04153792289198845,
-      "delta_abs": -0.051537922891988455,
-      "delta_pct": -515.3792289198846
+      "delta_abs": -0.04153792289198845,
+      "delta_pct": null
     },
     {
       "label": "Drag Y",
       "key": "drag_y",
       "unit": "-",
-      "value_a": 0.01,
+      "value_a": 0.0,
       "value_b": -0.054995931066474955,
-      "delta_abs": -0.06499593106647496,
-      "delta_pct": -649.9593106647495
+      "delta_abs": -0.054995931066474955,
+      "delta_pct": null
     },
     {
       "label": "Drag Z",
       "key": "drag_z",
       "unit": "-",
-      "value_a": 0.01,
+      "value_a": 0.0,
       "value_b": -0.02529228087307912,
-      "delta_abs": -0.03529228087307912,
-      "delta_pct": -352.9228087307912
+      "delta_abs": -0.02529228087307912,
+      "delta_pct": null
     },
     {
       "label": "Time constant up",
       "key": "time_constant_up_s",
       "unit": "s",
-      "value_a": 0.005,
+      "value_a": 0.0,
       "value_b": 0.005,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 0.005,
+      "delta_pct": null
     },
     {
       "label": "Time constant down",
       "key": "time_constant_down_s",
       "unit": "s",
-      "value_a": 0.005,
+      "value_a": 0.0,
       "value_b": 0.005,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 0.005,
+      "delta_pct": null
     },
     {
       "label": "Max rotor velocity",
       "key": "max_rot_velocity_radps",
       "unit": "rad/s",
-      "value_a": 1000.0,
+      "value_a": 0.0,
       "value_b": 1000.0,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 1000.0,
+      "delta_pct": null
     },
     {
       "label": "Motor constant",
       "key": "motor_constant",
       "unit": "N/(rad/s)^2",
-      "value_a": 4e-06,
+      "value_a": 0.0,
       "value_b": 4e-06,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 4e-06,
+      "delta_pct": null
     },
     {
       "label": "Moment constant",
       "key": "moment_constant",
       "unit": "-",
-      "value_a": 0.0125,
+      "value_a": 0.0,
       "value_b": 0.0125,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 0.0125,
+      "delta_pct": null
     },
     {
       "label": "Rotor drag coeff",
       "key": "rotor_drag_coefficient",
       "unit": "-",
-      "value_a": 8.06428e-05,
+      "value_a": 0.0,
       "value_b": 8.06428e-05,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 8.06428e-05,
+      "delta_pct": null
     },
     {
       "label": "Rolling moment coeff",
       "key": "rolling_moment_coefficient",
       "unit": "-",
-      "value_a": 1e-06,
+      "value_a": 0.0,
       "value_b": 1e-06,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 1e-06,
+      "delta_pct": null
     },
     {
       "label": "Velocity slowdown",
       "key": "rotor_velocity_slowdown_sim",
       "unit": "-",
-      "value_a": 10.0,
+      "value_a": 0.0,
       "value_b": 10.0,
-      "delta_abs": 0.0,
-      "delta_pct": 0.0
+      "delta_abs": 10.0,
+      "delta_pct": null
     }
   ]
 }
