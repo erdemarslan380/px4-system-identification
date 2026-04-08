@@ -1,0 +1,548 @@
+{
+  "px4_only": {
+    "comparable_metrics": {
+      "mass_kg": {
+        "identified": 1.0,
+        "reference": 0.9,
+        "abs_error": 0.09999999999999998,
+        "pct_error": 11.111111111111107
+      },
+      "ixx_kgm2": {
+        "identified": 0.0013140151049816186,
+        "reference": 0.005,
+        "abs_error": -0.0036859848950183812,
+        "pct_error": -73.71969790036762
+      },
+      "iyy_kgm2": {
+        "identified": 0.03859208820887096,
+        "reference": 0.005,
+        "abs_error": 0.03359208820887096,
+        "pct_error": 671.8417641774192
+      },
+      "izz_kgm2": {
+        "identified": -0.0024250283361965355,
+        "reference": 0.009,
+        "abs_error": -0.011425028336196534,
+        "pct_error": -126.9447592910726
+      },
+      "time_constant_up_s": {
+        "identified": 0.012591065203331198,
+        "reference": 0.005,
+        "abs_error": 0.0075910652033311975,
+        "pct_error": 151.82130406662395
+      },
+      "time_constant_down_s": {
+        "identified": 0.23784487336740157,
+        "reference": 0.005,
+        "abs_error": 0.23284487336740156,
+        "pct_error": 4656.897467348032
+      },
+      "max_rot_velocity_radps": {
+        "identified": 0.0,
+        "reference": 1000.0,
+        "abs_error": -1000.0,
+        "pct_error": -100.0
+      },
+      "motor_constant": {
+        "identified": 0.0,
+        "reference": 4e-06,
+        "abs_error": -4e-06,
+        "pct_error": -100.0
+      },
+      "moment_constant": {
+        "identified": 0.0,
+        "reference": 0.0125,
+        "abs_error": -0.0125,
+        "pct_error": -100.0
+      },
+      "rotor_drag_coefficient": {
+        "identified": 0.0,
+        "reference": 8.06428e-05,
+        "abs_error": -8.06428e-05,
+        "pct_error": -100.0
+      },
+      "rolling_moment_coefficient": {
+        "identified": 0.0,
+        "reference": 1e-06,
+        "abs_error": -1e-06,
+        "pct_error": -100.0
+      },
+      "rotor_velocity_slowdown_sim": {
+        "identified": 0.0,
+        "reference": 10.0,
+        "abs_error": -10.0,
+        "pct_error": -100.0
+      }
+    },
+    "blended_twin_score": {
+      "score": 9.394873256839335e-18,
+      "normalized_penalty": 43.81153771759724,
+      "family_scores": {
+        "inertia": 3.1448314072923016e-11,
+        "mass": 10.836802322189595,
+        "motor_coefficients": 2.6688731809035683e-06,
+        "motor_dynamics": 2.6379311237598177e-46
+      },
+      "metric_contributions": {
+        "mass_kg": {
+          "family": "mass",
+          "weight": 1.0,
+          "tolerance_pct": 5.0,
+          "normalized_error": 2.2222222222222214,
+          "weighted_penalty": 2.2222222222222214
+        },
+        "ixx_kgm2": {
+          "family": "inertia",
+          "weight": 1.4,
+          "tolerance_pct": 10.0,
+          "normalized_error": 7.371969790036762,
+          "weighted_penalty": 10.320757706051467
+        },
+        "iyy_kgm2": {
+          "family": "inertia",
+          "weight": 1.2,
+          "tolerance_pct": 10.0,
+          "normalized_error": 67.18417641774192,
+          "weighted_penalty": 80.6210117012903
+        },
+        "izz_kgm2": {
+          "family": "inertia",
+          "weight": 1.0,
+          "tolerance_pct": 10.0,
+          "normalized_error": 12.69447592910726,
+          "weighted_penalty": 12.69447592910726
+        },
+        "time_constant_up_s": {
+          "family": "motor_dynamics",
+          "weight": 1.3,
+          "tolerance_pct": 15.0,
+          "normalized_error": 10.121420271108263,
+          "weighted_penalty": 13.157846352440743
+        },
+        "time_constant_down_s": {
+          "family": "motor_dynamics",
+          "weight": 1.0,
+          "tolerance_pct": 15.0,
+          "normalized_error": 310.4598311565354,
+          "weighted_penalty": 310.4598311565354
+        },
+        "max_rot_velocity_radps": {
+          "family": "motor_dynamics",
+          "weight": 0.8,
+          "tolerance_pct": 5.0,
+          "normalized_error": 20.0,
+          "weighted_penalty": 16.0
+        },
+        "motor_constant": {
+          "family": "motor_coefficients",
+          "weight": 1.1,
+          "tolerance_pct": 5.0,
+          "normalized_error": 20.0,
+          "weighted_penalty": 22.0
+        },
+        "moment_constant": {
+          "family": "motor_coefficients",
+          "weight": 0.9,
+          "tolerance_pct": 5.0,
+          "normalized_error": 20.0,
+          "weighted_penalty": 18.0
+        },
+        "rotor_drag_coefficient": {
+          "family": "motor_coefficients",
+          "weight": 0.8,
+          "tolerance_pct": 8.0,
+          "normalized_error": 12.5,
+          "weighted_penalty": 10.0
+        },
+        "rolling_moment_coefficient": {
+          "family": "motor_coefficients",
+          "weight": 0.6,
+          "tolerance_pct": 8.0,
+          "normalized_error": 12.5,
+          "weighted_penalty": 7.5
+        },
+        "rotor_velocity_slowdown_sim": {
+          "family": "motor_coefficients",
+          "weight": 0.7,
+          "tolerance_pct": 5.0,
+          "normalized_error": 20.0,
+          "weighted_penalty": 14.0
+        }
+      }
+    },
+    "non_comparable_metrics": {
+      "identified_only": [
+        "thrust_scale_n_per_cmd",
+        "drag_x",
+        "drag_y",
+        "drag_z"
+      ],
+      "sdf_only": [],
+      "note": "Mass, inertia, and Gazebo motor-model terms are compared directly. Generic body drag and thrust-scale terms remain identification-only summaries."
+    }
+  },
+  "telemetry_augmented": {
+    "comparable_metrics": {
+      "mass_kg": {
+        "identified": 1.0,
+        "reference": 0.9,
+        "abs_error": 0.09999999999999998,
+        "pct_error": 11.111111111111107
+      },
+      "ixx_kgm2": {
+        "identified": 0.0013140151049816186,
+        "reference": 0.005,
+        "abs_error": -0.0036859848950183812,
+        "pct_error": -73.71969790036762
+      },
+      "iyy_kgm2": {
+        "identified": 0.03859208820887096,
+        "reference": 0.005,
+        "abs_error": 0.03359208820887096,
+        "pct_error": 671.8417641774192
+      },
+      "izz_kgm2": {
+        "identified": -0.0024250283361965355,
+        "reference": 0.009,
+        "abs_error": -0.011425028336196534,
+        "pct_error": -126.9447592910726
+      },
+      "time_constant_up_s": {
+        "identified": 0.005001419926262595,
+        "reference": 0.005,
+        "abs_error": 1.4199262625951697e-06,
+        "pct_error": 0.028398525251903395
+      },
+      "time_constant_down_s": {
+        "identified": 2.8211012692257365,
+        "reference": 0.005,
+        "abs_error": 2.8161012692257366,
+        "pct_error": 56322.02538451473
+      },
+      "max_rot_velocity_radps": {
+        "identified": 680.695927,
+        "reference": 1000.0,
+        "abs_error": -319.304073,
+        "pct_error": -31.930407300000002
+      },
+      "motor_constant": {
+        "identified": 0.0,
+        "reference": 4e-06,
+        "abs_error": -4e-06,
+        "pct_error": -100.0
+      },
+      "moment_constant": {
+        "identified": 0.0,
+        "reference": 0.0125,
+        "abs_error": -0.0125,
+        "pct_error": -100.0
+      },
+      "rotor_drag_coefficient": {
+        "identified": 0.0,
+        "reference": 8.06428e-05,
+        "abs_error": -8.06428e-05,
+        "pct_error": -100.0
+      },
+      "rolling_moment_coefficient": {
+        "identified": 0.0,
+        "reference": 1e-06,
+        "abs_error": -1e-06,
+        "pct_error": -100.0
+      },
+      "rotor_velocity_slowdown_sim": {
+        "identified": 10.000000000363698,
+        "reference": 10.0,
+        "abs_error": 3.636984047261649e-10,
+        "pct_error": 3.6369840472616492e-09
+      }
+    },
+    "blended_twin_score": {
+      "score": 4.0317642428861534e-143,
+      "normalized_penalty": 332.4806344265835,
+      "family_scores": {
+        "inertia": 3.1448314072923016e-11,
+        "mass": 10.836802322189595,
+        "motor_coefficients": 8.11492863672087e-05,
+        "motor_dynamics": 0.0
+      },
+      "metric_contributions": {
+        "mass_kg": {
+          "family": "mass",
+          "weight": 1.0,
+          "tolerance_pct": 5.0,
+          "normalized_error": 2.2222222222222214,
+          "weighted_penalty": 2.2222222222222214
+        },
+        "ixx_kgm2": {
+          "family": "inertia",
+          "weight": 1.4,
+          "tolerance_pct": 10.0,
+          "normalized_error": 7.371969790036762,
+          "weighted_penalty": 10.320757706051467
+        },
+        "iyy_kgm2": {
+          "family": "inertia",
+          "weight": 1.2,
+          "tolerance_pct": 10.0,
+          "normalized_error": 67.18417641774192,
+          "weighted_penalty": 80.6210117012903
+        },
+        "izz_kgm2": {
+          "family": "inertia",
+          "weight": 1.0,
+          "tolerance_pct": 10.0,
+          "normalized_error": 12.69447592910726,
+          "weighted_penalty": 12.69447592910726
+        },
+        "time_constant_up_s": {
+          "family": "motor_dynamics",
+          "weight": 1.3,
+          "tolerance_pct": 15.0,
+          "normalized_error": 0.0018932350167935597,
+          "weighted_penalty": 0.0024612055218316276
+        },
+        "time_constant_down_s": {
+          "family": "motor_dynamics",
+          "weight": 1.0,
+          "tolerance_pct": 15.0,
+          "normalized_error": 3754.8016923009823,
+          "weighted_penalty": 3754.8016923009823
+        },
+        "max_rot_velocity_radps": {
+          "family": "motor_dynamics",
+          "weight": 0.8,
+          "tolerance_pct": 5.0,
+          "normalized_error": 6.386081460000001,
+          "weighted_penalty": 5.108865168000001
+        },
+        "motor_constant": {
+          "family": "motor_coefficients",
+          "weight": 1.1,
+          "tolerance_pct": 5.0,
+          "normalized_error": 20.0,
+          "weighted_penalty": 22.0
+        },
+        "moment_constant": {
+          "family": "motor_coefficients",
+          "weight": 0.9,
+          "tolerance_pct": 5.0,
+          "normalized_error": 20.0,
+          "weighted_penalty": 18.0
+        },
+        "rotor_drag_coefficient": {
+          "family": "motor_coefficients",
+          "weight": 0.8,
+          "tolerance_pct": 8.0,
+          "normalized_error": 12.5,
+          "weighted_penalty": 10.0
+        },
+        "rolling_moment_coefficient": {
+          "family": "motor_coefficients",
+          "weight": 0.6,
+          "tolerance_pct": 8.0,
+          "normalized_error": 12.5,
+          "weighted_penalty": 7.5
+        },
+        "rotor_velocity_slowdown_sim": {
+          "family": "motor_coefficients",
+          "weight": 0.7,
+          "tolerance_pct": 5.0,
+          "normalized_error": 7.273968094523299e-10,
+          "weighted_penalty": 5.091777666166309e-10
+        }
+      }
+    },
+    "non_comparable_metrics": {
+      "identified_only": [
+        "thrust_scale_n_per_cmd",
+        "drag_x",
+        "drag_y",
+        "drag_z"
+      ],
+      "sdf_only": [],
+      "note": "Mass, inertia, and Gazebo motor-model terms are compared directly. Generic body drag and thrust-scale terms remain identification-only summaries."
+    }
+  },
+  "truth_assisted": {
+    "comparable_metrics": {
+      "mass_kg": {
+        "identified": 0.9,
+        "reference": 0.9,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "ixx_kgm2": {
+        "identified": 0.005,
+        "reference": 0.005,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "iyy_kgm2": {
+        "identified": 0.005,
+        "reference": 0.005,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "izz_kgm2": {
+        "identified": 0.009,
+        "reference": 0.009,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "time_constant_up_s": {
+        "identified": 0.005,
+        "reference": 0.005,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "time_constant_down_s": {
+        "identified": 0.005,
+        "reference": 0.005,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "max_rot_velocity_radps": {
+        "identified": 1000.0,
+        "reference": 1000.0,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "motor_constant": {
+        "identified": 4e-06,
+        "reference": 4e-06,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "moment_constant": {
+        "identified": 0.0125,
+        "reference": 0.0125,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "rotor_drag_coefficient": {
+        "identified": 8.06428e-05,
+        "reference": 8.06428e-05,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "rolling_moment_coefficient": {
+        "identified": 1e-06,
+        "reference": 1e-06,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      },
+      "rotor_velocity_slowdown_sim": {
+        "identified": 10.0,
+        "reference": 10.0,
+        "abs_error": 0.0,
+        "pct_error": 0.0
+      }
+    },
+    "blended_twin_score": {
+      "score": 100.0,
+      "normalized_penalty": 0.0,
+      "family_scores": {
+        "inertia": 100.0,
+        "mass": 100.0,
+        "motor_coefficients": 100.0,
+        "motor_dynamics": 100.0
+      },
+      "metric_contributions": {
+        "mass_kg": {
+          "family": "mass",
+          "weight": 1.0,
+          "tolerance_pct": 5.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "ixx_kgm2": {
+          "family": "inertia",
+          "weight": 1.4,
+          "tolerance_pct": 10.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "iyy_kgm2": {
+          "family": "inertia",
+          "weight": 1.2,
+          "tolerance_pct": 10.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "izz_kgm2": {
+          "family": "inertia",
+          "weight": 1.0,
+          "tolerance_pct": 10.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "time_constant_up_s": {
+          "family": "motor_dynamics",
+          "weight": 1.3,
+          "tolerance_pct": 15.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "time_constant_down_s": {
+          "family": "motor_dynamics",
+          "weight": 1.0,
+          "tolerance_pct": 15.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "max_rot_velocity_radps": {
+          "family": "motor_dynamics",
+          "weight": 0.8,
+          "tolerance_pct": 5.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "motor_constant": {
+          "family": "motor_coefficients",
+          "weight": 1.1,
+          "tolerance_pct": 5.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "moment_constant": {
+          "family": "motor_coefficients",
+          "weight": 0.9,
+          "tolerance_pct": 5.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "rotor_drag_coefficient": {
+          "family": "motor_coefficients",
+          "weight": 0.8,
+          "tolerance_pct": 8.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "rolling_moment_coefficient": {
+          "family": "motor_coefficients",
+          "weight": 0.6,
+          "tolerance_pct": 8.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        },
+        "rotor_velocity_slowdown_sim": {
+          "family": "motor_coefficients",
+          "weight": 0.7,
+          "tolerance_pct": 5.0,
+          "normalized_error": 0.0,
+          "weighted_penalty": 0.0
+        }
+      }
+    },
+    "non_comparable_metrics": {
+      "identified_only": [
+        "thrust_scale_n_per_cmd",
+        "drag_x",
+        "drag_y",
+        "drag_z"
+      ],
+      "sdf_only": [],
+      "note": "Mass, inertia, and Gazebo motor-model terms are compared directly. Generic body drag and thrust-scale terms remain identification-only summaries."
+    }
+  }
+}

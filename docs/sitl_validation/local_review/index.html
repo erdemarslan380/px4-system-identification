@@ -76,6 +76,11 @@
       background: #ddf7f1;
       font-weight: 700;
     }
+    button.disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      background: #f3f4f6;
+    }
     label.check {
       display: inline-flex;
       align-items: center;
@@ -110,7 +115,7 @@
     input[type="range"] { width: 100%; }
     .meta-grid {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 12px;
     }
     .meta {
@@ -165,6 +170,67 @@
       border: 1px solid #fed7aa;
       font-weight: 700;
       margin-top: 10px;
+    }
+    .tube-table-wrap { margin-top: 14px; }
+    .tube-compare-card {
+      margin-top: 14px;
+      padding: 14px;
+      border: 1px solid #d7e0ef;
+      border-radius: 14px;
+      background: #f8fbff;
+    }
+    .tube-compare-controls {
+      display: grid;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .tube-compare-picks {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .tube-compare-field {
+      display: grid;
+      gap: 6px;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      background: #ffffff;
+    }
+    .tube-compare-field strong {
+      font-size: 13px;
+      color: #334155;
+    }
+    .tube-compare-field select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: #ffffff;
+      font: inherit;
+      color: #0f172a;
+    }
+    .tube-compare-tip {
+      font-size: 13px;
+      color: #475569;
+    }
+    .tube-compare-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #ffffff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .tube-compare-check input { margin: 0; }
+    .tube-compare-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
     }
     @media (max-width: 1180px) {
       .toolbar, .plot-grid, .meta-grid { grid-template-columns: 1fr; }
@@ -268,24 +334,52 @@
     </section>
 
     <section id="tubeCard" class="card" style="display:none">
-      <h3>10-run tube view</h3>
-      <p class="note">Her katmanda orta çizgi 10 uçuşun progress-aligned ortalamasıdır. Transparan gövde XY düzlemindeki 1-sigma tüpü gösterir. Prior ve re-identified tüplerinin örtüşmesi, alttaki metriğe dökülür.</p>
+      <h3>Hairpin tube view</h3>
+      <p class="note">Aynı grafikte referans yol, üç modelin ortalama centerline'ı ve konuma göre değişen XY 1-sigma tube gövdesi birlikte gösterilir. Slider ilerledikçe hem centerline hem tube sadece seçilen progress noktasına kadar çizilir.</p>
       <div class="plot-grid">
         <div class="card">
-          <h3>Mean path + 1σ tube</h3>
+          <h3>3D centerline + uncertainty</h3>
           <div id="tubePlot" class="plot"></div>
         </div>
         <div class="card">
-          <h3>Overlap zoom</h3>
+          <h3>XY tube overlap zoom</h3>
           <div id="tubeZoomPlot" class="plot"></div>
         </div>
       </div>
       <div class="meta-grid" style="margin-top:14px">
-        <div class="meta"><span>Prior vs Re-id IoU</span><strong id="tubeOverlap">-</strong></div>
+        <div class="meta"><span>Selected pair</span><strong id="tubeSelectedPair">-</strong></div>
+        <div class="meta"><span>Mean IoU</span><strong id="tubeOverlap">-</strong></div>
+        <div class="meta"><span>Current IoU</span><strong id="tubeCurrentOverlap">-</strong></div>
         <div class="meta"><span>Contact</span><strong id="tubeContact">-</strong></div>
         <div class="meta"><span>Mean center dist.</span><strong id="tubeDistance">-</strong></div>
-        <div class="meta"><span>Focus window</span><strong id="tubeWindow">-</strong></div>
-        <div class="meta"><span>Assets</span><strong><a id="tubePngLink" href="#" target="_blank" rel="noopener">PNG</a> / <a id="tubeSvgLink" href="#" target="_blank" rel="noopener">SVG</a></strong></div>
+        <div class="meta"><span>Runs in tube</span><strong id="tubeRuns">-</strong></div>
+      </div>
+      <p id="tubeFilterNote" class="note" style="margin-top:12px"></p>
+      <p class="note">Assets: <a id="tubePngLink" href="#" target="_blank" rel="noopener">PNG</a> / <a id="tubeSvgLink" href="#" target="_blank" rel="noopener">SVG</a></p>
+      <div class="slider-row" style="margin-top:14px">
+        <input id="progressSliderBottom" type="range" min="0" max="1000" step="1" value="0" />
+        <strong id="progressTextBottom">0%</strong>
+      </div>
+      <p class="note">Tube scrubber: bu slider da üsttekilerle senkron. Çizgiler ve tube yalnız seçili progress noktasına kadar gösterilir.</p>
+      <div class="tube-compare-card">
+        <h3>Overlap comparison module</h3>
+        <p class="note">Buradan en fazla iki tube katmanı seç. Overlap metrikleri seçili çift için hesaplanır. Katman sayısı ileride artsa da bu alan otomatik uyum sağlar.</p>
+        <div id="tubeCompareControls" class="tube-compare-controls"></div>
+      </div>
+      <div class="tube-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Mean IoU [%]</th>
+              <th>Current IoU [%]</th>
+              <th>Contact [%]</th>
+              <th>Mean center dist. [m]</th>
+              <th>Comment</th>
+            </tr>
+          </thead>
+          <tbody id="tubeOverlapBody"></tbody>
+        </table>
       </div>
     </section>
   </main>
@@ -295,14 +389,20 @@
     const LAYERS = [
       { key: "reference", label: "Reference", color: "#222222", dash: "dash", source: null },
       { key: "stock", label: "Stock x500 SITL", color: "#1f77b4", dash: "solid", source: "../_generated/sources/stock/tracking_logs" },
+      { key: "stock_sdf_exact", label: "Stock SDF exact", color: "#2ca02c", dash: "solid", source: "../_generated/sources/stock_sdf_exact/tracking_logs" },
+      { key: "stock_sdf_minus100g", label: "Stock SDF -100g", color: "#66a61e", dash: "solid", source: "../_generated/sources/stock_sdf_minus100g/tracking_logs" },
       { key: "jmavsim_prior_sdf", label: "jMAVSim prior SDF", color: "#d95f02", dash: "solid", source: "../_generated/sources/jmavsim_prior_sdf/tracking_logs" },
+      { key: "jmavsim_prior_plus100g_sdf", label: "jMAVSim prior +100g SDF", color: "#e6550d", dash: "solid", source: "../_generated/sources/jmavsim_prior_plus100g_sdf/tracking_logs" },
       { key: "re_identified_from_sitl_ident", label: "Re-identified from SITL ident", color: "#6a3d9a", dash: "solid", source: "../_generated/sources/re_identified_from_sitl_ident/tracking_logs" },
+      { key: "re_identified_from_sitl_ident_plus100g", label: "Re-identified from +100g SITL ident", color: "#e7298a", dash: "solid", source: "../_generated/sources/re_identified_from_sitl_ident_plus100g/tracking_logs" },
     ];
 
     const state = {
       trajectory: TRAJECTORIES[0],
+      availableTrajectories: [],
       visible: Object.fromEntries(LAYERS.map(layer => [layer.key, true])),
       trackKey: "stock",
+      tubeCompareKeys: [],
       progress: 0,
       data: {},
       repeatability: null,
@@ -315,19 +415,26 @@
       trackSelect: document.getElementById("trackSelect"),
       progressSlider: document.getElementById("progressSlider"),
       progressSliderSecondary: document.getElementById("progressSliderSecondary"),
+      progressSliderBottom: document.getElementById("progressSliderBottom"),
       progressText: document.getElementById("progressText"),
       progressTextSecondary: document.getElementById("progressTextSecondary"),
+      progressTextBottom: document.getElementById("progressTextBottom"),
       title: document.getElementById("title"),
       metricsBody: document.getElementById("metricsBody"),
       repeatabilityCard: document.getElementById("repeatabilityCard"),
       repeatabilityBody: document.getElementById("repeatabilityBody"),
       tubeCard: document.getElementById("tubeCard"),
+      tubeSelectedPair: document.getElementById("tubeSelectedPair"),
       tubeOverlap: document.getElementById("tubeOverlap"),
       tubeContact: document.getElementById("tubeContact"),
       tubeDistance: document.getElementById("tubeDistance"),
-      tubeWindow: document.getElementById("tubeWindow"),
+      tubeCurrentOverlap: document.getElementById("tubeCurrentOverlap"),
+      tubeRuns: document.getElementById("tubeRuns"),
+      tubeFilterNote: document.getElementById("tubeFilterNote"),
       tubePngLink: document.getElementById("tubePngLink"),
       tubeSvgLink: document.getElementById("tubeSvgLink"),
+      tubeOverlapBody: document.getElementById("tubeOverlapBody"),
+      tubeCompareControls: document.getElementById("tubeCompareControls"),
       errorBox: document.getElementById("errorBox"),
       serverStatus: document.getElementById("serverStatus"),
       selLayer: document.getElementById("selLayer"),
@@ -340,6 +447,11 @@
     function showError(message) {
       el.errorBox.style.display = "block";
       el.errorBox.textContent = message;
+    }
+
+    function clearError() {
+      el.errorBox.style.display = "none";
+      el.errorBox.textContent = "";
     }
 
     function fmt(value, digits = 3) {
@@ -400,6 +512,18 @@
       return points[idx];
     }
 
+    function pointsUntilProgress(points, progress) {
+      if (!points || !points.length) return [];
+      const idx = Math.max(0, Math.min(points.length - 1, Math.round(progress * (points.length - 1))));
+      return points.slice(0, idx + 1);
+    }
+
+    function valuesUntilProgress(values, progress) {
+      if (!values || !values.length) return [];
+      const idx = Math.max(0, Math.min(values.length - 1, Math.round(progress * (values.length - 1))));
+      return values.slice(0, idx + 1);
+    }
+
     function rmse(layer) {
       if (!layer || !layer.pos || !layer.ref) return NaN;
       const n = Math.min(layer.pos.length, layer.ref.length);
@@ -422,6 +546,100 @@
       return max;
     }
 
+    function layerMeta(layerKey) {
+      return LAYERS.find(layer => layer.key === layerKey) || { key: layerKey, label: layerKey, color: "#64748b" };
+    }
+
+    function tubeModelOrder(payload) {
+      const keys = Object.keys(payload?.models || {});
+      const preferred = LAYERS.map(layer => layer.key).filter(key => key !== "reference");
+      const ordered = preferred.filter(key => keys.includes(key));
+      keys.forEach(key => {
+        if (!ordered.includes(key)) ordered.push(key);
+      });
+      return ordered;
+    }
+
+    function getPairwisePayload(payload, leftKey, rightKey) {
+      if (!payload?.pairwise_overlap || !leftKey || !rightKey || leftKey === rightKey) return null;
+      const direct = `${leftKey}__${rightKey}`;
+      const reverse = `${rightKey}__${leftKey}`;
+      return payload.pairwise_overlap[direct] || payload.pairwise_overlap[reverse] || null;
+    }
+
+    function ensureTubeSelection(payload) {
+      const available = tubeModelOrder(payload);
+      const current = [];
+      (state.tubeCompareKeys || []).forEach(key => {
+        if (available.includes(key) && !current.includes(key)) current.push(key);
+      });
+      if (current.length === 2) {
+        state.tubeCompareKeys = current.slice(0, 2);
+        return state.tubeCompareKeys;
+      }
+      if (current.length === 1 && available.length >= 2) {
+        const other = available.find(key => key !== current[0]);
+        state.tubeCompareKeys = other ? [current[0], other] : current.slice();
+        return state.tubeCompareKeys;
+      }
+      if (available.includes("jmavsim_prior_sdf") && available.includes("re_identified_from_sitl_ident")) {
+        state.tubeCompareKeys = ["jmavsim_prior_sdf", "re_identified_from_sitl_ident"];
+        return state.tubeCompareKeys;
+      }
+      if (available.includes("jmavsim_prior_plus100g_sdf") && available.includes("re_identified_from_sitl_ident_plus100g")) {
+        state.tubeCompareKeys = ["jmavsim_prior_plus100g_sdf", "re_identified_from_sitl_ident_plus100g"];
+        return state.tubeCompareKeys;
+      }
+      state.tubeCompareKeys = available.slice(0, Math.min(2, available.length));
+      return state.tubeCompareKeys;
+    }
+
+    function renderTubeCompareControls(payload) {
+      const available = tubeModelOrder(payload);
+      const selected = ensureTubeSelection(payload);
+      el.tubeCompareControls.innerHTML = "";
+      const picks = document.createElement("div");
+      picks.className = "tube-compare-picks";
+
+      const buildSelect = (slotIndex, title) => {
+        const field = document.createElement("label");
+        field.className = "tube-compare-field";
+        const currentValue = selected[slotIndex] || "";
+        field.innerHTML = `<strong>${title}</strong>`;
+        const select = document.createElement("select");
+        available.forEach(layerKey => {
+          const model = payload.models?.[layerKey];
+          if (!model) return;
+          const option = document.createElement("option");
+          option.value = layerKey;
+          option.textContent = model.label;
+          option.selected = layerKey === currentValue;
+          select.appendChild(option);
+        });
+        select.onchange = event => {
+          const next = ensureTubeSelection(payload).slice(0, 2);
+          next[slotIndex] = event.target.value;
+          if (next[0] === next[1]) {
+            const replacement = available.find(key => key !== next[slotIndex]);
+            if (replacement) next[slotIndex === 0 ? 1 : 0] = replacement;
+          }
+          state.tubeCompareKeys = next.filter(Boolean);
+          render();
+        };
+        field.appendChild(select);
+        return field;
+      };
+
+      picks.appendChild(buildSelect(0, "Katman A"));
+      picks.appendChild(buildSelect(1, "Katman B"));
+      el.tubeCompareControls.appendChild(picks);
+
+      const tip = document.createElement("div");
+      tip.className = "tube-compare-tip";
+      tip.textContent = "Istersen alttaki pair tablosunda bir satira tiklayarak da o cifti dogrudan secebilirsin.";
+      el.tubeCompareControls.appendChild(tip);
+    }
+
     async function loadCsv(path) {
       const response = await fetch(path, { cache: "no-store" });
       if (!response.ok) throw new Error(`${path} -> HTTP ${response.status}`);
@@ -441,6 +659,7 @@
 
     async function loadAll() {
       const errors = [];
+      const available = [];
       for (const trajectory of TRAJECTORIES) {
         state.data[trajectory] = {};
         for (const layer of LAYERS.filter(item => item.source)) {
@@ -455,11 +674,14 @@
               pos: rowToPoints(rows, "pos"),
             };
           } catch (error) {
-            errors.push(`${layer.label} / ${trajectory}: ${error.message}`);
+            if (!String(error.message || "").includes("HTTP 404")) {
+              errors.push(`${layer.label} / ${trajectory}: ${error.message}`);
+            }
           }
         }
         const first = state.data[trajectory].stock || Object.values(state.data[trajectory])[0];
         if (first) {
+          available.push(trajectory);
           state.data[trajectory].reference = {
             ...LAYERS[0],
             path: "",
@@ -469,7 +691,17 @@
           };
         }
       }
+      state.availableTrajectories = available;
+      if (available.length) {
+        state.trajectory = available.includes(state.trajectory) ? state.trajectory : available[0];
+        const currentLayers = state.data[state.trajectory] || {};
+        if (!currentLayers[state.trackKey]) {
+          const firstTrackable = LAYERS.filter(layer => layer.key !== "reference").find(layer => currentLayers[layer.key]);
+          if (firstTrackable) state.trackKey = firstTrackable.key;
+        }
+      }
       if (errors.length) showError(`Bazı CSV dosyaları okunamadı:\n${errors.join("\n")}`);
+      else clearError();
     }
 
     async function loadRepeatabilitySummary() {
@@ -498,6 +730,7 @@
         const button = document.createElement("button");
         button.textContent = name;
         button.onclick = () => {
+          if (!state.availableTrajectories.includes(name)) return;
           state.trajectory = name;
           state.progress = 0;
           el.progressSlider.value = "0";
@@ -535,39 +768,51 @@
       el.progressSlider.oninput = event => {
         state.progress = Number(event.target.value) / 1000;
         el.progressSliderSecondary.value = event.target.value;
-        renderSelectionAndMarkers();
+        el.progressSliderBottom.value = event.target.value;
+        render();
       };
 
       el.progressSliderSecondary.oninput = event => {
         state.progress = Number(event.target.value) / 1000;
         el.progressSlider.value = event.target.value;
-        renderSelectionAndMarkers();
+        el.progressSliderBottom.value = event.target.value;
+        render();
+      };
+
+      el.progressSliderBottom.oninput = event => {
+        state.progress = Number(event.target.value) / 1000;
+        el.progressSlider.value = event.target.value;
+        el.progressSliderSecondary.value = event.target.value;
+        render();
       };
     }
 
     function traceForLayer(layer, mode) {
-      const points = layer.pos || [];
+      const points = pointsUntilProgress(layer.pos || [], state.progress);
       const dash = layer.dash === "dash" ? "dash" : "solid";
+      if (!points.length) return null;
       if (mode === "2d") {
         return {
           type: "scatter",
-          mode: "lines",
+          mode: points.length === 1 ? "markers" : "lines",
           name: layer.label,
           x: points.map(point => point.x),
           y: points.map(point => point.y),
           line: { color: layer.color, width: layer.key === "reference" ? 4 : 3, dash },
+          marker: { color: layer.color, size: 8 },
           hovertemplate: `<b>${layer.label}</b><br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>`,
           visible: state.visible[layer.key] ? true : "legendonly",
         };
       }
       return {
         type: "scatter3d",
-        mode: "lines",
+        mode: points.length === 1 ? "markers" : "lines",
         name: layer.label,
         x: points.map(point => point.x),
         y: points.map(point => point.y),
         z: points.map(point => point.z),
         line: { color: layer.color, width: layer.key === "reference" ? 7 : 5, dash },
+        marker: { color: layer.color, size: 4 },
         customdata: points.map((_, idx) => idx),
         hovertemplate: `<b>${layer.label}</b><br>x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra></extra>`,
         visible: state.visible[layer.key] ? true : "legendonly",
@@ -575,7 +820,7 @@
     }
 
     function markerTraces(layer, mode) {
-      const points = layer.pos || [];
+      const points = pointsUntilProgress(layer.pos || [], state.progress);
       if (!points.length) return [];
       const start = points[0];
       const end = points[points.length - 1];
@@ -656,13 +901,21 @@
       const fillColor = hexToRgba(payload.color, zoom ? 0.26 : 0.18);
       const polygon = payload.tube_xy || {};
       const center = payload.centerline || {};
+      const upperX = valuesUntilProgress(polygon.upper_x || [], state.progress);
+      const upperY = valuesUntilProgress(polygon.upper_y || [], state.progress);
+      const lowerX = valuesUntilProgress(polygon.lower_x || [], state.progress);
+      const lowerY = valuesUntilProgress(polygon.lower_y || [], state.progress);
+      const polyX = upperX.length >= 2 ? [...upperX, ...lowerX.slice().reverse(), upperX[0]] : [];
+      const polyY = upperY.length >= 2 ? [...upperY, ...lowerY.slice().reverse(), upperY[0]] : [];
+      const centerX = valuesUntilProgress(center.x || [], state.progress);
+      const centerY = valuesUntilProgress(center.y || [], state.progress);
       const polygonTrace = {
         type: "scatter",
         mode: "lines",
         name: `${payload.label} 1σ tube`,
         legendgroup: layerKey,
-        x: polygon.polygon_x || [],
-        y: polygon.polygon_y || [],
+        x: polyX,
+        y: polyY,
         fill: "toself",
         fillcolor: fillColor,
         line: { color: hexToRgba(payload.color, zoom ? 0.46 : 0.34), width: 1 },
@@ -672,16 +925,61 @@
       };
       const centerTrace = {
         type: "scatter",
-        mode: "lines",
+        mode: centerX.length <= 1 ? "markers" : "lines",
         name: payload.label,
         legendgroup: layerKey,
-        x: center.x || [],
-        y: center.y || [],
+        x: centerX,
+        y: centerY,
         line: { color: lineColor, width: zoom ? 3.4 : 3 },
+        marker: { color: lineColor, size: zoom ? 8 : 7 },
         hovertemplate: `<b>${payload.label}</b><br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>`,
         visible: state.visible[layerKey] ? true : "legendonly",
       };
-      return [polygonTrace, centerTrace];
+      return polyX.length >= 2 ? [polygonTrace, centerTrace] : [centerTrace];
+    }
+
+    function tubeTraceForLayer3d(layerKey, payload) {
+      const center = payload.centerline || {};
+      const xs = valuesUntilProgress(center.x || [], state.progress);
+      const ys = valuesUntilProgress(center.y || [], state.progress);
+      const zs = valuesUntilProgress(center.z || [], state.progress);
+      const radii = valuesUntilProgress(payload.std?.xy_radius || [], state.progress);
+      if (!xs.length) return [];
+      const maxRadius = Math.max(...(payload.std?.xy_radius || [1]), 1e-6);
+      const markerSizes = radii.map(value => 4 + (12 * Math.max(0, value)) / maxRadius);
+      return [
+        {
+          type: "scatter3d",
+          mode: xs.length <= 1 ? "markers" : "lines",
+          name: payload.label,
+          legendgroup: layerKey,
+          x: xs,
+          y: ys,
+          z: zs,
+          line: { color: payload.color, width: 6 },
+          marker: { color: payload.color, size: 4 },
+          hovertemplate: `<b>${payload.label}</b><br>x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra></extra>`,
+          visible: state.visible[layerKey] ? true : "legendonly",
+        },
+        {
+          type: "scatter3d",
+          mode: "markers",
+          name: `${payload.label} sigma`,
+          legendgroup: layerKey,
+          x: xs,
+          y: ys,
+          z: zs,
+          marker: {
+            color: payload.color,
+            size: markerSizes,
+            opacity: 0.16,
+            sizemode: "diameter",
+          },
+          showlegend: false,
+          hovertemplate: `<b>${payload.label}</b><br>xy sigma=%{marker.size:.2f}px<extra></extra>`,
+          visible: state.visible[layerKey] ? true : "legendonly",
+        },
+      ];
     }
 
     function renderTubeView() {
@@ -692,51 +990,114 @@
       }
 
       el.tubeCard.style.display = "block";
-      const overlap = payload.prior_vs_reidentified || null;
+      renderTubeCompareControls(payload);
+      const compareKeys = ensureTubeSelection(payload);
+      const overlap = compareKeys.length === 2 ? getPairwisePayload(payload, compareKeys[0], compareKeys[1]) : null;
+      const overlapIdx = overlap?.sample_iou_pct?.length
+        ? Math.max(0, Math.min(overlap.sample_iou_pct.length - 1, Math.round(state.progress * (overlap.sample_iou_pct.length - 1))))
+        : 0;
+      const selectedLabels = compareKeys.map(key => payload.models?.[key]?.label || layerMeta(key).label);
+      el.tubeSelectedPair.textContent = selectedLabels.length === 2 ? `${selectedLabels[0]} vs ${selectedLabels[1]}` : "2 layer sec";
       el.tubeOverlap.textContent = overlap ? `${fmt(overlap.mean_iou_pct, 1)} %` : "n/a";
       el.tubeContact.textContent = overlap ? `${fmt(overlap.contact_pct, 1)} %` : "n/a";
       el.tubeDistance.textContent = overlap ? `${fmt(overlap.mean_center_distance_m)} m` : "n/a";
-      el.tubeWindow.textContent = overlap ? `${fmt(overlap.focus_window_progress_pct[0], 1)}%..${fmt(overlap.focus_window_progress_pct[1], 1)}%` : "n/a";
+      el.tubeCurrentOverlap.textContent = overlap ? `${fmt(overlap.sample_iou_pct?.[overlapIdx], 1)} %` : "n/a";
+      const runSummary = tubeModelOrder(payload)
+        .map(key => payload.models?.[key])
+        .filter(Boolean)
+        .map(model => `${model.label}: ${model.included_source_count}/${model.source_count}`)
+        .join(" | ");
+      el.tubeRuns.textContent = runSummary || "n/a";
+      const filterNotes = tubeModelOrder(payload)
+        .map(key => payload.models?.[key])
+        .filter(model => model && model.excluded_source_count > 0)
+        .map(model => `${model.label} excluded ${model.excluded_source_count} run(s): ${model.excluded_runs.map(item => `r${item.repeat_index} (${item.reason})`).join(", ")}`);
+      el.tubeFilterNote.textContent = filterNotes.length ? filterNotes.join(" | ") : "Tube hesabında tüm tekrarlar kullanıldı.";
       el.tubePngLink.href = payload.figures?.png || "#";
       el.tubeSvgLink.href = payload.figures?.svg || "#";
+      el.tubeOverlapBody.innerHTML = "";
 
-      const traces = [];
+      const traces3d = [];
       const zoomTraces = [];
       const ref = payload.reference || {};
-      traces.push({
-        type: "scatter",
+      const refX = valuesUntilProgress(ref.x || [], state.progress);
+      const refY = valuesUntilProgress(ref.y || [], state.progress);
+      const refZ = valuesUntilProgress(ref.z || [], state.progress);
+      traces3d.push({
+        type: "scatter3d",
         mode: "lines",
         name: "Reference",
-        x: ref.x || [],
-        y: ref.y || [],
-        line: { color: "#222222", width: 2.5, dash: "dash" },
+        x: refX,
+        y: refY,
+        z: refZ,
+        line: { color: "#222222", width: 6, dash: "dash" },
         visible: state.visible.reference ? true : "legendonly",
       });
       zoomTraces.push({
         type: "scatter",
         mode: "lines",
         name: "Reference",
-        x: ref.x || [],
-        y: ref.y || [],
+        x: refX,
+        y: refY,
         line: { color: "#222222", width: 2.2, dash: "dash" },
         visible: state.visible.reference ? true : "legendonly",
         showlegend: false,
       });
 
-      ["stock", "jmavsim_prior_sdf", "re_identified_from_sitl_ident"].forEach(layerKey => {
+      tubeModelOrder(payload).forEach(layerKey => {
         const model = payload.models?.[layerKey];
         if (!model) return;
-        traces.push(...tubeTraceForLayer(layerKey, model));
+        traces3d.push(...tubeTraceForLayer3d(layerKey, model));
         zoomTraces.push(...tubeTraceForLayer(layerKey, model, { zoom: true }).map(trace => ({ ...trace, showlegend: false })));
       });
 
+      Object.entries(payload.pairwise_overlap || {}).forEach(([pairKey, pairPayload]) => {
+        const currentIdx = pairPayload.sample_iou_pct?.length
+          ? Math.max(0, Math.min(pairPayload.sample_iou_pct.length - 1, Math.round(state.progress * (pairPayload.sample_iou_pct.length - 1))))
+          : 0;
+        const leftLabel = payload.models?.[pairPayload.left_key]?.label || pairPayload.left_key;
+        const rightLabel = payload.models?.[pairPayload.right_key]?.label || pairPayload.right_key;
+        const isSelectedPair =
+          compareKeys.length === 2 &&
+          ((pairPayload.left_key === compareKeys[0] && pairPayload.right_key === compareKeys[1]) ||
+            (pairPayload.left_key === compareKeys[1] && pairPayload.right_key === compareKeys[0]));
+        const comment = isSelectedPair
+          ? "Su an ustte secili cift bu satir."
+          : pairPayload.left_key === "stock" || pairPayload.right_key === "stock"
+            ? "Stock ile dinamik farkini gosterir."
+            : "Secmek icin ustteki modulu kullan.";
+        const tr = document.createElement("tr");
+        if (isSelectedPair) tr.style.background = "#eff6ff";
+        tr.style.cursor = "pointer";
+        tr.innerHTML = `
+          <td><strong>${leftLabel}</strong><br><span class="note">${rightLabel}</span></td>
+          <td>${fmt(pairPayload.mean_iou_pct, 1)}</td>
+          <td>${fmt(pairPayload.sample_iou_pct?.[currentIdx], 1)}</td>
+          <td>${fmt(pairPayload.contact_pct, 1)}</td>
+          <td>${fmt(pairPayload.mean_center_distance_m, 3)}</td>
+          <td>${comment}</td>
+        `;
+        tr.onclick = () => {
+          state.tubeCompareKeys = [pairPayload.left_key, pairPayload.right_key];
+          render();
+        };
+        el.tubeOverlapBody.appendChild(tr);
+      });
+
       const layout = {
-        margin: { l: 50, r: 20, t: 10, b: 45 },
+        margin: { l: 0, r: 0, t: 10, b: 0 },
         paper_bgcolor: "#ffffff",
         plot_bgcolor: "#ffffff",
+        uirevision: "tube-3d",
         legend: { orientation: "h", y: 1.08 },
-        xaxis: { title: "x [m]", scaleanchor: "y", scaleratio: 1 },
-        yaxis: { title: "y [m]" },
+        scene: {
+          dragmode: "orbit",
+          xaxis: { title: "x [m]" },
+          yaxis: { title: "y [m]" },
+          zaxis: { title: "z [m]" },
+          aspectmode: "data",
+          camera: { eye: { x: 1.25, y: 1.2, z: 0.75 } },
+        },
       };
       const zoomLayout = {
         margin: { l: 50, r: 20, t: 10, b: 45 },
@@ -755,7 +1116,7 @@
           align: "left",
           bgcolor: "#fff7ed",
           bordercolor: "#fed7aa",
-          text: `IoU ${fmt(overlap.mean_iou_pct, 1)}%<br>Contact ${fmt(overlap.contact_pct, 1)}%`,
+          text: `${selectedLabels.join(" vs ")}<br>IoU ${fmt(overlap.mean_iou_pct, 1)}%<br>Contact ${fmt(overlap.contact_pct, 1)}%`,
           showarrow: false,
         }] : [],
       };
@@ -763,8 +1124,8 @@
         zoomLayout.xaxis.range = [overlap.focus_bbox_xy.xmin, overlap.focus_bbox_xy.xmax];
         zoomLayout.yaxis.range = [overlap.focus_bbox_xy.ymin, overlap.focus_bbox_xy.ymax];
       }
-      const config = { responsive: true, displaylogo: false, scrollZoom: true };
-      Plotly.react("tubePlot", traces, layout, config);
+      const config = { responsive: true, displaylogo: false, displayModeBar: true, scrollZoom: true };
+      Plotly.react("tubePlot", traces3d, layout, config);
       Plotly.react("tubeZoomPlot", zoomTraces, zoomLayout, config);
     }
 
@@ -776,6 +1137,7 @@
       const err = distance(trackedPoint, refPoint);
       el.progressText.textContent = `${Math.round(state.progress * 100)}%`;
       el.progressTextSecondary.textContent = `${Math.round(state.progress * 100)}%`;
+      el.progressTextBottom.textContent = `${Math.round(state.progress * 100)}%`;
       el.selLayer.textContent = track?.label || "-";
       el.selProgress.textContent = `${Math.round(state.progress * 100)}%`;
       el.selError.textContent = Number.isFinite(err) ? `${fmt(err)} m` : "n/a";
@@ -791,19 +1153,43 @@
     }
 
     function render() {
+      const currentData = state.data[state.trajectory] || {};
+      if (!currentData[state.trackKey]) {
+        const firstTrackable = LAYERS.filter(layer => layer.key !== "reference").find(layer => currentData[layer.key]);
+        if (firstTrackable) {
+          state.trackKey = firstTrackable.key;
+          el.trackSelect.value = state.trackKey;
+        }
+      }
       const layers = activeLayers();
-      el.title.textContent = `${state.trajectory} (${layers.length} layers)`;
+      const availableLabel = state.availableTrajectories.length ? state.availableTrajectories.join(", ") : "none";
+      el.title.textContent = `${state.trajectory} (${layers.length} layers, available: ${availableLabel})`;
       el.progressText.textContent = `${Math.round(state.progress * 100)}%`;
       el.progressTextSecondary.textContent = `${Math.round(state.progress * 100)}%`;
+      el.progressTextBottom.textContent = `${Math.round(state.progress * 100)}%`;
       el.progressSlider.value = String(Math.round(state.progress * 1000));
       el.progressSliderSecondary.value = String(Math.round(state.progress * 1000));
-      [...el.trajectoryButtons.children].forEach(button => button.classList.toggle("active", button.textContent === state.trajectory));
+      el.progressSliderBottom.value = String(Math.round(state.progress * 1000));
+      [...el.trajectoryButtons.children].forEach(button => {
+        const enabled = state.availableTrajectories.includes(button.textContent);
+        button.classList.toggle("active", button.textContent === state.trajectory);
+        button.classList.toggle("disabled", !enabled);
+        button.disabled = !enabled;
+      });
+
+      if (!layers.length) {
+        showError(`Bu trajectory için kalıcı CSV yok: ${state.trajectory}\nMevcut trajectory'ler: ${availableLabel}`);
+      } else if (!el.errorBox.textContent.startsWith("Bazı CSV")) {
+        clearError();
+      }
 
       const traces3d = [];
       const traces2d = [];
       layers.forEach(layer => {
-        traces3d.push(traceForLayer(layer, "3d"), ...markerTraces(layer, "3d"));
-        traces2d.push(traceForLayer(layer, "2d"), ...markerTraces(layer, "2d"));
+        const trace3d = traceForLayer(layer, "3d");
+        const trace2d = traceForLayer(layer, "2d");
+        if (trace3d) traces3d.push(trace3d, ...markerTraces(layer, "3d"));
+        if (trace2d) traces2d.push(trace2d, ...markerTraces(layer, "2d"));
       });
       traces3d.push(selectorTrace("3d"));
       traces2d.push(selectorTrace("2d"));
@@ -812,8 +1198,10 @@
         margin: { l: 0, r: 0, t: 10, b: 0 },
         paper_bgcolor: "#ffffff",
         plot_bgcolor: "#ffffff",
+        uirevision: "main-3d",
         legend: { orientation: "h", y: 1.05 },
         scene: {
+          dragmode: "orbit",
           xaxis: { title: "x [m]" },
           yaxis: { title: "y [m]" },
           zaxis: { title: "z [m]" },
@@ -829,7 +1217,7 @@
         xaxis: { title: "x [m]", scaleanchor: "y", scaleratio: 1 },
         yaxis: { title: "y [m]" },
       };
-      const config = { responsive: true, displaylogo: false, scrollZoom: true };
+      const config = { responsive: true, displaylogo: false, displayModeBar: true, scrollZoom: true };
       if (window.Plotly) {
         try {
           Plotly.react("plot3d", traces3d, layout3d, config);

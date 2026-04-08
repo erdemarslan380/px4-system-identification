@@ -1,0 +1,106 @@
+{
+  "mass": {
+    "mass_kg": 1.9,
+    "sample_count": 0,
+    "std_kg": 0.0,
+    "gravity_mps2": 9.80665
+  },
+  "thrust_scale": {
+    "thrust_scale_n_per_cmd": 34.19432,
+    "sample_count": 0,
+    "rmse_n": 0.0,
+    "gravity_mps2": 9.80665
+  },
+  "inertia": {
+    "x": {
+      "axis": "x",
+      "inertia_kgm2": 0.02166666666666667,
+      "sample_count": 0,
+      "rmse_nm": 0.0
+    },
+    "y": {
+      "axis": "y",
+      "inertia_kgm2": 0.02166666666666667,
+      "sample_count": 0,
+      "rmse_nm": 0.0
+    },
+    "z": {
+      "axis": "z",
+      "inertia_kgm2": 0.04000000000000001,
+      "sample_count": 0,
+      "rmse_nm": 0.0
+    }
+  },
+  "drag": {
+    "x": {
+      "axis": "x",
+      "coefficient": 0.0,
+      "sample_count": 0,
+      "rmse_n": 0.0
+    },
+    "y": {
+      "axis": "y",
+      "coefficient": 0.0,
+      "sample_count": 0,
+      "rmse_n": 0.0
+    },
+    "z": {
+      "axis": "z",
+      "coefficient": 0.0,
+      "sample_count": 0,
+      "rmse_n": 0.0
+    }
+  },
+  "motor_model": {
+    "time_constant_up_s": {
+      "value": 0.0125,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "time_constant_down_s": {
+      "value": 0.025,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "max_rot_velocity_radps": {
+      "value": 1000.0,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "motor_constant": {
+      "value": 8.54858e-06,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "moment_constant": {
+      "value": 0.016,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rotor_drag_coefficient": {
+      "value": 8.06428e-05,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rolling_moment_coefficient": {
+      "value": 1e-06,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rotor_velocity_slowdown_sim": {
+      "value": 10.0,
+      "sample_count": 0,
+      "rmse": 0.0
+    }
+  },
+  "warnings": [
+    "Built from stock x500 SDF reference.",
+    "Mass reduced by -0.1 kg from stock x500 SDF."
+  ],
+  "composite_sources": {
+    "mass": "stock:x500_base",
+    "inertia": "stock:x500_base",
+    "drag": "manual:zero_placeholder",
+    "motor_model": "stock:x500 motor plugins"
+  }
+}

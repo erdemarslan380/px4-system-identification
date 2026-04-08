@@ -1,0 +1,29 @@
+{
+  "model_name": "x500_repeat_jmavsim_prior_plus100g",
+  "model_sdf": "/home/earsub/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_repeat_jmavsim_prior_plus100g/model.sdf",
+  "base_model_sdf": "/home/earsub/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_repeat_jmavsim_prior_plus100g_base/model.sdf",
+  "mass": {
+    "mass_kg": 0.9
+  },
+  "inertia": {
+    "x": {
+      "inertia_kgm2": 0.005
+    },
+    "y": {
+      "inertia_kgm2": 0.005
+    },
+    "z": {
+      "inertia_kgm2": 0.009
+    }
+  },
+  "motor_model": {
+    "time_constant_up_s": 0.005,
+    "time_constant_down_s": 0.005,
+    "max_rot_velocity_radps": 1000.0,
+    "motor_constant": 4e-06,
+    "moment_constant": 0.0125,
+    "rotor_drag_coefficient": 8.06428e-05,
+    "rolling_moment_coefficient": 1e-06,
+    "rotor_velocity_slowdown_sim": 10.0
+  }
+}

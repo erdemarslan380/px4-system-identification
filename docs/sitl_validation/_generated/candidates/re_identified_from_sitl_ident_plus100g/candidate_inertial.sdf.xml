@@ -1,0 +1,11 @@
+<inertial>
+  <mass>0.900000</mass>
+  <inertia>
+    <ixx>0.005000</ixx>
+    <ixy>0.000000</ixy>
+    <ixz>0.000000</ixz>
+    <iyy>0.005000</iyy>
+    <iyz>0.000000</iyz>
+    <izz>0.009000</izz>
+  </inertia>
+</inertial>

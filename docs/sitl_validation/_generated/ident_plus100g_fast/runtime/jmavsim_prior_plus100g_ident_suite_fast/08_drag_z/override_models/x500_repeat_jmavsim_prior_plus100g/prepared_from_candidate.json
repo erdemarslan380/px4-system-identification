@@ -1,0 +1,6 @@
+{
+  "model_dir": "/home/earsub/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_repeat_jmavsim_prior_plus100g",
+  "base_model_dir": "/home/earsub/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_repeat_jmavsim_prior_plus100g_base",
+  "candidate_dir": "/home/earsub/px4-system-identification/examples/paper_assets/candidates/jmavsim_prior_plus100g_v1",
+  "model_name": "x500_repeat_jmavsim_prior_plus100g"
+}

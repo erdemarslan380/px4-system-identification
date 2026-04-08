@@ -208,6 +208,18 @@ def _estimate_candidate_hover_thrust(
     return hover_thrust
 
 
+def _install_validation_trajectories_for_locked_yaw(
+    trajectories_dir: Path,
+    *,
+    locked_yaw_rad: float,
+) -> dict:
+    return export_validation_trajectories(
+        trajectories_dir,
+        freeze_yaw=SITL_FREEZE_TRAJECTORY_YAW,
+        yaw_value=float(locked_yaw_rad),
+    )
+
+
 def _apply_x500_esc_scaling(mav, *, min_value: int, max_value: int) -> None:
     for motor_idx in range(1, 5):
         set_param(mav, f"SIM_GZ_EC_MIN{motor_idx}", min_value, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
@@ -1816,11 +1828,7 @@ def run_validation_model(
     _prepare_run_rootfs(base_rootfs, run_rootfs)
     if show_console and not headless:
         _open_console_window(run_rootfs / "px4_console.log")
-    export_manifest = export_validation_trajectories(
-        run_rootfs / "trajectories",
-        freeze_yaw=SITL_FREEZE_TRAJECTORY_YAW,
-        yaw_value=0.0,
-    )
+    export_manifest: dict | None = None
     if model_spec.label != "stock_sitl_placeholder":
         _prepare_model_override(px4_root, model_spec.gz_model, override_models_root)
         _patch_gz_env_model_override(run_rootfs, override_models_root)
@@ -1898,6 +1906,10 @@ def run_validation_model(
             time.sleep(SITL_PARAM_PROPAGATION_SECONDS)
 
         hover_yaw = _capture_locked_yaw(mav)
+        export_manifest = _install_validation_trajectories_for_locked_yaw(
+            run_rootfs / "trajectories",
+            locked_yaw_rad=hover_yaw,
+        )
         set_param(mav, "TRJ_POS_YAW", hover_yaw, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
 
         _wait_for_ready_for_takeoff(session)
@@ -2090,7 +2102,7 @@ def run_validation_model(
             "y_m": common_anchor[1],
             "z_m": common_anchor[2],
         },
-        "export_manifest": export_manifest,
+        "export_manifest": export_manifest or {},
         "results": results,
         "console_log": str((run_rootfs / "px4_console.log").resolve()),
         "nested_display": display_session.display if display_session is not None else None,

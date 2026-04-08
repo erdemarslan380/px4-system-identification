@@ -63,6 +63,95 @@ def _resolve_trajectories(raw_names: str) -> tuple:
     return tuple(known[name] for name in [entry.name for entry in DEFAULT_VALIDATION_TRAJECTORIES if entry.name in wanted])
 
 
+def _all_repeat_models(
+    *,
+    prior_candidate_dir: Path,
+    reidentified_candidate_dir: Path,
+    prior_plus100g_candidate_dir: Path,
+    reidentified_plus100g_candidate_dir: Path,
+    stock_exact_candidate_dir: Path,
+    stock_minus100g_candidate_dir: Path,
+) -> tuple[RepeatModel, ...]:
+    return (
+        RepeatModel(
+            key="stock",
+            label="Stock x500 SITL",
+            spec=ValidationModelSpec("stock_sitl_placeholder", "x500", "Stock x500 SITL"),
+            candidate_dir=prior_candidate_dir,
+        ),
+        RepeatModel(
+            key="jmavsim_prior_sdf",
+            label="jMAVSim prior SDF",
+            spec=ValidationModelSpec("jmavsim_prior_repeat", "x500_repeat_jmavsim_prior", "jMAVSim prior SDF"),
+            candidate_dir=prior_candidate_dir,
+            prepare_model_name="x500_repeat_jmavsim_prior",
+        ),
+        RepeatModel(
+            key="re_identified_from_sitl_ident",
+            label="Re-identified from SITL ident",
+            spec=ValidationModelSpec("reidentified_repeat", "x500_repeat_reidentified", "Re-identified from SITL ident"),
+            candidate_dir=reidentified_candidate_dir,
+            prepare_model_name="x500_repeat_reidentified",
+        ),
+        RepeatModel(
+            key="jmavsim_prior_plus100g_sdf",
+            label="jMAVSim prior +100g SDF",
+            spec=ValidationModelSpec("jmavsim_prior_plus100g_repeat", "x500_repeat_jmavsim_prior_plus100g", "jMAVSim prior +100g SDF"),
+            candidate_dir=prior_plus100g_candidate_dir,
+            prepare_model_name="x500_repeat_jmavsim_prior_plus100g",
+        ),
+        RepeatModel(
+            key="re_identified_from_sitl_ident_plus100g",
+            label="Re-identified from +100g SITL ident",
+            spec=ValidationModelSpec("reidentified_plus100g_repeat", "x500_repeat_reidentified_plus100g", "Re-identified from +100g SITL ident"),
+            candidate_dir=reidentified_plus100g_candidate_dir,
+            prepare_model_name="x500_repeat_reidentified_plus100g",
+        ),
+        RepeatModel(
+            key="stock_sdf_exact",
+            label="Stock SDF exact",
+            spec=ValidationModelSpec("stock_sdf_exact_repeat", "x500_repeat_stock_exact", "Stock SDF exact"),
+            candidate_dir=stock_exact_candidate_dir,
+            prepare_model_name="x500_repeat_stock_exact",
+        ),
+        RepeatModel(
+            key="stock_sdf_minus100g",
+            label="Stock SDF -100g",
+            spec=ValidationModelSpec("stock_sdf_minus100g_repeat", "x500_repeat_stock_minus100g", "Stock SDF -100g"),
+            candidate_dir=stock_minus100g_candidate_dir,
+            prepare_model_name="x500_repeat_stock_minus100g",
+        ),
+    )
+
+
+def _resolve_model_keys(
+    raw_keys: str,
+    *,
+    prior_candidate_dir: Path,
+    reidentified_candidate_dir: Path,
+    prior_plus100g_candidate_dir: Path,
+    reidentified_plus100g_candidate_dir: Path,
+    stock_exact_candidate_dir: Path,
+    stock_minus100g_candidate_dir: Path,
+) -> tuple[RepeatModel, ...]:
+    models = _all_repeat_models(
+        prior_candidate_dir=prior_candidate_dir,
+        reidentified_candidate_dir=reidentified_candidate_dir,
+        prior_plus100g_candidate_dir=prior_plus100g_candidate_dir,
+        reidentified_plus100g_candidate_dir=reidentified_plus100g_candidate_dir,
+        stock_exact_candidate_dir=stock_exact_candidate_dir,
+        stock_minus100g_candidate_dir=stock_minus100g_candidate_dir,
+    )
+    if not raw_keys.strip():
+        return models
+    wanted = [item.strip() for item in raw_keys.split(",") if item.strip()]
+    known = {model.key: model for model in models}
+    missing = sorted(set(wanted) - set(known))
+    if missing:
+        raise ValueError(f"unknown model key(s): {', '.join(missing)}")
+    return tuple(known[key] for key in wanted)
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -154,22 +243,15 @@ def build_mean_tracking_csv(case_name: str, csv_paths: list[Path], out_path: Pat
 
 
 def publish_local_review_sources(*, aggregate_sources: Path, docs_sources: Path) -> None:
-    mapping = {
-        "stock": "stock",
-        "jmavsim_prior_sdf": "jmavsim_prior_sdf",
-        "re_identified_from_sitl_ident": "re_identified_from_sitl_ident",
-    }
     docs_sources.mkdir(parents=True, exist_ok=True)
-    for src_key, dst_key in mapping.items():
-        src = aggregate_sources / src_key
-        if src.exists():
-            src_tracking = src / "tracking_logs"
-            if not src_tracking.exists():
-                continue
-            dst_tracking = docs_sources / dst_key / "tracking_logs"
-            dst_tracking.mkdir(parents=True, exist_ok=True)
-            for csv_path in src_tracking.glob("*.csv"):
-                shutil.copy2(csv_path, dst_tracking / csv_path.name)
+    for src in sorted(path for path in aggregate_sources.iterdir() if path.is_dir()):
+        src_tracking = src / "tracking_logs"
+        if not src_tracking.exists():
+            continue
+        dst_tracking = docs_sources / src.name / "tracking_logs"
+        dst_tracking.mkdir(parents=True, exist_ok=True)
+        for csv_path in src_tracking.glob("*.csv"):
+            shutil.copy2(csv_path, dst_tracking / csv_path.name)
 
 
 def _write_summary_markdown(summary: dict, path: Path) -> None:
@@ -206,38 +288,23 @@ def run_repeatability_matrix(
     out_root: Path,
     prior_candidate_dir: Path,
     reidentified_candidate_dir: Path,
+    prior_plus100g_candidate_dir: Path,
+    reidentified_plus100g_candidate_dir: Path,
+    stock_exact_candidate_dir: Path,
+    stock_minus100g_candidate_dir: Path,
     repetitions: int,
     repeat_attempts: int,
     trajectories: tuple,
     publish_sources: bool,
+    models: tuple[RepeatModel, ...],
 ) -> dict:
     out_root.mkdir(parents=True, exist_ok=True)
 
-    if not _prepared_model_exists(px4_root, "x500_repeat_jmavsim_prior"):
-        prepare_identified_model(px4_root, prior_candidate_dir, model_name="x500_repeat_jmavsim_prior")
-    if not _prepared_model_exists(px4_root, "x500_repeat_reidentified"):
-        prepare_identified_model(px4_root, reidentified_candidate_dir, model_name="x500_repeat_reidentified")
-
-    models = (
-        RepeatModel(
-            key="stock",
-            label="Stock x500 SITL",
-            spec=ValidationModelSpec("stock_sitl_placeholder", "x500", "Stock x500 SITL"),
-            candidate_dir=prior_candidate_dir,
-        ),
-        RepeatModel(
-            key="jmavsim_prior_sdf",
-            label="jMAVSim prior SDF",
-            spec=ValidationModelSpec("jmavsim_prior_repeat", "x500_repeat_jmavsim_prior", "jMAVSim prior SDF"),
-            candidate_dir=prior_candidate_dir,
-        ),
-        RepeatModel(
-            key="re_identified_from_sitl_ident",
-            label="Re-identified from SITL ident",
-            spec=ValidationModelSpec("reidentified_repeat", "x500_repeat_reidentified", "Re-identified from SITL ident"),
-            candidate_dir=reidentified_candidate_dir,
-        ),
-    )
+    for model in models:
+        if not model.prepare_model_name:
+            continue
+        if not _prepared_model_exists(px4_root, model.prepare_model_name):
+            prepare_identified_model(px4_root, model.candidate_dir, model_name=model.prepare_model_name)
 
     runs_root = out_root / "runs"
     aggregate_sources = out_root / "aggregate_sources"
@@ -344,21 +411,56 @@ def main() -> int:
     ap.add_argument("--out-root", default="docs/sitl_validation/repeatability_matrix")
     ap.add_argument("--prior-candidate-dir", default="examples/paper_assets/candidates/jmavsim_prior_v1")
     ap.add_argument("--reidentified-candidate-dir", default="docs/sitl_validation/_generated/candidates/re_identified_from_sitl_ident")
+    ap.add_argument("--prior-plus100g-candidate-dir", default="examples/paper_assets/candidates/jmavsim_prior_plus100g_v1")
+    ap.add_argument("--reidentified-plus100g-candidate-dir", default="docs/sitl_validation/_generated/candidates/re_identified_from_sitl_ident_plus100g")
+    ap.add_argument("--stock-exact-candidate-dir", default="examples/paper_assets/candidates/stock_sdf_exact_v1")
+    ap.add_argument("--stock-minus100g-candidate-dir", default="examples/paper_assets/candidates/stock_sdf_minus100g_v1")
     ap.add_argument("--repetitions", type=int, default=10)
     ap.add_argument("--repeat-attempts", type=int, default=3, help="Retry count for one repeat if no tracking CSV is produced.")
     ap.add_argument("--trajectory-names", default="", help="Comma-separated subset. Default: all five.")
+    ap.add_argument(
+        "--model-keys",
+        default="",
+        help=(
+            "Comma-separated subset of: "
+            "stock,jmavsim_prior_sdf,re_identified_from_sitl_ident,"
+            "jmavsim_prior_plus100g_sdf,re_identified_from_sitl_ident_plus100g,"
+            "stock_sdf_exact,stock_sdf_minus100g"
+        ),
+    )
     ap.add_argument("--no-publish-local-review-sources", action="store_true")
     args = ap.parse_args()
+
+    prior_candidate_dir = Path(args.prior_candidate_dir).expanduser().resolve()
+    reidentified_candidate_dir = Path(args.reidentified_candidate_dir).expanduser().resolve()
+    prior_plus100g_candidate_dir = Path(args.prior_plus100g_candidate_dir).expanduser().resolve()
+    reidentified_plus100g_candidate_dir = Path(args.reidentified_plus100g_candidate_dir).expanduser().resolve()
+    stock_exact_candidate_dir = Path(args.stock_exact_candidate_dir).expanduser().resolve()
+    stock_minus100g_candidate_dir = Path(args.stock_minus100g_candidate_dir).expanduser().resolve()
+    models = _resolve_model_keys(
+        args.model_keys,
+        prior_candidate_dir=prior_candidate_dir,
+        reidentified_candidate_dir=reidentified_candidate_dir,
+        prior_plus100g_candidate_dir=prior_plus100g_candidate_dir,
+        reidentified_plus100g_candidate_dir=reidentified_plus100g_candidate_dir,
+        stock_exact_candidate_dir=stock_exact_candidate_dir,
+        stock_minus100g_candidate_dir=stock_minus100g_candidate_dir,
+    )
 
     summary = run_repeatability_matrix(
         px4_root=Path(args.px4_root).expanduser().resolve(),
         out_root=Path(args.out_root).expanduser().resolve(),
-        prior_candidate_dir=Path(args.prior_candidate_dir).expanduser().resolve(),
-        reidentified_candidate_dir=Path(args.reidentified_candidate_dir).expanduser().resolve(),
+        prior_candidate_dir=prior_candidate_dir,
+        reidentified_candidate_dir=reidentified_candidate_dir,
+        prior_plus100g_candidate_dir=prior_plus100g_candidate_dir,
+        reidentified_plus100g_candidate_dir=reidentified_plus100g_candidate_dir,
+        stock_exact_candidate_dir=stock_exact_candidate_dir,
+        stock_minus100g_candidate_dir=stock_minus100g_candidate_dir,
         repetitions=args.repetitions,
         repeat_attempts=args.repeat_attempts,
         trajectories=_resolve_trajectories(args.trajectory_names),
         publish_sources=not args.no_publish_local_review_sources,
+        models=models,
     )
     print(json.dumps({"ok": True, "summary": str((Path(args.out_root).expanduser().resolve() / "repeatability_summary.json"))}, indent=2))
     return 0

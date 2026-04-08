@@ -102,7 +102,12 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn('set_param(mav, "TRJ_ACTIVE_ID", entry.traj_id', source)
         self.assertIn('set_param(mav, "TRJ_MODE_CMD", 1', source)
         self.assertIn("entry.nominal_duration_s", source)
-        self.assertIn("freeze_yaw=SITL_FREEZE_TRAJECTORY_YAW", source)
+        self.assertIn("_install_validation_trajectories_for_locked_yaw(", source)
+        self.assertIn("locked_yaw_rad=hover_yaw", source)
+        self.assertLess(
+            source.index("hover_yaw = _capture_locked_yaw(mav)"),
+            source.index("_install_validation_trajectories_for_locked_yaw("),
+        )
         self.assertLess(
             source.index('copied_log = _copy_log(tracking_log, result_root / "tracking_logs" / f"{entry.name}.csv")'),
             source.index("tracking_metrics = _tracking_log_error_metrics(tracking_log)"),
@@ -114,6 +119,7 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         landing_source = inspect.getsource(sitl_validation._land_in_posctl_with_manual_control)
         rudder_source = inspect.getsource(sitl_validation._manual_rudder_for_yaw)
         capture_yaw_source = inspect.getsource(sitl_validation._capture_locked_yaw)
+        export_source = inspect.getsource(sitl_validation._install_validation_trajectories_for_locked_yaw)
 
         self.assertIn("target_yaw: float | None = None", takeoff_source)
         self.assertIn("_manual_rudder_for_yaw", takeoff_source)
@@ -125,6 +131,8 @@ class RunSitlValidationFlowTests(unittest.TestCase):
         self.assertIn('"disarmed": True', landing_source)
         self.assertIn("_wrap_pi", rudder_source)
         self.assertIn("_sample_attitude", capture_yaw_source)
+        self.assertIn("freeze_yaw=SITL_FREEZE_TRAJECTORY_YAW", export_source)
+        self.assertIn("yaw_value=float(locked_yaw_rad)", export_source)
         self.assertEqual(sitl_validation._manual_rudder_for_yaw(0.0, 0.0), 0)
         self.assertGreater(sitl_validation._manual_rudder_for_yaw(0.0, 0.4), 0)
         self.assertLess(sitl_validation._manual_rudder_for_yaw(0.4, 0.0), 0)
