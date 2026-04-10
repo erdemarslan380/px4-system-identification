@@ -32,6 +32,7 @@ from run_hitl_udp_sequence import (
 )
 from run_hitl_px4_builtin_trajectory_minimal import disarm
 from run_hitl_px4_trajectory_reader_position_step_minimal import (
+    execute_staged_hover_entry,
     observe_armed_ground_hold,
     observe_hold_phase,
     send_position_target_local_ned,
@@ -46,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--baud", type=int, default=57600)
     p.add_argument("--profile", choices=sorted(IDENTIFICATION_PROFILES), default="hover_thrust")
     p.add_argument("--hover-z", type=float, default=-3.0)
+    p.add_argument("--ramp-seconds", type=float, default=8.0)
     p.add_argument("--takeoff-timeout", type=float, default=45.0)
     p.add_argument("--takeoff-settle-seconds", type=float, default=2.0)
     p.add_argument("--takeoff-stable-window", type=float, default=2.0)
@@ -478,62 +480,25 @@ def main() -> int:
             setpoint_period=args.setpoint_period,
         )
 
-        send_nav_takeoff(mav)
-
-        latest_lpos, latest_att = wait_for_takeoff_hover(
-            mav,
-            target_z=target_z,
-            timeout=args.takeoff_timeout,
-            z_tolerance=args.takeoff_z_tolerance,
-            max_horiz_speed=args.takeoff_max_horiz_speed,
-            max_vert_speed=args.takeoff_max_vert_speed,
-            max_tilt_deg=args.takeoff_tilt_limit_deg,
-            stable_window=args.takeoff_stable_window,
-            report_period=args.report_period,
-        )
-        if args.takeoff_settle_seconds > 0.0:
-            time.sleep(args.takeoff_settle_seconds)
-            latest_lpos = wait_for_local_position(mav, timeout=3.0)
-
-        hold_ref_x = float(latest_lpos.x)
-        hold_ref_y = float(latest_lpos.y)
-        hold_ref_z = float(latest_lpos.z)
-        hold_ref_yaw = float(latest_att.yaw)
-
-        print(
-            f"Takeoff hover settled x={hold_ref_x:.3f} y={hold_ref_y:.3f} z={hold_ref_z:.3f} "
-            f"yaw={math.degrees(hold_ref_yaw):.1f}deg",
-            flush=True,
-        )
-
-        pre_offboard_until = time.monotonic() + max(0.5, args.pre_offboard_seconds)
-        while time.monotonic() < pre_offboard_until:
-            send_position_target_local_ned(mav, hold_ref_x, hold_ref_y, hold_ref_z, hold_ref_yaw)
-            time.sleep(args.setpoint_period)
-
         set_offboard(mav)
         print("OFFBOARD accepted", flush=True)
-
-        latest_lpos, latest_att, direct_max_xy, direct_max_z_err, direct_max_tilt, direct_failsafe = observe_direct_offboard_hold(
+        latest_lpos, latest_att, direct_max_xy, direct_max_z_err, direct_max_tilt, direct_failsafe = execute_staged_hover_entry(
             mav,
-            duration_s=max(0.5, args.direct_settle_seconds),
-            ref_x=hold_ref_x,
-            ref_y=hold_ref_y,
-            ref_z=hold_ref_z,
-            yaw=hold_ref_yaw,
+            baseline_x=baseline_x,
+            baseline_y=baseline_y,
+            baseline_z=baseline_z,
+            target_x=target_x,
+            target_y=target_y,
+            target_z=target_z,
+            yaw=yaw0,
+            ramp_seconds=args.ramp_seconds,
+            direct_settle_seconds=max(0.5, args.direct_settle_seconds),
             setpoint_period=args.setpoint_period,
             report_period=args.report_period,
+            direct_xy_limit=args.direct_xy_limit,
+            direct_z_tolerance=args.direct_z_tolerance,
+            direct_tilt_limit_deg=args.direct_tilt_limit_deg,
         )
-        if (
-            direct_failsafe
-            or direct_max_xy > args.direct_xy_limit
-            or direct_max_z_err > args.direct_z_tolerance
-            or direct_max_tilt > args.direct_tilt_limit_deg
-        ):
-            raise RuntimeError(
-                f"Direct hover unstable: max_xy={direct_max_xy:.3f}m max_z_err={direct_max_z_err:.3f}m "
-                f"max_tilt={direct_max_tilt:.2f}deg failsafe={direct_failsafe}"
-            )
 
         set_param(mav, "TRJ_POS_ABS", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "TRJ_POS_X", float(latest_lpos.x), mavutil.mavlink.MAV_PARAM_TYPE_REAL32)

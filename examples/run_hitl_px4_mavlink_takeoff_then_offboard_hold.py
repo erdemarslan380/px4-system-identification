@@ -43,6 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report-period", type=float, default=0.5)
     parser.add_argument("--setpoint-period", type=float, default=0.05)
     parser.add_argument("--manual-period", type=float, default=0.05)
+    parser.add_argument("--manual-xy-limit", type=float, default=0.15)
     parser.add_argument("--hover-z-tolerance", type=float, default=0.35)
     parser.add_argument("--offboard-entry-z-margin", type=float, default=0.35)
     parser.add_argument("--xy-limit", type=float, default=0.25)
@@ -176,14 +177,19 @@ def wait_for_attitude(mav, timeout: float = 3.0):
 def wait_for_manual_hover(
     mav,
     *,
+    target_x: float,
+    target_y: float,
     target_z: float,
     min_entry_z: float,
+    z_tolerance: float,
     timeout: float,
     max_horiz_speed: float,
     max_vert_speed: float,
     max_tilt_deg: float,
+    max_xy: float,
     stable_window: float,
     report_period: float,
+    manual: ManualControlThread | None = None,
 ):
     deadline = time.time() + timeout
     latest_lpos = None
@@ -201,6 +207,8 @@ def wait_for_manual_hover(
 
         if msg.get_type() == "LOCAL_POSITION_NED":
             latest_lpos = msg
+            if manual is not None:
+                manual.update(z=throttle_for_target(float(msg.z), target_z, float(msg.vz)))
         elif msg.get_type() == "ATTITUDE":
             latest_att = msg
 
@@ -222,11 +230,15 @@ def wait_for_manual_hover(
         vert_speed = abs(float(latest_lpos.vz))
         tilt_deg = math.degrees(max(abs(float(latest_att.roll)), abs(float(latest_att.pitch))))
 
+        xy_err = math.hypot(float(latest_lpos.x) - target_x, float(latest_lpos.y) - target_y)
+        z_err = abs(current_z - target_z)
         stable = (
             current_z <= min_entry_z
+            and z_err <= z_tolerance
             and horiz_speed <= max_horiz_speed
             and vert_speed <= max_vert_speed
             and tilt_deg <= max_tilt_deg
+            and xy_err <= max_xy
         )
 
         if stable:
@@ -243,14 +255,26 @@ def wait_for_manual_hover(
     )
 
 
-def throttle_for_target(current_z: float, target_z: float) -> int:
+def throttle_for_target(current_z: float, target_z: float, current_vz: float = 0.0) -> int:
     remaining = current_z - target_z
-    command = 500.0 + remaining * 120.0
-    if remaining > 0.8:
-        command = max(command, 660.0)
-    elif remaining > 0.3:
-        command = max(command, 560.0)
-    return int(max(450.0, min(720.0, command)))
+    if current_z > -0.03 and remaining > 0.6:
+        return 460
+
+    # MANUAL_CONTROL.z is inverted for climb on this HIL path: lower command
+    # yields more thrust/upward acceleration. Drive the command downward when
+    # we are below the target altitude and relax it again as climb rate builds.
+    command = 620.0 - remaining * 55.0 - current_vz * 45.0
+
+    if remaining > 1.5:
+        command = min(command, 500.0)
+    elif remaining > 0.8:
+        command = min(command, 540.0)
+    elif remaining > 0.2:
+        command = min(command, 590.0)
+    elif remaining < -0.2:
+        command = max(command, 650.0)
+
+    return int(max(380.0, min(780.0, command)))
 
 
 def best_effort_disarm(mav) -> None:
@@ -331,7 +355,7 @@ def main() -> int:
 
             if msg.get_type() == "LOCAL_POSITION_NED":
                 latest_lpos = msg
-                throttle_cmd = throttle_for_target(float(msg.z), target_z)
+                throttle_cmd = throttle_for_target(float(msg.z), target_z, float(msg.vz))
                 manual.update(z=throttle_cmd)
             elif msg.get_type() == "ATTITUDE":
                 latest_att = msg
@@ -341,27 +365,36 @@ def main() -> int:
                 print(
                     f"Position takeoff x={float(latest_lpos.x):.3f} y={float(latest_lpos.y):.3f} z={float(latest_lpos.z):.3f} "
                     f"vx={float(latest_lpos.vx):.3f} vy={float(latest_lpos.vy):.3f} vz={float(latest_lpos.vz):.3f} "
-                    f"thr={throttle_for_target(float(latest_lpos.z), target_z)} "
+                    f"thr={throttle_for_target(float(latest_lpos.z), target_z, float(latest_lpos.vz))} "
                     f"roll={math.degrees(float(latest_att.roll)):.2f} pitch={math.degrees(float(latest_att.pitch)):.2f}",
                     flush=True,
                 )
                 next_report = now + args.report_period
 
-            if latest_lpos and float(latest_lpos.z) <= target_z + args.hover_z_tolerance:
+            if (
+                latest_lpos
+                and float(latest_lpos.z) <= target_z + args.hover_z_tolerance
+                and abs(float(latest_lpos.vz)) <= max(0.8, args.stable_vert_speed * 8.0)
+            ):
                 break
 
         manual.update(z=500)
 
         hold_msg, hold_att = wait_for_manual_hover(
             mav,
+            target_x=baseline_x,
+            target_y=baseline_y,
             target_z=target_z,
             min_entry_z=target_z + args.offboard_entry_z_margin,
+            z_tolerance=args.hover_z_tolerance,
             timeout=max(5.0, args.climb_timeout),
             max_horiz_speed=args.stable_horiz_speed,
             max_vert_speed=args.stable_vert_speed,
             max_tilt_deg=args.stable_tilt_before_offboard_deg,
+            max_xy=args.manual_xy_limit,
             stable_window=args.stable_window,
             report_period=args.report_period,
+            manual=manual,
         )
 
         hold_x = float(hold_msg.x)

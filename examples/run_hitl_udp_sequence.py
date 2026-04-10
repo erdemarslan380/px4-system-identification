@@ -148,10 +148,11 @@ def parse_args() -> argparse.Namespace:
         "--manual-control-mode",
         type=int,
         choices=range(0, 9),
-        default=4,
+        default=1,
         help=(
             "Value written to COM_RC_IN_MODE before arming. "
-            "Default 4 disables manual control so sticks cannot interfere. "
+            "Default 1 keeps MAVLink manual control alive for HIL takeoff while "
+            "disabling RC-specific checks. "
             "Use 0 to keep a physical RC receiver active during HIL mode-switch tests."
         ),
     )
@@ -192,11 +193,29 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--tail-seconds", type=float, default=3.0)
     parser.add_argument(
+        "--post-hold-seconds",
+        type=float,
+        default=5.0,
+        help="Seconds to hold in Position mode after trajectory/ident before landing.",
+    )
+    parser.add_argument(
+        "--auto-land",
+        action="store_true",
+        help="Command NAV_LAND after the post-hold window.",
+    )
+    parser.add_argument(
         "--strict-reset",
         action="store_true",
         help="Fail if resetting TRJ_MODE_CMD back to position mode is not confirmed at the end of the run.",
     )
     return parser.parse_args()
+
+
+def try_set_param(mav, name: str, value, param_type: int) -> None:
+    try:
+        set_param(mav, name, value, param_type)
+    except Exception as exc:
+        print(f"Best-effort param set skipped: {name}={value} ({exc})", flush=True)
 
 
 def wait_heartbeat(mav, timeout: float = 20.0) -> None:
@@ -217,6 +236,87 @@ def send_gcs_heartbeat(mav) -> None:
         0,
         0,
     )
+
+
+class ManualControlKeepalive:
+    def __init__(self, mav, period_s: float = 0.05) -> None:
+        self._mav = mav
+        self._period_s = period_s
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="manual-control-keepalive", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=1.0)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            # Neutral MAVLink manual-control source for HIL startup and takeoff.
+            self._mav.mav.manual_control_send(
+                self._mav.target_system,
+                0,
+                0,
+                500,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
+            self._stop.wait(self._period_s)
+
+
+def send_nsh_command(
+    mav,
+    command: str,
+    *,
+    timeout: float = 6.0,
+    quiet_timeout: float = 0.7,
+) -> str:
+    payload = [ord(ch) for ch in (command + "\n")]
+    if len(payload) > 70:
+        raise ValueError(f"Command too long for SERIAL_CONTROL: {command}")
+    payload.extend([0] * (70 - len(payload)))
+
+    mav.mav.serial_control_send(
+        0,
+        mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE
+        | mavutil.mavlink.SERIAL_CONTROL_FLAG_RESPOND,
+        0,
+        0,
+        len(command) + 1,
+        payload,
+    )
+
+    end_time = time.time() + timeout
+    quiet_deadline = None
+    chunks: list[str] = []
+
+    while time.time() < end_time:
+        message = mav.recv_match(type="SERIAL_CONTROL", blocking=True, timeout=0.3)
+        if message is not None and message.count:
+            text = "".join(chr(x) for x in message.data[: message.count])
+            chunks.append(text)
+            quiet_deadline = time.time() + quiet_timeout
+            if "nsh>" in text:
+                break
+        elif quiet_deadline is not None and time.time() >= quiet_deadline:
+            break
+
+    return "".join(chunks)
+
+
+def best_effort_nsh_sequence(mav, commands: list[str]) -> None:
+    for cmd in commands:
+        try:
+            send_nsh_command(mav, cmd)
+        except Exception as exc:
+            print(f"NSH command skipped: {cmd} ({exc})", flush=True)
 
 
 def decode_statustext(msg) -> str:
@@ -501,6 +601,47 @@ def set_offboard(mav) -> None:
         0,
     )
     wait_for_offboard_confirmation(mav)
+
+
+def set_position_mode(mav) -> None:
+    custom_mode = 3 << 16
+    mav.mav.set_mode_send(
+        mav.target_system,
+        mav.target_component,
+        mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+        custom_mode,
+    )
+    mav.mav.command_long_send(
+        mav.target_system,
+        mav.target_component,
+        mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+        0,
+        29,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+
+def send_nav_land(mav) -> None:
+    nan = float("nan")
+    mav.mav.command_long_send(
+        mav.target_system,
+        mav.target_component,
+        mavutil.mavlink.MAV_CMD_NAV_LAND,
+        0,
+        nan,
+        nan,
+        nan,
+        nan,
+        nan,
+        nan,
+        nan,
+    )
+    wait_for_command_ack(mav, mavutil.mavlink.MAV_CMD_NAV_LAND)
 
 
 def wait_for_local_position(mav, timeout: float = 5.0):
@@ -814,15 +955,33 @@ def prepare_hover_and_anchor(
     set_offboard(mav)
 
 
-def wait_run_window(mav, duration_s: float) -> None:
+def wait_run_window(
+    mav,
+    duration_s: float,
+    *,
+    keepalive_offboard: bool = False,
+    keepalive_period: float = 0.2,
+) -> None:
     deadline = time.time() + duration_s
+    next_keepalive = 0.0
     while time.time() < deadline:
+        now = time.time()
+        if keepalive_offboard and now >= next_keepalive:
+            set_position_target_relative(mav, 0.0, 0.0, 0.0, 0.0)
+            next_keepalive = now + keepalive_period
         timeout = max(0.0, min(1.0, deadline - time.time()))
         msg = mav.recv_match(blocking=True, timeout=timeout)
         if not msg:
             continue
         if msg.get_type() == "STATUSTEXT":
             print(decode_statustext(msg), flush=True)
+
+
+def offboard_keepalive(mav, duration_s: float, period_s: float = 0.2) -> None:
+    end = time.time() + max(0.0, duration_s)
+    while time.time() < end:
+        set_position_target_relative(mav, 0.0, 0.0, 0.0, 0.0)
+        time.sleep(period_s)
 
 
 def main() -> int:
@@ -833,12 +992,42 @@ def main() -> int:
     mav = mavutil.mavlink_connection(args.endpoint, **connection_kwargs)
     wait_heartbeat(mav)
     stop_heartbeats, heartbeat_thread = start_gcs_heartbeat_thread(mav)
+    manual_keepalive = ManualControlKeepalive(mav)
+    manual_keepalive.start()
 
     try:
         set_param(mav, "CST_POS_CTRL_EN", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "COM_CPU_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "COM_RAM_MAX", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         set_param(mav, "TRJ_MODE_CMD", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "COM_DISARM_PRFLT", -1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        try_set_param(mav, "COM_RC_LOSS_T", 1.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        try_set_param(mav, "COM_FAIL_ACT_T", 0.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        set_param(mav, "CBRK_FLIGHTTERM", 121212, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "CBRK_IO_SAFETY", 22027, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "CBRK_USB_CHK", 197848, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "RC_MAP_FLTMODE", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "RC_MAP_FLTM_BTN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "NAV_DLL_ACT", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "COM_ARM_WO_GPS", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        # Ignore RC/GCS loss during the fixed takeoff -> offboard flow.
+        # Bit 1 = auto modes, bit 2 = offboard, so 2 + 4 = 6.
+        try_set_param(mav, "COM_RCL_EXCEPT", 6, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "COM_DLL_EXCEPT", 6, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        try_set_param(mav, "COM_OF_LOSS_T", 5.0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+        try_set_param(mav, "COM_OBL_RC_ACT", 5, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+
+        best_effort_nsh_sequence(
+            mav,
+            [
+                "sdmount",
+                "mkdir -p /fs/microsd/tracking_logs",
+                "mkdir -p /fs/microsd/identification_logs",
+                "trajectory_reader start",
+                "custom_pos_control start",
+                "custom_pos_control set px4_default",
+            ],
+        )
 
         if args.kind == "trajectory":
             if args.traj_id is None:
@@ -876,12 +1065,25 @@ def main() -> int:
             blind_hover_seconds=args.blind_hover_seconds,
         )
 
+        # Keep Offboard alive briefly before triggering the trajectory.
+        offboard_keepalive(mav, 2.0, period_s=0.2)
+
         print(f"Starting {trigger_name}", flush=True)
         set_param(mav, "TRJ_MODE_CMD", trigger_value, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
-        wait_run_window(mav, run_duration + args.tail_seconds)
+        wait_run_window(mav, run_duration + args.tail_seconds, keepalive_offboard=True)
         reset_mode_cmd(mav, strict=args.strict_reset)
+        if args.post_hold_seconds > 0.0:
+            set_position_mode(mav)
+            set_position_target_relative(mav, 0.0, 0.0, 0.0, 0.0)
+            print(f"Post-hold {args.post_hold_seconds:.1f}s in Position mode", flush=True)
+            wait_run_window(mav, args.post_hold_seconds)
+        if args.auto_land:
+            print("Commanding NAV_LAND", flush=True)
+            send_nav_land(mav)
+            wait_run_window(mav, max(5.0, args.tail_seconds + 2.0))
         print(f"Completed {trigger_name}", flush=True)
     finally:
+        manual_keepalive.stop()
         stop_heartbeats.set()
         heartbeat_thread.join(timeout=1.5)
         mav.close()

@@ -362,13 +362,23 @@ def execute_staged_hover_entry(
             or lift_final_tilt > max(8.0, direct_tilt_limit_deg)
             or lift_progress < min_expected_lift
         ):
-            raise RuntimeError(
-                f"Lift hover unstable: max_xy={lift_max_xy:.3f}m max_z_err={lift_max_z_err:.3f}m "
-                f"final_xy={lift_final_xy:.3f}m final_z_err={lift_final_z_err:.3f}m "
-                f"max_tilt={lift_max_tilt:.2f}deg final_tilt={lift_final_tilt:.2f}deg "
-                f"lift_progress={lift_progress:.3f}m "
-                f"failsafe={lift_failsafe}"
-            )
+            if allow_unstable_final_hover and not lift_failsafe:
+                print(
+                    "Lift hover gate bypassed "
+                    f"(max_xy={lift_max_xy:.3f}m max_z_err={lift_max_z_err:.3f}m "
+                    f"final_xy={lift_final_xy:.3f}m final_z_err={lift_final_z_err:.3f}m "
+                    f"max_tilt={lift_max_tilt:.2f}deg final_tilt={lift_final_tilt:.2f}deg "
+                    f"lift_progress={lift_progress:.3f}m)",
+                    flush=True,
+                )
+            else:
+                raise RuntimeError(
+                    f"Lift hover unstable: max_xy={lift_max_xy:.3f}m max_z_err={lift_max_z_err:.3f}m "
+                    f"final_xy={lift_final_xy:.3f}m final_z_err={lift_final_z_err:.3f}m "
+                    f"max_tilt={lift_max_tilt:.2f}deg final_tilt={lift_final_tilt:.2f}deg "
+                    f"lift_progress={lift_progress:.3f}m "
+                    f"failsafe={lift_failsafe}"
+                )
 
         current_ref_x = float(lift_lpos.x)
         current_ref_y = float(lift_lpos.y)

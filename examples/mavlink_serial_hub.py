@@ -16,6 +16,7 @@ import os
 import pty
 import selectors
 import signal
+import subprocess
 import sys
 import termios
 import time
@@ -76,7 +77,14 @@ def make_endpoint(name: str, link_path: Path) -> PtyEndpoint:
 
 
 class SerialHub:
-    def __init__(self, serial_port: str, baud: int, sim_path: Path, ctrl_path: Path, mavlink_log: Path | None = None) -> None:
+    def __init__(
+        self,
+        serial_port: str,
+        baud: int,
+        sim_path: Path,
+        ctrl_path: Path | None,
+        mavlink_log: Path | None = None,
+    ) -> None:
         self._serial_port = serial_port
         self._baud = baud
         self._serial = self._open_serial()
@@ -86,6 +94,21 @@ class SerialHub:
         self._running = True
         self._mavlink_log_path = mavlink_log
         self._mavlink_log_handle = None
+        self._profile_enabled = os.environ.get("PX4_HIL_HUB_PROFILE", "0") == "1"
+        profile_path = os.environ.get("PX4_HIL_HUB_PROFILE_PATH")
+        self._profile_path = Path(profile_path) if profile_path else None
+        self._stats = {
+            "serial_rx_bytes": 0,
+            "serial_tx_bytes": 0,
+            "serial_backpressure_events": 0,
+            "serial_max_queue_bytes": 0,
+            "pty_rx_bytes": 0,
+            "pty_tx_bytes": 0,
+            "pty_backpressure_events": 0,
+            "pty_drop_events": 0,
+            "pty_max_queue_bytes": 0,
+            "pty_no_reader_events": 0,
+        }
         if mavlink_log is not None:
             mavlink_log.parent.mkdir(parents=True, exist_ok=True)
             self._mavlink_log_handle = mavlink_log.open("a", encoding="utf-8")
@@ -93,16 +116,24 @@ class SerialHub:
             "serial_to_ptys": make_mavlink_parser(),
             "pty_to_serial": make_mavlink_parser(),
         }
+        self._serial_tx_buffer = bytearray()
         self.sim = make_endpoint("sim", sim_path)
-        self.ctrl = make_endpoint("ctrl", ctrl_path)
-        self._endpoints = [self.sim, self.ctrl]
+        self.ctrl = make_endpoint("ctrl", ctrl_path) if ctrl_path is not None else None
+        self._endpoints = [self.sim]
+        if self.ctrl is not None:
+            self._endpoints.append(self.ctrl)
+        self._pty_tx_buffers = {endpoint.master_fd: bytearray() for endpoint in self._endpoints}
+        self._endpoint_reader_state = {endpoint.master_fd: False for endpoint in self._endpoints}
+        self._endpoint_reader_check_deadline = {endpoint.master_fd: 0.0 for endpoint in self._endpoints}
         self._selector.register(self._serial.fileno(), selectors.EVENT_READ, ("serial", None))
         for endpoint in self._endpoints:
             self._selector.register(endpoint.master_fd, selectors.EVENT_READ, ("pty", endpoint))
         atexit.register(self.close)
 
     def _open_serial(self) -> serial.Serial:
-        return serial.Serial(self._serial_port, baudrate=self._baud, timeout=0)
+        serial_dev = serial.Serial(self._serial_port, baudrate=self._baud, timeout=0, write_timeout=0)
+        os.set_blocking(serial_dev.fileno(), False)
+        return serial_dev
 
     def _reopen_serial(self) -> None:
         old_fd = None
@@ -134,6 +165,29 @@ class SerialHub:
         if not self._running:
             return
         self._running = False
+        if self._profile_enabled:
+            summary = {
+                "serial_port": self._serial_port,
+                "baud": self._baud,
+                **self._stats,
+            }
+            print(
+                "Hub profile: "
+                f"serial_rx_bytes={summary['serial_rx_bytes']} "
+                f"serial_tx_bytes={summary['serial_tx_bytes']} "
+                f"serial_backpressure_events={summary['serial_backpressure_events']} "
+                f"serial_max_queue_bytes={summary['serial_max_queue_bytes']} "
+                f"pty_rx_bytes={summary['pty_rx_bytes']} "
+                f"pty_tx_bytes={summary['pty_tx_bytes']} "
+                f"pty_backpressure_events={summary['pty_backpressure_events']} "
+                f"pty_drop_events={summary['pty_drop_events']} "
+                f"pty_max_queue_bytes={summary['pty_max_queue_bytes']} "
+                f"pty_no_reader_events={summary['pty_no_reader_events']}",
+                flush=True,
+            )
+            if self._profile_path is not None:
+                self._profile_path.parent.mkdir(parents=True, exist_ok=True)
+                self._profile_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         try:
             self._selector.close()
         except Exception:
@@ -162,16 +216,23 @@ class SerialHub:
     def run(self) -> int:
         print(f"Hardware serial: {self._serial.port} @ {self._serial.baudrate}")
         print(f"Simulator PTY:   {self.sim.link_path} -> {self.sim.slave_path}")
-        print(f"Control PTY:     {self.ctrl.link_path} -> {self.ctrl.slave_path}")
+        if self.ctrl is not None:
+            print(f"Control PTY:     {self.ctrl.link_path} -> {self.ctrl.slave_path}")
         sys.stdout.flush()
 
         while self._running:
-            for key, _ in self._selector.select(timeout=0.5):
+            for key, events in self._selector.select(timeout=0.5):
                 kind, endpoint = key.data
                 if kind == "serial":
-                    self._handle_serial()
+                    if events & selectors.EVENT_READ:
+                        self._handle_serial()
+                    if events & selectors.EVENT_WRITE:
+                        self._flush_serial()
                 else:
-                    self._handle_pty(endpoint)
+                    if events & selectors.EVENT_READ:
+                        self._handle_pty(endpoint)
+                    if events & selectors.EVENT_WRITE:
+                        self._flush_pty(endpoint)
 
             # HIL serial traffic should be continuous. If the CubeOrange USB CDC
             # path renumerates after an arm/reset event, the old fd can go quiet
@@ -192,16 +253,10 @@ class SerialHub:
         if not data:
             return
         self._last_serial_rx = time.monotonic()
+        self._stats["serial_rx_bytes"] += len(data)
         self._log_mavlink_messages("serial_to_ptys", data)
         for endpoint in self._endpoints:
-            try:
-                os.write(endpoint.master_fd, data)
-            except BlockingIOError:
-                continue
-            except OSError as exc:
-                if exc.errno in (errno.EIO, errno.EPIPE):
-                    continue
-                raise
+            self._queue_pty_write(endpoint, data)
 
     def _handle_pty(self, endpoint: PtyEndpoint) -> None:
         try:
@@ -214,11 +269,164 @@ class SerialHub:
             raise
         if not data:
             return
+        self._stats["pty_rx_bytes"] += len(data)
+        self._endpoint_reader_state[endpoint.master_fd] = True
+        self._endpoint_reader_check_deadline[endpoint.master_fd] = time.monotonic() + 1.0
         self._log_mavlink_messages("pty_to_serial", data)
+        self._queue_serial_write(data)
+
+    def _update_registration(self, fileobj: int, events: int, data: tuple[str, PtyEndpoint | None]) -> None:
         try:
-            self._serial.write(data)
-        except (OSError, SerialException):
+            self._selector.modify(fileobj, events, data)
+        except KeyError:
+            self._selector.register(fileobj, events, data)
+
+    def _queue_pty_write(self, endpoint: PtyEndpoint, data: bytes) -> None:
+        if not self._endpoint_has_reader(endpoint):
+            self._stats["pty_no_reader_events"] += 1
+            self._pty_tx_buffers[endpoint.master_fd].clear()
+            self._update_registration(endpoint.master_fd, selectors.EVENT_READ, ("pty", endpoint))
+            return
+
+        buffer = self._pty_tx_buffers[endpoint.master_fd]
+        if not buffer:
+            try:
+                written = os.write(endpoint.master_fd, data)
+            except BlockingIOError:
+                written = 0
+                self._stats["pty_backpressure_events"] += 1
+            except OSError as exc:
+                if exc.errno in (errno.EIO, errno.EPIPE):
+                    self._stats["pty_drop_events"] += 1
+                    return
+                raise
+
+            self._stats["pty_tx_bytes"] += max(written, 0)
+            if written >= len(data):
+                return
+            buffer.extend(data[written:])
+        else:
+            buffer.extend(data)
+            self._stats["pty_backpressure_events"] += 1
+
+        self._stats["pty_max_queue_bytes"] = max(self._stats["pty_max_queue_bytes"], len(buffer))
+
+        self._update_registration(
+            endpoint.master_fd,
+            selectors.EVENT_READ | selectors.EVENT_WRITE,
+            ("pty", endpoint),
+        )
+
+    def _flush_pty(self, endpoint: PtyEndpoint) -> None:
+        buffer = self._pty_tx_buffers[endpoint.master_fd]
+        if not buffer:
+            self._update_registration(endpoint.master_fd, selectors.EVENT_READ, ("pty", endpoint))
+            return
+
+        if not self._endpoint_has_reader(endpoint):
+            self._stats["pty_no_reader_events"] += 1
+            buffer.clear()
+            self._update_registration(endpoint.master_fd, selectors.EVENT_READ, ("pty", endpoint))
+            return
+
+        try:
+            written = os.write(endpoint.master_fd, buffer)
+        except BlockingIOError:
+            self._stats["pty_backpressure_events"] += 1
+            return
+        except OSError as exc:
+            if exc.errno in (errno.EIO, errno.EPIPE):
+                self._stats["pty_drop_events"] += 1
+                buffer.clear()
+                self._update_registration(endpoint.master_fd, selectors.EVENT_READ, ("pty", endpoint))
+                return
+            raise
+
+        if written > 0:
+            self._stats["pty_tx_bytes"] += written
+            del buffer[:written]
+
+        if not buffer:
+            self._update_registration(endpoint.master_fd, selectors.EVENT_READ, ("pty", endpoint))
+
+    def _queue_serial_write(self, data: bytes) -> None:
+        if not self._serial_tx_buffer:
+            try:
+                written = os.write(self._serial.fileno(), data)
+            except BlockingIOError:
+                written = 0
+                self._stats["serial_backpressure_events"] += 1
+            except OSError:
+                self._reopen_serial()
+                return
+
+            self._stats["serial_tx_bytes"] += max(written, 0)
+            if written >= len(data):
+                return
+            self._serial_tx_buffer.extend(data[written:])
+        else:
+            self._serial_tx_buffer.extend(data)
+            self._stats["serial_backpressure_events"] += 1
+
+        self._stats["serial_max_queue_bytes"] = max(self._stats["serial_max_queue_bytes"], len(self._serial_tx_buffer))
+
+        self._update_registration(
+            self._serial.fileno(),
+            selectors.EVENT_READ | selectors.EVENT_WRITE,
+            ("serial", None),
+        )
+
+    def _flush_serial(self) -> None:
+        if not self._serial_tx_buffer:
+            self._update_registration(self._serial.fileno(), selectors.EVENT_READ, ("serial", None))
+            return
+
+        try:
+            written = os.write(self._serial.fileno(), self._serial_tx_buffer)
+        except BlockingIOError:
+            self._stats["serial_backpressure_events"] += 1
+            return
+        except OSError:
             self._reopen_serial()
+            return
+
+        if written > 0:
+            self._stats["serial_tx_bytes"] += written
+            del self._serial_tx_buffer[:written]
+
+        if not self._serial_tx_buffer:
+            self._update_registration(self._serial.fileno(), selectors.EVENT_READ, ("serial", None))
+
+    def _endpoint_has_reader(self, endpoint: PtyEndpoint) -> bool:
+        if endpoint.name == "sim":
+            return True
+
+        now = time.monotonic()
+        deadline = self._endpoint_reader_check_deadline[endpoint.master_fd]
+
+        if now < deadline:
+            return self._endpoint_reader_state[endpoint.master_fd]
+
+        has_reader = False
+        try:
+            result = subprocess.run(
+                ["lsof", "-t", endpoint.slave_path],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            current_pid = os.getpid()
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if line.isdigit() and int(line) != current_pid:
+                    has_reader = True
+                    break
+        except Exception:
+            has_reader = True
+
+        self._endpoint_reader_state[endpoint.master_fd] = has_reader
+        self._endpoint_reader_check_deadline[endpoint.master_fd] = now + 1.0
+        return has_reader
 
     def _log_mavlink_messages(self, direction: str, data: bytes) -> None:
         if self._mavlink_log_handle is None:
@@ -269,7 +477,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--serial-port", default="/dev/ttyACM0")
     ap.add_argument("--baud", type=int, default=57600)
     ap.add_argument("--sim-link", type=Path, default=DEFAULT_SIM_PATH)
-    ap.add_argument("--control-link", type=Path, default=DEFAULT_CTRL_PATH)
+    ap.add_argument("--control-link", type=Path, default=None)
     ap.add_argument("--mavlink-log", type=Path, default=None)
     return ap.parse_args()
 

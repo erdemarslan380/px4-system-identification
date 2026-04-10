@@ -25,11 +25,11 @@ IDENTIFICATION_DURATIONS_S = {
 }
 
 TRAJECTORY_DURATIONS_S = {
-    100: 23.0,
-    101: 19.0,
-    102: 15.0,
+    100: 27.7,
+    101: 23.18,
+    102: 18.9,
     103: 11.0,
-    104: 14.0,
+    104: 23.44,
 }
 
 CAMPAIGNS = {

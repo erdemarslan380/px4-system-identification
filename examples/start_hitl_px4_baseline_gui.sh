@@ -11,7 +11,17 @@ graceful_stop_pattern() {
   local label="$1"
   local pattern="$2"
   local -a pids=()
+  local parent_pid="${PPID:-0}"
   mapfile -t pids < <(pgrep -f "$pattern" || true)
+  local -a filtered=()
+  local pid=""
+  for pid in "${pids[@]}"; do
+    [[ -z "$pid" ]] && continue
+    [[ "$pid" == "$$" ]] && continue
+    [[ "$parent_pid" != "0" && "$pid" == "$parent_pid" ]] && continue
+    filtered+=("$pid")
+  done
+  pids=("${filtered[@]}")
   if [[ ${#pids[@]} -eq 0 ]]; then
     return 0
   fi
@@ -33,7 +43,24 @@ graceful_stop_pattern() {
     sleep 0.25
   done
 
-  echo "$label did not exit cleanly; refusing to start a new HIL GUI session." >&2
+  echo "$label did not exit cleanly; sending SIGKILL." >&2
+  kill -KILL "${pids[@]}" 2>/dev/null || true
+
+  for _ in $(seq 1 20); do
+    local alive=0
+    for pid in "${pids[@]}"; do
+      if kill -0 "$pid" 2>/dev/null; then
+        alive=1
+        break
+      fi
+    done
+    if [[ $alive -eq 0 ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  echo "$label could not be stopped cleanly." >&2
   return 1
 }
 
@@ -66,8 +93,8 @@ graceful_close_jmavsim_gui() {
   fi
 
   if [[ ${#win_ids[@]} -eq 0 ]]; then
-    echo "jMAVSim is running but no GUI window was found; refusing abrupt shutdown." >&2
-    return 1
+    echo "jMAVSim GUI window was not found; falling back to process stop." >&2
+    kill -TERM "${pids[@]}" 2>/dev/null || true
   fi
 
   for _ in $(seq 1 80); do
@@ -84,7 +111,24 @@ graceful_close_jmavsim_gui() {
     sleep 0.25
   done
 
-  echo "jMAVSim window close did not shut down the process cleanly." >&2
+  echo "jMAVSim did not exit from GUI close; sending SIGKILL." >&2
+  kill -KILL "${pids[@]}" 2>/dev/null || true
+
+  for _ in $(seq 1 20); do
+    local alive=0
+    for pid in "${pids[@]}"; do
+      if kill -0 "$pid" 2>/dev/null; then
+        alive=1
+        break
+      fi
+    done
+    if [[ $alive -eq 0 ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  echo "jMAVSim process could not be stopped cleanly." >&2
   return 1
 }
 
@@ -159,8 +203,7 @@ PY
 
 graceful_stop_existing_hil
 
-PX4_HIL_USE_SERIAL_HUB=0 \
-PX4_HIL_USE_RT=0 \
-PX4_HIL_PIN_CPUS=1 \
-PX4_HIL_SIM_CPUSET="${PX4_HIL_SIM_CPUSET:-7}" \
+PX4_HIL_USE_SERIAL_HUB="${PX4_HIL_USE_SERIAL_HUB:-1}" \
+PX4_HIL_USE_RT="${PX4_HIL_USE_RT:-0}" \
+PX4_HIL_PIN_CPUS="${PX4_HIL_PIN_CPUS:-0}" \
 "$SCRIPT_DIR/start_jmavsim_hitl.sh" "$PX4_ROOT" "$DEVICE" "$BAUDRATE"

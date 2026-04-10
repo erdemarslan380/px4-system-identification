@@ -23,11 +23,11 @@ class ValidationTrajectory:
 
 
 DEFAULT_VALIDATION_TRAJECTORIES: tuple[ValidationTrajectory, ...] = (
-    ValidationTrajectory(100, "hairpin", 23.0, "id_100.traj", "d9672d70378b6a52bca05c72cf38040a70b48b096595811dec15df5e3f53ba96"),
-    ValidationTrajectory(101, "lemniscate", 19.0, "id_101.traj", "2e935deade8098f39342ce731d21ef34eff4987ecdc43cfc8b310c55f075d692"),
-    ValidationTrajectory(102, "circle", 15.0, "id_102.traj", "d3c13f1b51dc152ba039f747b3786f2c0a34761d0b54b3715a7afc520d5e5fac"),
+    ValidationTrajectory(100, "hairpin", 27.7, "id_100.traj", "d7ebc694abc3bbc3b852f8b962f888c1d0d1f87d015aee0aefda541668ab6367"),
+    ValidationTrajectory(101, "lemniscate", 23.18, "id_101.traj", "58d656be8bca8f2b2de3a3955bd6299175842d3bb9ac35e4d475c0e525a2c136"),
+    ValidationTrajectory(102, "circle", 18.9, "id_102.traj", "578dba4caa26c415903c2e21afba67143910bffa21aae096a5b7f16c8089fdbc"),
     ValidationTrajectory(103, "time_optimal_30s", 11.0, "id_103.traj", "76f3a938d86ed299923c218b87456b49632c6bb43b111d579f5e95493067cd64"),
-    ValidationTrajectory(104, "minimum_snap_50s", 14.0, "id_104.traj", "98cddb9de293a2afddfd951f73b2624e3fef54c39b37df8803c6601227f0537b"),
+    ValidationTrajectory(104, "minimum_snap_50s", 23.44, "id_104.traj", "5248b146160334fcbbf091c3c5dbe99c25bda3856b6d0eaf84b5a51eeaa49e89"),
 )
 
 

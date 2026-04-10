@@ -308,8 +308,11 @@ def main() -> int:
             set_param(mav, "TRJ_MODE_CMD", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
             latest_lpos, latest_att, max_xy, max_z_err, max_tilt, failsafe = observe_builtin_trajectory(
                 mav,
+                traj_id=traj_id,
                 duration_s=TRAJ_DURATION_S[traj_id] + args.trajectory_tail_seconds,
-                ref_z=hold_z,
+                anchor_x=hold_x,
+                anchor_y=hold_y,
+                anchor_z=hold_z,
                 report_period=args.report_period,
             )
             summary["segments"].append(

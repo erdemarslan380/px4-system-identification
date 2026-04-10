@@ -19,12 +19,13 @@ if str(REPO_ROOT) not in sys.path:
 
 from experimental_validation.hitl_catalog import campaign_ident_profiles, identification_duration_s
 from pull_sdcard_logs_over_mavftp import collect_remote_files, download_file_via_port
-from run_hitl_trajectory_suite_only import current_cube_port, graceful_stop_hitl_session, run_cmd
+from run_hitl_trajectory_suite_only import current_cube_port, graceful_stop_hitl_session, run_cmd, wait_for_cube_port
 
 
 RESTART_SCRIPT = SCRIPT_DIR / "restart_hitl_px4_clean_gui.sh"
 IDENT_HELPER = SCRIPT_DIR / "run_hitl_px4_builtin_ident_minimal.py"
 PULL_SCRIPT = SCRIPT_DIR / "pull_sdcard_logs_over_mavftp.py"
+USB_STREAM_SCRIPT = SCRIPT_DIR / "set_hitl_usb_actuator_stream.sh"
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--run-root", default=str(REPO_ROOT / "hitl_runs" / "ident_suite_clean_20260403"))
     ap.add_argument("--profiles", nargs="*", default=campaign_ident_profiles("identification_only"))
     ap.add_argument("--max-attempts", type=int, default=2)
+    ap.add_argument("--usb-stream-rate", type=int, default=200)
     ap.add_argument("--keep-jmavsim", action="store_true")
     return ap.parse_args()
 
@@ -197,12 +199,14 @@ def main() -> int:
         case_best: dict[str, object] | None = None
         for attempt in range(1, args.max_attempts + 1):
             restart_log = console_dir / f"{profile}_attempt{attempt:02d}_restart.log"
+            stream_log = console_dir / f"{profile}_attempt{attempt:02d}_usb_stream.log"
             helper_log = console_dir / f"{profile}_attempt{attempt:02d}_helper.log"
             pull_log = console_dir / f"{profile}_attempt{attempt:02d}_pull.log"
             entry: dict[str, object] = {
                 "profile": profile,
                 "attempt": attempt,
                 "restart_log": str(restart_log),
+                "usb_stream_log": str(stream_log),
                 "helper_log": str(helper_log),
                 "pull_log": str(pull_log),
                 "success": False,
@@ -220,6 +224,11 @@ def main() -> int:
             run_cmd(
                 [str(RESTART_SCRIPT), str(Path(args.px4_root).expanduser().resolve()), str(args.baud), args.endpoint],
                 log_path=restart_log,
+                check=True,
+            )
+            run_cmd(
+                [str(USB_STREAM_SCRIPT), str(args.usb_stream_rate)],
+                log_path=stream_log,
                 check=True,
             )
 
@@ -249,7 +258,7 @@ def main() -> int:
             except Exception as exc:
                 entry["shutdown_error"] = str(exc)
 
-            port = current_cube_port()
+            port = wait_for_cube_port()
             after_remote_files: dict[str, int | None] = {}
             latest_csv: Path | None = None
             try:
@@ -266,6 +275,7 @@ def main() -> int:
                 )
             except Exception as exc:
                 entry["pull_error"] = str(exc)
+                print(f"[ident-suite] {profile} pull failed on attempt {attempt}: {exc}", flush=True)
             if latest_csv is not None:
                 metrics = analyze_ident_csv(latest_csv)
                 entry["ident_csv"] = str(latest_csv)

@@ -4,15 +4,27 @@ set -euo pipefail
 PX4_ROOT="${1:-$HOME/PX4-Autopilot-Identification}"
 DEVICE="${2:-/dev/ttyACM0}"
 BAUDRATE="${3:-921600}"
-ACTUATOR_RATE_HZ="${PX4_HIL_ACTUATOR_RATE_HZ:-50}"
+# jMAVSim -r drives the main simulator loop interval and therefore the HIL_SENSOR
+# publication cadence. Keep legacy PX4_HIL_ACTUATOR_RATE_HZ support because older
+# helper scripts already export it, but prefer the explicit SIM_LOOP variable.
+SIM_LOOP_RATE_HZ="${PX4_HIL_SIM_LOOP_RATE_HZ:-${PX4_HIL_ACTUATOR_RATE_HZ:-1000}}"
 SIM_PTY_LINK="${PX4_HIL_SIM_PTY:-/tmp/px4_hitl_sim.pty}"
 CTRL_PTY_LINK="${PX4_HIL_CTRL_PTY:-/tmp/px4_hitl_ctrl.pty}"
+ENABLE_CTRL_PTY="${PX4_HIL_ENABLE_CTRL_PTY:-0}"
 USE_SERIAL_HUB="${PX4_HIL_USE_SERIAL_HUB:-1}"
+USE_JMAVSIM_LOCKSTEP="${PX4_HIL_JMAVSIM_LOCKSTEP:-0}"
+ENABLE_QGC_FORWARD="${PX4_HIL_ENABLE_QGC_FORWARD:-1}"
+ENABLE_SDK_FORWARD="${PX4_HIL_ENABLE_SDK_FORWARD:-0}"
 MAVLINK_LOG_PATH="${PX4_HIL_MAVLINK_LOG:-}"
-PIN_CPUS="${PX4_HIL_PIN_CPUS:-1}"
-USE_RT="${PX4_HIL_USE_RT:-1}"
+# Pinning the Java simulator and hub to fixed cores looked attractive on
+# paper, but in practice it increases run-to-run jitter on desktop Linux and
+# can destabilize HIL trajectory tails. Leave CPU affinity and realtime
+# scheduling opt-in instead of opt-out.
+PIN_CPUS="${PX4_HIL_PIN_CPUS:-0}"
+USE_RT="${PX4_HIL_USE_RT:-0}"
 RT_PRIO_HUB="${PX4_HIL_RT_PRIO_HUB:-15}"
 RT_PRIO_SIM="${PX4_HIL_RT_PRIO_SIM:-20}"
+DEVICE_WAIT_SECONDS="${PX4_HIL_DEVICE_WAIT_SECONDS:-45}"
 
 CPU_COUNT="$(nproc 2>/dev/null || echo 1)"
 if [[ "$CPU_COUNT" -ge 4 ]]; then
@@ -58,31 +70,55 @@ run_with_optional_sched() {
   "${cmd[@]}"
 }
 
+resolve_serial_device() {
+  local preferred="$1"
+  if [[ -e "$preferred" ]]; then
+    printf '%s\n' "$preferred"
+    return 0
+  fi
+
+  shopt -s nullglob
+  local by_id_candidates=(/dev/serial/by-id/*CubeOrange* /dev/serial/by-id/*CubePilot_CubeOrange*)
+  local acm_candidates=(/dev/ttyACM*)
+  shopt -u nullglob
+
+  local candidate=""
+  for candidate in "${by_id_candidates[@]}"; do
+    printf '%s\n' "$candidate"
+    return 0
+  done
+
+  for candidate in "${acm_candidates[@]}"; do
+    printf '%s\n' "$candidate"
+    return 0
+  done
+
+  return 1
+}
+
+wait_for_serial_device() {
+  local preferred="$1"
+  local candidate=""
+  for _ in $(seq 1 "$DEVICE_WAIT_SECONDS"); do
+    candidate="$(resolve_serial_device "$preferred" || true)"
+    if [[ -n "$candidate" && -e "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 if [[ "${PX4_SYSID_HEADLESS:-0}" == "1" ]]; then
   export HEADLESS=1
 fi
 
 if [[ ! -e "$DEVICE" ]]; then
-  if [[ $# -lt 2 ]]; then
-    shopt -s nullglob
-    by_id_candidates=(/dev/serial/by-id/*CubeOrange*)
-    shopt -u nullglob
-    if [[ ${#by_id_candidates[@]} -eq 1 ]]; then
-      echo "Default $DEVICE is not present; using ${by_id_candidates[0]} instead." >&2
-      DEVICE="${by_id_candidates[0]}"
-    fi
-  fi
-fi
-
-if [[ ! -e "$DEVICE" ]]; then
-  if [[ $# -lt 2 ]]; then
-    shopt -s nullglob
-    acm_candidates=(/dev/ttyACM*)
-    shopt -u nullglob
-    if [[ ${#acm_candidates[@]} -eq 1 ]]; then
-      echo "Default $DEVICE is not present; using ${acm_candidates[0]} instead." >&2
-      DEVICE="${acm_candidates[0]}"
-    fi
+  resolved_device="$(wait_for_serial_device "$DEVICE" || true)"
+  if [[ -n "$resolved_device" ]]; then
+    echo "Default $DEVICE is not present; using $resolved_device instead." >&2
+    DEVICE="$resolved_device"
   fi
 fi
 
@@ -114,6 +150,14 @@ fi
 
 cd "$PX4_ROOT"
 
+JMAVSIM_BASE_ARGS=()
+if [[ "$ENABLE_QGC_FORWARD" == "1" ]]; then
+  JMAVSIM_BASE_ARGS+=(-q)
+fi
+if [[ "$ENABLE_SDK_FORWARD" == "1" ]]; then
+  JMAVSIM_BASE_ARGS+=(-s)
+fi
+
 if [[ "$USE_SERIAL_HUB" == "1" ]]; then
   HUB_CMD=(
     python3
@@ -121,8 +165,11 @@ if [[ "$USE_SERIAL_HUB" == "1" ]]; then
     --serial-port "$DEVICE"
     --baud "$BAUDRATE"
     --sim-link "$SIM_PTY_LINK"
-    --control-link "$CTRL_PTY_LINK"
   )
+
+  if [[ "$ENABLE_CTRL_PTY" == "1" ]]; then
+    HUB_CMD+=(--control-link "$CTRL_PTY_LINK")
+  fi
 
   if [[ -n "$MAVLINK_LOG_PATH" ]]; then
     HUB_CMD+=(--mavlink-log "$MAVLINK_LOG_PATH")
@@ -152,9 +199,31 @@ if [[ "$USE_SERIAL_HUB" == "1" ]]; then
     exit 3
   fi
 
-  run_with_optional_sched "$SIM_CPUSET" "$RT_PRIO_SIM" \
-    ./Tools/simulation/jmavsim/jmavsim_run.sh -q -s -d "$SIM_PTY_LINK" -b "$BAUDRATE" -r "$ACTUATOR_RATE_HZ"
+  JMAVSIM_CMD=(
+    ./Tools/simulation/jmavsim/jmavsim_run.sh
+    -d "$SIM_PTY_LINK"
+    -b "$BAUDRATE"
+    -r "$SIM_LOOP_RATE_HZ"
+  )
+  JMAVSIM_CMD+=("${JMAVSIM_BASE_ARGS[@]}")
+
+  if [[ "$USE_JMAVSIM_LOCKSTEP" == "1" ]]; then
+    JMAVSIM_CMD+=(-l)
+  fi
+
+  run_with_optional_sched "$SIM_CPUSET" "$RT_PRIO_SIM" "${JMAVSIM_CMD[@]}"
 else
-  run_with_optional_sched "$SIM_CPUSET" "$RT_PRIO_SIM" \
-    ./Tools/simulation/jmavsim/jmavsim_run.sh -q -s -d "$DEVICE" -b "$BAUDRATE" -r "$ACTUATOR_RATE_HZ"
+  JMAVSIM_CMD=(
+    ./Tools/simulation/jmavsim/jmavsim_run.sh
+    -d "$DEVICE"
+    -b "$BAUDRATE"
+    -r "$SIM_LOOP_RATE_HZ"
+  )
+  JMAVSIM_CMD+=("${JMAVSIM_BASE_ARGS[@]}")
+
+  if [[ "$USE_JMAVSIM_LOCKSTEP" == "1" ]]; then
+    JMAVSIM_CMD+=(-l)
+  fi
+
+  run_with_optional_sched "$SIM_CPUSET" "$RT_PRIO_SIM" "${JMAVSIM_CMD[@]}"
 fi

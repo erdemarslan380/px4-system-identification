@@ -20,12 +20,14 @@ from run_hitl_udp_sequence import (
     decode_statustext,
     request_message_interval,
     robust_ground_baseline,
+    set_anchor_from_position,
     set_param,
     set_offboard,
     start_gcs_heartbeat_thread,
     wait_for_sim_ready,
     wait_heartbeat,
 )
+from run_hitl_px4_builtin_trajectory_minimal import TRAJ_DURATION_S, observe_builtin_trajectory
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,6 +58,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sysid-xy-limit", type=float, default=0.20)
     parser.add_argument("--sysid-z-tolerance", type=float, default=0.20)
     parser.add_argument("--sysid-tilt-limit-deg", type=float, default=6.0)
+    parser.add_argument("--traj-id", type=int, choices=sorted(TRAJ_DURATION_S), default=None)
+    parser.add_argument("--trajectory-tail-seconds", type=float, default=3.0)
+    parser.add_argument("--trajectory-xy-envelop-limit", type=float, default=3.50)
+    parser.add_argument("--trajectory-z-tolerance", type=float, default=0.50)
+    parser.add_argument("--trajectory-tilt-limit-deg", type=float, default=20.0)
     return parser.parse_args()
 
 
@@ -456,6 +463,52 @@ def main() -> int:
                     f"failsafe={failsafe_seen}"
                 )
 
+        if args.traj_id is not None:
+            set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            anchor_x = float(latest_lpos.x)
+            anchor_y = float(latest_lpos.y)
+            anchor_z = float(latest_lpos.z)
+            set_anchor_from_position(mav, anchor_x, anchor_y, anchor_z)
+            set_param(mav, "TRJ_ACTIVE_ID", args.traj_id, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            print(
+                f"trajectory_reader built-in trajectory id={args.traj_id} anchor x={anchor_x:.3f} y={anchor_y:.3f} z={anchor_z:.3f}",
+                flush=True,
+            )
+            set_param(mav, "TRJ_MODE_CMD", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+            print("trajectory_reader built-in trajectory started", flush=True)
+
+            latest_lpos, latest_att, traj_max_xy_err, traj_max_z_err, traj_max_tilt, traj_failsafe = observe_builtin_trajectory(
+                mav,
+                traj_id=args.traj_id,
+                duration_s=TRAJ_DURATION_S[args.traj_id] + args.trajectory_tail_seconds,
+                anchor_x=anchor_x,
+                anchor_y=anchor_y,
+                anchor_z=anchor_z,
+                report_period=args.report_period,
+            )
+
+            final_xy = math.hypot(float(latest_lpos.x), float(latest_lpos.y))
+            final_z_err = abs(float(latest_lpos.z) - anchor_z)
+            final_tilt = math.degrees(max(abs(float(latest_att.roll)), abs(float(latest_att.pitch))))
+            print(
+                f"Module-takeoff built-in trajectory summary: traj_id={args.traj_id} max_xy_err={traj_max_xy_err:.3f}m "
+                f"max_z_err={traj_max_z_err:.3f}m max_tilt={traj_max_tilt:.2f}deg "
+                f"final_xy={final_xy:.3f}m final_z_err={final_z_err:.3f}m final_tilt={final_tilt:.2f}deg "
+                f"failsafe={traj_failsafe}",
+                flush=True,
+            )
+
+            if (
+                traj_failsafe
+                or traj_max_xy_err > args.trajectory_xy_envelop_limit
+                or traj_max_z_err > args.trajectory_z_tolerance
+                or traj_max_tilt > args.trajectory_tilt_limit_deg
+            ):
+                raise RuntimeError(
+                    f"Built-in trajectory unstable: max_xy_err={traj_max_xy_err:.3f}m max_z_err={traj_max_z_err:.3f}m "
+                    f"max_tilt={traj_max_tilt:.2f}deg failsafe={traj_failsafe}"
+                )
+
         set_param(mav, "CST_POS_CTRL_TYP", 4, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         disarm(mav)
@@ -469,6 +522,10 @@ def main() -> int:
             pass
         try:
             set_param(mav, "CST_POS_CTRL_EN", 0, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+        except Exception:
+            pass
+        try:
+            disarm(mav)
         except Exception:
             pass
         stop_manual_control.set()

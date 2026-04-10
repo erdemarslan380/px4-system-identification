@@ -48,13 +48,15 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def run_cmd(cmd: list[str], *, log_path: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
+def run_cmd(
+    cmd: list[str], *, log_path: Path | None = None, check: bool = True, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
     if log_path is None:
-        return subprocess.run(cmd, text=True, check=check, capture_output=True)
+        return subprocess.run(cmd, text=True, check=check, capture_output=True, env=env)
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("w", encoding="utf-8") as handle:
-        proc = subprocess.run(cmd, text=True, stdout=handle, stderr=subprocess.STDOUT, check=False)
+        proc = subprocess.run(cmd, text=True, stdout=handle, stderr=subprocess.STDOUT, check=False, env=env)
     if check and proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, cmd)
     return proc
@@ -96,6 +98,25 @@ def current_cube_port() -> str:
     if not acm:
         raise RuntimeError("CubeOrange serial port is not present")
     return str(acm[-1])
+
+
+def wait_for_cube_port(timeout_s: float = 60.0, settle_s: float = 1.5) -> str:
+    deadline = time.time() + timeout_s
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        try:
+            port = current_cube_port()
+            lsof = subprocess.run(["lsof", port], text=True, capture_output=True, check=False)
+            if lsof.returncode == 0 and lsof.stdout.strip():
+                last_error = RuntimeError(f"{port} is still busy")
+                time.sleep(0.5)
+                continue
+            time.sleep(settle_s)
+            return port
+        except Exception as exc:
+            last_error = exc
+            time.sleep(0.5)
+    raise RuntimeError(f"CubeOrange serial port did not return within {timeout_s:.1f}s: {last_error}")
 
 
 def graceful_stop_pattern(pattern: str, *, label: str, timeout_s: float = 10.0) -> None:
@@ -153,7 +174,9 @@ def graceful_close_jmavsim_gui(timeout_s: float = 15.0) -> None:
                 subprocess.run(["xdotool", "windowclose", wid], check=False)
 
     if not window_ids:
-        raise RuntimeError("jMAVSim is running but no GUI window was found; refusing abrupt shutdown")
+        print("[trajectory-suite] jMAVSim GUI window was not found; falling back to process stop.", flush=True)
+        graceful_stop_pattern(r"java.*jmavsim_run.jar|jmavsim_run.sh -q -s -d |start_jmavsim_hitl.sh", label="jMAVSim headless", timeout_s=timeout_s)
+        return
 
     deadline = time.time() + timeout_s
     while time.time() < deadline:
@@ -353,7 +376,7 @@ def main() -> int:
                 graceful_stop_hitl_session(args.endpoint)
             except Exception as exc:
                 entry["shutdown_error"] = str(exc)
-            port = current_cube_port()
+            port = wait_for_cube_port()
             try:
                 pull_sdcard_logs(port, args.baud, raw_pull_root, pull_log)
             except Exception as exc:
