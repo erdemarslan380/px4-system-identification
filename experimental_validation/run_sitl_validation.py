@@ -45,6 +45,7 @@ from run_hitl_px4_trajectory_reader_position_step_minimal import (
 )
 from run_hitl_udp_sequence import (
     decode_statustext,
+    read_param,
     request_message_interval,
     robust_ground_baseline,
     set_anchor_from_position,
@@ -1425,6 +1426,42 @@ class _ManualControlThread:
             self._stop.wait(self._period_s)
 
 
+def _ensure_manual_control_mode(
+    mav,
+    *,
+    value: int = 1,
+    timeout_s: float = 8.0,
+) -> None:
+    """Best-effort COM_RC_IN_MODE set/readback for SITL POSCTL handoff.
+
+    Some custom-model SITL boots occasionally miss the immediate PARAM_VALUE
+    confirmation even though the parameter write has actually landed. For the
+    manual-control handoff we care about the effective value, not the first ACK.
+    """
+    try:
+        current = read_param(mav, "COM_RC_IN_MODE", mavutil.mavlink.MAV_PARAM_TYPE_INT32, timeout=2.0)
+        if int(current) == int(value):
+            return
+    except Exception:
+        pass
+
+    try:
+        set_param(mav, "COM_RC_IN_MODE", value, mavutil.mavlink.MAV_PARAM_TYPE_INT32, timeout=timeout_s)
+        return
+    except Exception as exc:
+        try:
+            current = read_param(mav, "COM_RC_IN_MODE", mavutil.mavlink.MAV_PARAM_TYPE_INT32, timeout=3.0)
+            if int(current) == int(value):
+                print(
+                    "COM_RC_IN_MODE confirmation was missed, but readback matches; continuing.",
+                    flush=True,
+                )
+                return
+        except Exception:
+            pass
+        raise TimeoutError(f"COM_RC_IN_MODE did not settle to {value} ({exc})") from exc
+
+
 def _enter_posctl_with_manual_control(
     session: Px4SitlSession,
     mav,
@@ -1435,7 +1472,6 @@ def _enter_posctl_with_manual_control(
     preroll_s: float = 2.0,
 ) -> None:
     """Enter POSCTL after MAVLink manual-control samples have reached PX4."""
-    set_param(mav, "COM_RC_IN_MODE", 1, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
     manual_control.update(x=0, y=0, z=500, r=0)
     preroll_deadline = time.time() + max(preroll_s, SITL_PARAM_PROPAGATION_SECONDS)
     while time.time() < preroll_deadline:
@@ -1916,10 +1952,15 @@ def run_validation_model(
         _wait_for_preflight_ok(session)
         if not headless and SITL_QGC_DISCOVERY_GRACE_SECONDS > 0.0:
             time.sleep(SITL_QGC_DISCOVERY_GRACE_SECONDS)
-        _arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)
+        _ensure_manual_control_mode(mav, value=1)
         manual_control = _ManualControlThread(mav)
         manual_control.update(x=0, y=0, z=500, r=0)
         manual_control.start()
+        manual_preroll_deadline = time.time() + max(1.5, SITL_PARAM_PROPAGATION_SECONDS)
+        while time.time() < manual_preroll_deadline:
+            manual_control.send_once()
+            time.sleep(SITL_MANUAL_CONTROL_PERIOD)
+        _arm_via_internal_command(session, mav, attempts=SITL_ARM_ATTEMPTS)
         _enter_posctl_with_manual_control(session, mav, manual_control)
         time.sleep(1.0)
         latest_lpos, latest_att = _wait_for_takeoff_hover(
@@ -2025,8 +2066,11 @@ def run_validation_model(
             trajectory_duration_s = float(TRAJ_DURATION_S.get(entry.traj_id, entry.nominal_duration_s))
             latest_lpos, latest_att, traj_max_xy, traj_max_z_err, traj_max_tilt, traj_failsafe = observe_builtin_trajectory(
                 mav,
+                traj_id=entry.traj_id,
                 duration_s=trajectory_duration_s + SITL_TRAJECTORY_TAIL_SECONDS,
-                ref_z=common_anchor[2],
+                anchor_x=common_anchor[0],
+                anchor_y=common_anchor[1],
+                anchor_z=common_anchor[2],
                 report_period=SITL_REPORT_PERIOD,
             )
             session.expect(TRAJECTORY_DONE_TEXT, timeout_s=max(20.0, trajectory_duration_s))

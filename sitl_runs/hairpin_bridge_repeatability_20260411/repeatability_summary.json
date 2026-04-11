@@ -1,0 +1,85 @@
+{
+  "px4_root": "/home/earsub/PX4-Autopilot-Identification",
+  "repetitions": 5,
+  "aggregate_sources": "/home/earsub/px4-system-identification/sitl_runs/hairpin_bridge_repeatability_20260411/aggregate_sources",
+  "cases": {
+    "hairpin": {
+      "re_identified_from_sitl_ident": {
+        "label": "Re-identified from SITL ident",
+        "aggregate_csv": "/home/earsub/px4-system-identification/sitl_runs/hairpin_bridge_repeatability_20260411/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/hairpin.csv",
+        "aggregate": {
+          "path": "/home/earsub/px4-system-identification/sitl_runs/hairpin_bridge_repeatability_20260411/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/hairpin.csv",
+          "samples": 700,
+          "source_count": 5
+        },
+        "rmse_m": {
+          "mean": 0.2904566886633382,
+          "median": 0.2919856285938589,
+          "std": 0.0032392141417031486,
+          "min": 0.2843812445563321,
+          "max": 0.2936190450604809
+        },
+        "max_error_m": {
+          "mean": 0.5243335546970226,
+          "median": 0.5257399496861542,
+          "std": 0.011670702917325896,
+          "min": 0.5113356537705931,
+          "max": 0.5443216182148197
+        },
+        "runs": [
+          {
+            "samples": 1386,
+            "rmse_m": 0.2843812445563321,
+            "max_error_m": 0.5113356537705931,
+            "mean_error_m": 0.2544090975597567,
+            "repeat": 1,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hairpin_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_01.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1386,
+            "rmse_m": 0.290086822735865,
+            "max_error_m": 0.5443216182148197,
+            "mean_error_m": 0.2564997973354401,
+            "repeat": 2,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hairpin_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_02.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1385,
+            "rmse_m": 0.2919856285938589,
+            "max_error_m": 0.5139981192047304,
+            "mean_error_m": 0.25832962126447956,
+            "repeat": 3,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hairpin_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_03.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1386,
+            "rmse_m": 0.2936190450604809,
+            "max_error_m": 0.5257399496861542,
+            "mean_error_m": 0.2595106533889225,
+            "repeat": 4,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hairpin_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_04.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1386,
+            "rmse_m": 0.292210702370154,
+            "max_error_m": 0.5262724326088154,
+            "mean_error_m": 0.25959243358691686,
+            "repeat": 5,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hairpin_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_05.csv",
+            "ok": true,
+            "reused": false
+          }
+        ],
+        "bitwise_identical": false
+      }
+    }
+  }
+}

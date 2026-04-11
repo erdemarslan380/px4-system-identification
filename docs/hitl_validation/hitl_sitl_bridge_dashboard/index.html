@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HITL-SITL Bridge Dashboard</title>
+  <style>
+    :root {
+      --bg: #f7f7f2;
+      --card: #ffffff;
+      --ink: #172026;
+      --muted: #56616b;
+      --border: #d8ddd2;
+      --accent: #0f766e;
+      --accent-soft: #e8f6f3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #f7f7f2 0%, #eef3ee 100%);
+    }
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 20px 48px;
+    }
+    .hero {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px 22px;
+      box-shadow: 0 10px 30px rgba(12, 26, 23, 0.06);
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.15;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(12, 26, 23, 0.06);
+      overflow: hidden;
+    }
+    .panel-head {
+      padding: 16px 18px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-head h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+    }
+    .panel-head p {
+      font-size: 14px;
+    }
+    .panel-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .panel-links a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+    }
+    iframe {
+      display: block;
+      width: 100%;
+      min-height: 1900px;
+      border: 0;
+      background: #fff;
+    }
+    @media (max-width: 900px) {
+      iframe { min-height: 1600px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>HITL to SITL Bridge Review</h1>
+      <p>
+        Ustte ident artı lemniscate kullanilarak kalibre edilen yeni motor-otoritesi tabanli bridge adayinin ne kadar oturdugunu, altta ise ayni modelin hic gormedigi hairpin hold-out testini goruyoruz.
+        Amacimiz sadece sayisal hata degil; tube sekli, koridor ortusmesi ve merkez cizgi farkini birlikte okumak.
+      </p>
+      <div class="meta">
+        <span class="chip">Top: Lemniscate calibration</span>
+        <span class="chip">Bottom: Hairpin hold-out</span>
+        <span class="chip">2-layer review only</span>
+        <span class="chip">Residual family: thrust + actuator + yaw</span>
+      </div>
+    </section>
+
+    <section class="stack">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Lemniscate Calibration View</h2>
+          <p>
+            Bu panelde kalibrasyon icin kullanilan tek surekli yörünge gorunuyor: HITL lemniscate tekrarlarina karsi residual-calibrated SITL tube.
+          </p>
+          <div class="panel-links">
+            <a href="/docs/hitl_validation/hitl_sitl_lemniscate_bridge_two_layer/index.html" target="_blank" rel="noopener">Open lemniscate in new tab</a>
+          </div>
+        </div>
+        <iframe src="/docs/hitl_validation/hitl_sitl_lemniscate_bridge_two_layer/index.html" title="Lemniscate bridge review"></iframe>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Hairpin Hold-out View</h2>
+          <p>
+            Bu panelde ayni modelin hic gormedigi hairpin yörüngesinde ne kadar genelleyebildigini izliyoruz: HITL hairpin tube karsi calibrated SITL hairpin tube.
+          </p>
+          <div class="panel-links">
+            <a href="/docs/hitl_validation/hitl_sitl_hairpin_bridge_two_layer/index.html" target="_blank" rel="noopener">Open hairpin in new tab</a>
+          </div>
+        </div>
+        <iframe src="/docs/hitl_validation/hitl_sitl_hairpin_bridge_two_layer/index.html" title="Hairpin bridge review"></iframe>
+      </article>
+    </section>
+  </div>
+</body>
+</html>

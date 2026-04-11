@@ -65,6 +65,21 @@ class PrepareIdentifiedModelTests(unittest.TestCase):
                         "rolling_moment_coefficient": {"value": 1.0e-06},
                         "rotor_velocity_slowdown_sim": {"value": 10.0},
                     },
+                    "drag": {
+                        "x": {"coefficient": 0.11},
+                        "y": {"coefficient": -0.12},
+                        "z": {"coefficient": 0.13},
+                    },
+                    "simulator_residuals": {
+                        "body_velocity_decay_linear": 0.12,
+                        "body_velocity_decay_angular": 0.03,
+                        "body_drag_scale_x": 1.5,
+                        "body_drag_scale_y": 0.5,
+                        "body_drag_scale_z": 1.0,
+                        "body_angular_damping_x": 0.01,
+                        "body_angular_damping_y": 0.02,
+                        "body_angular_damping_z": 0.03,
+                    },
                 }
             ),
             encoding="utf-8",
@@ -88,8 +103,13 @@ class PrepareIdentifiedModelTests(unittest.TestCase):
             tree = ET.parse(Path(payload["model_dir"]) / "model.sdf")
             include_uri = tree.getroot().find("./model/include/uri")
             self.assertEqual(include_uri.text, "model://x500_identified_base")
-            plugin = tree.getroot().find("./model/plugin")
-            self.assertEqual(plugin.find("timeConstantUp").text, "0.0125")
+            plugins = tree.getroot().findall("./model/plugin")
+            motor_plugin = plugins[0]
+            self.assertEqual(motor_plugin.find("timeConstantUp").text, "0.0125")
+            drag_plugin = tree.getroot().find("./model/plugin[@filename='BodyFrameDragPlugin']")
+            self.assertIsNotNone(drag_plugin)
+            self.assertEqual(drag_plugin.find("quadratic_drag_coefficients").text, "0.165000000 0.060000000 0.130000000")
+            self.assertEqual(drag_plugin.find("angular_damping_coefficients").text, "0.010000000 0.020000000 0.030000000")
 
     def test_prepare_identified_model_can_synthesize_candidate_base_sdf(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -105,10 +125,16 @@ class PrepareIdentifiedModelTests(unittest.TestCase):
             base_tree = ET.parse(Path(payload["base_model_dir"]) / "model.sdf")
             base_mass = base_tree.getroot().find("./model/link/inertial/mass")
             base_ixx = base_tree.getroot().find("./model/link/inertial/inertia/ixx")
+            linear_decay = base_tree.getroot().find("./model/link/velocity_decay/linear")
+            angular_decay = base_tree.getroot().find("./model/link/velocity_decay/angular")
             self.assertIsNotNone(base_mass)
             self.assertIsNotNone(base_ixx)
+            self.assertIsNotNone(linear_decay)
+            self.assertIsNotNone(angular_decay)
             self.assertEqual(base_mass.text, "2.000000")
             self.assertEqual(base_ixx.text, "0.021000")
+            self.assertEqual(linear_decay.text, "0.120000000")
+            self.assertEqual(angular_decay.text, "0.030000000")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -19,7 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from experimental_validation.hitl_catalog import campaign_ident_profiles, identification_duration_s
 from pull_sdcard_logs_over_mavftp import collect_remote_files, download_file_via_port
-from run_hitl_trajectory_suite_only import current_cube_port, graceful_stop_hitl_session, run_cmd, wait_for_cube_port
+from run_hitl_trajectory_suite_only import current_cube_port, graceful_stop_hitl_session, run_cmd
 
 
 RESTART_SCRIPT = SCRIPT_DIR / "restart_hitl_px4_clean_gui.sh"
@@ -181,15 +183,51 @@ def pull_ident_logs(
     return downloaded
 
 
+def wait_for_ident_csv(
+    *,
+    baud: int,
+    profile: str,
+    before_files: dict[str, int | None],
+    destination_dir: Path,
+    log_path: Path,
+    timeout_s: float = 90.0,
+) -> Path:
+    import time
+
+    deadline = time.time() + timeout_s
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        try:
+            port = current_cube_port()
+            after_remote_files = list_remote_ident_logs(port, baud, profile)
+            if not after_remote_files:
+                raise RuntimeError("remote identification dir empty")
+            return pull_ident_logs(
+                port,
+                baud,
+                destination_dir,
+                log_path,
+                profile,
+                before_files,
+                after_remote_files,
+            )
+        except Exception as exc:
+            last_error = exc
+            time.sleep(1.0)
+    raise RuntimeError(f"ident CSV did not become downloadable within {timeout_s:.1f}s: {last_error}")
+
+
 def main() -> int:
     args = parse_args()
     run_root = Path(args.run_root).expanduser().resolve()
     console_dir = run_root / "console_logs"
     raw_pull_root = run_root / "raw_pull"
+    truth_pull_root = raw_pull_root / "jmavsim_truth"
     manifest_path = run_root / "manifest.json"
     run_root.mkdir(parents=True, exist_ok=True)
     console_dir.mkdir(parents=True, exist_ok=True)
     raw_pull_root.mkdir(parents=True, exist_ok=True)
+    truth_pull_root.mkdir(parents=True, exist_ok=True)
 
     profiles = args.profiles or campaign_ident_profiles("identification_only")
     manifest: list[dict[str, object]] = []
@@ -220,11 +258,20 @@ def main() -> int:
             except Exception as exc:
                 entry["before_remote_error"] = str(exc)
 
+            truth_log_tmp = run_root / f".tmp_jmavsim_truth_{profile}_attempt{attempt:02d}.csv"
+            truth_log_final = truth_pull_root / f"{profile}_attempt{attempt:02d}_truth.csv"
+            if truth_log_tmp.exists():
+                truth_log_tmp.unlink()
+            restart_env = os.environ.copy()
+            restart_env["JMAVSIM_TRUTH_LOG"] = str(truth_log_tmp)
+            restart_env["JMAVSIM_TRUTH_LOG_INTERVAL_US"] = "20000"
+
             print(f"[ident-suite] restarting clean HIL for {profile} attempt {attempt}", flush=True)
             run_cmd(
                 [str(RESTART_SCRIPT), str(Path(args.px4_root).expanduser().resolve()), str(args.baud), args.endpoint],
                 log_path=restart_log,
                 check=True,
+                env=restart_env,
             )
             run_cmd(
                 [str(USB_STREAM_SCRIPT), str(args.usb_stream_rate)],
@@ -258,25 +305,27 @@ def main() -> int:
             except Exception as exc:
                 entry["shutdown_error"] = str(exc)
 
-            port = wait_for_cube_port()
-            after_remote_files: dict[str, int | None] = {}
+            if truth_log_tmp.exists():
+                shutil.copy2(truth_log_tmp, truth_log_final)
+                entry["truth_csv"] = str(truth_log_final)
+
             latest_csv: Path | None = None
             try:
-                after_remote_files = list_remote_ident_logs(port, args.baud, profile)
-                entry["after_remote_count"] = len(after_remote_files)
-                latest_csv = pull_ident_logs(
-                    port,
-                    args.baud,
-                    raw_pull_root,
-                    pull_log,
-                    profile,
-                    before_remote_files,
-                    after_remote_files,
+                latest_csv = wait_for_ident_csv(
+                    baud=args.baud,
+                    profile=profile,
+                    before_files=before_remote_files,
+                    destination_dir=raw_pull_root,
+                    log_path=pull_log,
                 )
             except Exception as exc:
                 entry["pull_error"] = str(exc)
                 print(f"[ident-suite] {profile} pull failed on attempt {attempt}: {exc}", flush=True)
             if latest_csv is not None:
+                try:
+                    entry["after_remote_count"] = len(list_remote_ident_logs(current_cube_port(), args.baud, profile))
+                except Exception:
+                    pass
                 metrics = analyze_ident_csv(latest_csv)
                 entry["ident_csv"] = str(latest_csv)
                 entry.update(metrics)

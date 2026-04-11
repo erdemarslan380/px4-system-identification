@@ -1,0 +1,18 @@
+{
+  "model_dir": "/home/earsub/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_bridge_calibrated_v2",
+  "base_model_dir": "/home/earsub/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_bridge_calibrated_v2_base",
+  "candidate_dir": "/home/earsub/px4-system-identification/docs/hitl_validation/_generated/candidates/lemniscate_calibrated_bridge_v2",
+  "model_name": "x500_bridge_calibrated_v2",
+  "notes": [
+    "Diagonal inertia regularized to satisfy rigid-body triangle inequalities before SDF export: ixx 0.004373852->0.004373852, iyy 0.002655095->0.002655095, izz 0.050468380->0.007027947.",
+    "Rotor pose override applied: rotor_0 -> (0.116673, -0.116673, 0.060000)",
+    "Rotor pose override applied: rotor_1 -> (-0.116673, 0.116673, 0.060000)",
+    "Rotor pose override applied: rotor_2 -> (0.116673, 0.116673, 0.060000)",
+    "Rotor pose override applied: rotor_3 -> (-0.116673, -0.116673, 0.060000)",
+    "Applied base_link velocity_decay/linear=0.000000",
+    "Applied base_link velocity_decay/angular=0.000000",
+    "Turning-direction override applied to 4 motor plugins and 4 logger rotor entries.",
+    "Negative identified drag coefficient on axis y (-0.059583) projected to abs value for SDF drag export.",
+    "Applied BodyFrameDragPlugin with quadratic drag (0.002074, 0.059583, 0.047514) and angular damping (0.000000, 0.000000, 0.000000)."
+  ]
+}

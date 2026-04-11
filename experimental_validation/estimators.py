@@ -138,6 +138,18 @@ class ScalarEstimate:
         return asdict(self)
 
 
+@dataclass
+class StepResponseDynamicsEstimate:
+    delay_s: ScalarEstimate
+    time_constant_s: ScalarEstimate
+
+    def as_dict(self) -> dict[str, dict[str, float]]:
+        return {
+            "delay_s": self.delay_s.as_dict(),
+            "time_constant_s": self.time_constant_s.as_dict(),
+        }
+
+
 def estimate_hover_mass(
     rows: Iterable[dict[str, float]],
     *,
@@ -825,4 +837,157 @@ def estimate_time_constant(
         value=tau_value,
         sample_count=len(trimmed),
         rmse=_rmse(trimmed, [tau_value] * len(trimmed)) if len(trimmed) > 1 else 0.0,
+    )
+
+
+def estimate_step_response_dynamics(
+    rows: Iterable[dict[str, float]],
+    *,
+    time_column: str,
+    command_column: str,
+    response_column: str,
+    direction: str,
+    min_step_abs: float = 0.3,
+    min_step_fraction_of_range: float = 0.2,
+    min_response_abs: float = 0.5,
+    max_event_window_s: float = 0.20,
+    baseline_samples: int = 3,
+    smooth_radius_samples: int = 1,
+) -> StepResponseDynamicsEstimate:
+    normalized_direction = str(direction).strip().lower()
+    if normalized_direction not in {"up", "down"}:
+        raise ValueError("direction must be 'up' or 'down'")
+
+    seq = sorted(
+        (
+            {
+                "t_s": float(row[time_column]),
+                "command": float(row[command_column]),
+                "response": float(row[response_column]),
+            }
+            for row in rows
+            if row.get(time_column) is not None
+            and row.get(command_column) is not None
+            and row.get(response_column) is not None
+            and math.isfinite(float(row[time_column]))
+            and math.isfinite(float(row[command_column]))
+            and math.isfinite(float(row[response_column]))
+        ),
+        key=lambda row: row["t_s"],
+    )
+    if len(seq) < max(6, baseline_samples + 3):
+        raise ValueError("not enough rows for step-response dynamics estimate")
+
+    if smooth_radius_samples > 0:
+        smoothed: list[dict[str, float]] = []
+        for index, row in enumerate(seq):
+            start = max(0, index - smooth_radius_samples)
+            stop = min(len(seq), index + smooth_radius_samples + 1)
+            values = [seq[j]["response"] for j in range(start, stop)]
+            smoothed.append(
+                {
+                    "t_s": row["t_s"],
+                    "command": row["command"],
+                    "response": sum(values) / len(values),
+                }
+            )
+        seq = smoothed
+
+    command_values = [row["command"] for row in seq]
+    command_range = max(command_values) - min(command_values)
+    step_threshold = max(float(min_step_abs), abs(command_range) * float(min_step_fraction_of_range))
+
+    delays: list[float] = []
+    taus: list[float] = []
+    index = max(1, baseline_samples)
+    while index < len(seq) - 2:
+        prev_command = seq[index - 1]["command"]
+        curr_command = seq[index]["command"]
+        delta_command = curr_command - prev_command
+        if normalized_direction == "up":
+            if delta_command < step_threshold:
+                index += 1
+                continue
+            expected_sign = 1.0
+        else:
+            if delta_command > -step_threshold:
+                index += 1
+                continue
+            expected_sign = -1.0
+
+        baseline = seq[index - baseline_samples:index]
+        baseline_response = sum(row["response"] for row in baseline) / len(baseline)
+        start_time = seq[index]["t_s"]
+
+        event_end = len(seq) - 1
+        for scan in range(index + 1, len(seq)):
+            if seq[scan]["t_s"] - start_time > max_event_window_s:
+                event_end = scan - 1
+                break
+            next_delta = seq[scan]["command"] - seq[scan - 1]["command"]
+            if abs(next_delta) >= step_threshold:
+                event_end = scan - 1
+                break
+
+        if event_end <= index:
+            index += 1
+            continue
+
+        event = seq[index:event_end + 1]
+        if normalized_direction == "up":
+            peak_response = max(row["response"] for row in event)
+            amplitude = peak_response - baseline_response
+        else:
+            peak_response = min(row["response"] for row in event)
+            amplitude = baseline_response - peak_response
+        if amplitude < min_response_abs:
+            index = event_end + 1
+            continue
+
+        threshold_10 = baseline_response + expected_sign * (0.10 * amplitude)
+        threshold_63 = baseline_response + expected_sign * (0.6321205588285577 * amplitude)
+        t10: float | None = None
+        t63: float | None = None
+        previous = seq[index - 1]
+        for sample in event:
+            a = previous["response"]
+            b = sample["response"]
+            if (t10 is None) and (a - threshold_10) * (b - threshold_10) <= 0 and b != a:
+                alpha = (threshold_10 - a) / (b - a)
+                alpha = min(1.0, max(0.0, alpha))
+                t10 = previous["t_s"] + alpha * (sample["t_s"] - previous["t_s"])
+            if (t63 is None) and (a - threshold_63) * (b - threshold_63) <= 0 and b != a:
+                alpha = (threshold_63 - a) / (b - a)
+                alpha = min(1.0, max(0.0, alpha))
+                t63 = previous["t_s"] + alpha * (sample["t_s"] - previous["t_s"])
+            previous = sample
+
+        if t10 is not None and t63 is not None:
+            delay = max(0.0, t10 - start_time)
+            tau = max(0.0, t63 - t10)
+            delays.append(delay)
+            taus.append(tau)
+
+        index = max(index + 1, event_end + 1)
+
+    if not delays or not taus:
+        raise ValueError(f"no usable rows for {normalized_direction} step-response dynamics estimate")
+
+    def _robust_scalar(values: list[float]) -> ScalarEstimate:
+        values = sorted(float(value) for value in values if math.isfinite(float(value)))
+        if not values:
+            raise ValueError("no usable scalar values")
+        lower_index = int(len(values) * 0.2)
+        upper_index = max(lower_index + 1, int(math.ceil(len(values) * 0.8)))
+        trimmed = values[lower_index:upper_index] or values
+        median = _percentile(trimmed, 0.5)
+        return ScalarEstimate(
+            value=median,
+            sample_count=len(trimmed),
+            rmse=_rmse(trimmed, [median] * len(trimmed)) if len(trimmed) > 1 else 0.0,
+        )
+
+    return StepResponseDynamicsEstimate(
+        delay_s=_robust_scalar(delays),
+        time_constant_s=_robust_scalar(taus),
     )

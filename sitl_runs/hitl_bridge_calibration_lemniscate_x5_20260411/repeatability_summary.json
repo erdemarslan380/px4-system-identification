@@ -1,0 +1,85 @@
+{
+  "px4_root": "/home/earsub/PX4-Autopilot-Identification",
+  "repetitions": 5,
+  "aggregate_sources": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_x5_20260411/aggregate_sources",
+  "cases": {
+    "lemniscate": {
+      "re_identified_from_sitl_ident": {
+        "label": "Re-identified from SITL ident",
+        "aggregate_csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_x5_20260411/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/lemniscate.csv",
+        "aggregate": {
+          "path": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_x5_20260411/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/lemniscate.csv",
+          "samples": 700,
+          "source_count": 5
+        },
+        "rmse_m": {
+          "mean": 0.3624235103500643,
+          "median": 0.35866625201652896,
+          "std": 0.008610394413463613,
+          "min": 0.3534305923018252,
+          "max": 0.3781602971280317
+        },
+        "max_error_m": {
+          "mean": 0.6152954832178675,
+          "median": 0.6129523149821688,
+          "std": 0.029436101635422512,
+          "min": 0.5850240422982632,
+          "max": 0.664562591851964
+        },
+        "runs": [
+          {
+            "samples": 1160,
+            "rmse_m": 0.3534305923018252,
+            "max_error_m": 0.5864184553652793,
+            "mean_error_m": 0.3258266871600876,
+            "repeat": 1,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_01.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1160,
+            "rmse_m": 0.357495200374298,
+            "max_error_m": 0.5850240422982632,
+            "mean_error_m": 0.3290112486585826,
+            "repeat": 2,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_02.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1157,
+            "rmse_m": 0.35866625201652896,
+            "max_error_m": 0.6129523149821688,
+            "mean_error_m": 0.33147932776567146,
+            "repeat": 3,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_03.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1145,
+            "rmse_m": 0.3643652099296377,
+            "max_error_m": 0.6275200115916625,
+            "mean_error_m": 0.32831911665102326,
+            "repeat": 4,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_04.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1160,
+            "rmse_m": 0.3781602971280317,
+            "max_error_m": 0.664562591851964,
+            "mean_error_m": 0.3489351920972019,
+            "repeat": 5,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_05.csv",
+            "ok": true,
+            "reused": false
+          }
+        ],
+        "bitwise_identical": false
+      }
+    }
+  }
+}

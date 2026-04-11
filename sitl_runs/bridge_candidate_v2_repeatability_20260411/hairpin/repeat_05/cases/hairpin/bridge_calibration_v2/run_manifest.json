@@ -1,0 +1,140 @@
+{
+  "label": "bridge_calibration_v2",
+  "display_name": "Bridge calibration candidate v2",
+  "gz_model": "x500_bridge_calibrated_v2",
+  "world_name": "validation_reference_world",
+  "world_sdf": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_05/cases/hairpin/runtime/bridge_calibration_v2/override_worlds/validation_reference_world.sdf",
+  "common_logged_start": {
+    "x_m": 0.017679978162050247,
+    "y_m": 0.07359129190444946,
+    "z_m": -4.70522403717041
+  },
+  "export_manifest": {
+    "common_logged_start": {
+      "x_m": 0.0,
+      "y_m": 0.0,
+      "z_m": -3.0
+    },
+    "source_mode": "yaw_frozen_binary_trajectories",
+    "freeze_yaw": true,
+    "yaw_value_rad": 1.6757895946502686,
+    "entries": [
+      {
+        "traj_id": 100,
+        "name": "hairpin",
+        "duration_s": 27.7,
+        "sample_dt_s": 0.02,
+        "num_samples": 1386,
+        "start_pose": {
+          "x_m": 0.0,
+          "y_m": 0.0,
+          "z_m": -3.0
+        },
+        "end_pose": {
+          "x_m": 0.17242112755775452,
+          "y_m": -0.35076630115509033,
+          "z_m": -3.0244905948638916
+        },
+        "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_100.traj",
+        "path": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_05/cases/hairpin/runtime/bridge_calibration_v2/rootfs/trajectories/id_100.traj",
+        "sha256": "9fe26da8c6c07a5626d90c8fc385958d08cdecea82b3c939b7a2ef9def37447d",
+        "source_sha256": "d7ebc694abc3bbc3b852f8b962f888c1d0d1f87d015aee0aefda541668ab6367"
+      },
+      {
+        "traj_id": 101,
+        "name": "lemniscate",
+        "duration_s": 23.18,
+        "sample_dt_s": 0.02,
+        "num_samples": 1160,
+        "start_pose": {
+          "x_m": 0.0,
+          "y_m": 0.0,
+          "z_m": -3.0
+        },
+        "end_pose": {
+          "x_m": -0.1394369900226593,
+          "y_m": -0.4041249454021454,
+          "z_m": -3.047140121459961
+        },
+        "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_101.traj",
+        "path": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_05/cases/hairpin/runtime/bridge_calibration_v2/rootfs/trajectories/id_101.traj",
+        "sha256": "d5989791410fa830ebe1330ad842df0b1b5c787b614844f906e1e20e853ad188",
+        "source_sha256": "58d656be8bca8f2b2de3a3955bd6299175842d3bb9ac35e4d475c0e525a2c136"
+      },
+      {
+        "traj_id": 102,
+        "name": "circle",
+        "duration_s": 18.9,
+        "sample_dt_s": 0.02,
+        "num_samples": 946,
+        "start_pose": {
+          "x_m": 0.0,
+          "y_m": 0.0,
+          "z_m": -3.0
+        },
+        "end_pose": {
+          "x_m": -0.4370052218437195,
+          "y_m": 0.1456737220287323,
+          "z_m": -3.013955593109131
+        },
+        "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_102.traj",
+        "path": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_05/cases/hairpin/runtime/bridge_calibration_v2/rootfs/trajectories/id_102.traj",
+        "sha256": "8ced2d3cd3b8a81e1f7ec28e90ba7528c76308001a3aceff5db51dea2ae8cf66",
+        "source_sha256": "578dba4caa26c415903c2e21afba67143910bffa21aae096a5b7f16c8089fdbc"
+      },
+      {
+        "traj_id": 103,
+        "name": "time_optimal_30s",
+        "duration_s": 11.0,
+        "sample_dt_s": 0.020183,
+        "num_samples": 546,
+        "start_pose": {
+          "x_m": 0.0,
+          "y_m": 0.0,
+          "z_m": -3.0
+        },
+        "end_pose": {
+          "x_m": 6.999992370605469,
+          "y_m": 2.000053882598877,
+          "z_m": -1.0000009536743164
+        },
+        "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_103.traj",
+        "path": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_05/cases/hairpin/runtime/bridge_calibration_v2/rootfs/trajectories/id_103.traj",
+        "sha256": "7de7d01372f1bffc9a45195f9c9d9cbe832a4af8f0ae634b2de92db61e0c6a96",
+        "source_sha256": "76f3a938d86ed299923c218b87456b49632c6bb43b111d579f5e95493067cd64"
+      },
+      {
+        "traj_id": 104,
+        "name": "minimum_snap_50s",
+        "duration_s": 23.44,
+        "sample_dt_s": 0.02,
+        "num_samples": 1173,
+        "start_pose": {
+          "x_m": 0.0,
+          "y_m": 0.0,
+          "z_m": -3.0
+        },
+        "end_pose": {
+          "x_m": -8.0,
+          "y_m": 2.853273173286652e-14,
+          "z_m": -3.0
+        },
+        "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_104.traj",
+        "path": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_05/cases/hairpin/runtime/bridge_calibration_v2/rootfs/trajectories/id_104.traj",
+        "sha256": "1ffec398357038737088c71a6152092f94bfb400c08bb96fded18de1caf1548d",
+        "source_sha256": "5248b146160334fcbbf091c3c5dbe99c25bda3856b6d0eaf84b5a51eeaa49e89"
+      }
+    ]
+  },
+  "results": [
+    {
+      "traj_id": 100,
+      "name": "hairpin",
+      "duration_s": 27.7,
+      "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_05/cases/hairpin/bridge_calibration_v2/tracking_logs/hairpin.csv"
+    }
+  ],
+  "console_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_05/cases/hairpin/runtime/bridge_calibration_v2/rootfs/px4_console.log",
+  "nested_display": null,
+  "nested_display_log": null
+}

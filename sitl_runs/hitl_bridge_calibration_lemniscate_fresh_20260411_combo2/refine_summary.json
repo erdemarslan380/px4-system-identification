@@ -1,0 +1,58 @@
+{
+  "hil_mean_csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_fresh_20260411_combo2/hil_calibration/lemniscate_hil_mean.csv",
+  "hil_mean_summary": {
+    "path": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_fresh_20260411_combo2/hil_calibration/lemniscate_hil_mean.csv",
+    "samples": 700,
+    "source_count": 5
+  },
+  "results": [
+    {
+      "variant_name": "lin_005_soft095",
+      "variant_kwargs": {
+        "geometry_preset": "x500_scaled_165mm",
+        "time_constant_up_scale": 1.0,
+        "time_constant_down_scale": 1.0,
+        "motor_constant_scale": 0.95,
+        "moment_constant_scale": 1.0,
+        "rotor_drag_scale": 1.0,
+        "rolling_moment_scale": 1.0,
+        "slowdown_scale": 1.0,
+        "body_linear_decay": 0.05,
+        "body_angular_decay": 0.0
+      },
+      "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_fresh_20260411_combo2/candidates/lin_005_soft095",
+      "ok": true,
+      "case_error": null,
+      "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_fresh_20260411_combo2/runs/lin_005_soft095/bridge_calibration/tracking_logs/lemniscate.csv",
+      "rmse_to_hil_mean_m": 1.3422757547847595,
+      "mean_to_hil_mean_m": 1.3056813988300233,
+      "max_to_hil_mean_m": 2.12656364262464,
+      "xy_rmse_to_hil_mean_m": 1.3201059099579815,
+      "z_rmse_to_hil_mean_m": 0.24294976513058392
+    },
+    {
+      "variant_name": "lin_005_slow120",
+      "variant_kwargs": {
+        "geometry_preset": "x500_scaled_165mm",
+        "time_constant_up_scale": 1.2,
+        "time_constant_down_scale": 1.2,
+        "motor_constant_scale": 1.0,
+        "moment_constant_scale": 1.0,
+        "rotor_drag_scale": 1.0,
+        "rolling_moment_scale": 1.0,
+        "slowdown_scale": 1.0,
+        "body_linear_decay": 0.05,
+        "body_angular_decay": 0.0
+      },
+      "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_fresh_20260411_combo2/candidates/lin_005_slow120",
+      "ok": true,
+      "case_error": null,
+      "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_lemniscate_fresh_20260411_combo2/runs/lin_005_slow120/bridge_calibration/tracking_logs/lemniscate.csv",
+      "rmse_to_hil_mean_m": 1.3532908439275493,
+      "mean_to_hil_mean_m": 1.3122679981560903,
+      "max_to_hil_mean_m": 2.2023348933199407,
+      "xy_rmse_to_hil_mean_m": 1.3308221919635965,
+      "z_rmse_to_hil_mean_m": 0.24557768961236398
+    }
+  ]
+}

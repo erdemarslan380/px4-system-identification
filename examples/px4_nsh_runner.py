@@ -79,7 +79,7 @@ def send_command(
     payload.extend([0] * (70 - len(payload)))
 
     mav.mav.serial_control_send(
-        0,
+        mavutil.mavlink.SERIAL_CONTROL_DEV_SHELL,
         mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE
         | mavutil.mavlink.SERIAL_CONTROL_FLAG_RESPOND,
         0,

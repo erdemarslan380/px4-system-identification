@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -25,6 +26,8 @@ from experimental_validation.sdf_export import (
 )
 from experimental_validation.twin_metrics import build_blended_twin_score
 
+MAX_SUPPORTED_ROTORS = 16
+
 TRUTH_POLICY_NONE = "none"
 TRUTH_POLICY_TELEMETRY = "telemetry"
 TRUTH_POLICY_FULL = "full"
@@ -34,16 +37,16 @@ TELEMETRY_TRUTH_FIELDS = frozenset(
     {
         "sim_time_us",
         "observed_max_rot_velocity_radps",
-        *{f"rotor_{i}_actual_radps" for i in range(4)},
-        *{f"rotor_{i}_joint_vel_radps" for i in range(4)},
-        *{f"rotor_{i}_cmd_radps" for i in range(4)},
+        *{f"rotor_{i}_actual_radps" for i in range(MAX_SUPPORTED_ROTORS)},
+        *{f"rotor_{i}_joint_vel_radps" for i in range(MAX_SUPPORTED_ROTORS)},
+        *{f"rotor_{i}_cmd_radps" for i in range(MAX_SUPPORTED_ROTORS)},
     }
 )
 TELEMETRY_MERGED_MARKERS = frozenset(
     {
         "observed_max_rot_velocity_radps",
-        *{f"rotor_{i}_actual_radps" for i in range(4)},
-        *{f"rotor_{i}_joint_vel_radps" for i in range(4)},
+        *{f"rotor_{i}_actual_radps" for i in range(MAX_SUPPORTED_ROTORS)},
+        *{f"rotor_{i}_joint_vel_radps" for i in range(MAX_SUPPORTED_ROTORS)},
     }
 )
 FULL_TRUTH_MARKERS = frozenset(
@@ -62,7 +65,7 @@ FULL_TRUTH_MARKERS = frozenset(
         "truth_rotor_velocity_slowdown_sim",
         "thrust_n",
         "total_prop_thrust_n",
-        *{f"rotor_{i}_actual_radps" for i in range(4)},
+        *{f"rotor_{i}_actual_radps" for i in range(MAX_SUPPORTED_ROTORS)},
     }
 )
 
@@ -97,7 +100,7 @@ def resolve_px4_reference_path(raw_path: str | Path) -> Path:
     raise FileNotFoundError(f"Could not resolve PX4 reference path for '{raw_path}'. Searched:\n{searched}")
 
 
-def parse_x500_sdf_reference(model_sdf: str | Path, base_model_sdf: str | Path | None = None) -> dict:
+def parse_multicopter_sdf_reference(model_sdf: str | Path, base_model_sdf: str | Path | None = None) -> dict:
     model_path = resolve_px4_reference_path(model_sdf)
     if base_model_sdf:
         base_path = resolve_px4_reference_path(base_model_sdf)
@@ -152,6 +155,16 @@ def parse_x500_sdf_reference(model_sdf: str | Path, base_model_sdf: str | Path |
     }
 
 
+def parse_x500_sdf_reference(model_sdf: str | Path, base_model_sdf: str | Path | None = None) -> dict:
+    return parse_multicopter_sdf_reference(model_sdf, base_model_sdf)
+
+
+def _model_slug(reference: dict) -> str:
+    raw = str(reference.get("model_name", "multicopter")).strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
+    return slug or "multicopter"
+
+
 def collect_identification_logs(results_root: str | Path, *, latest_only: bool = True) -> list[Path]:
     root = Path(results_root).resolve()
     if not root.exists():
@@ -172,14 +185,17 @@ def collect_identification_logs(results_root: str | Path, *, latest_only: bool =
 
 
 def _autodetect_truth_csv_for_ident_log(path: Path) -> Path | None:
+    profile_name = path.name.split("_r", 1)[0]
     exact_candidates = [
         path.parents[1] / "gazebo_truth_traces" / path.name,
+        path.parents[1] / "jmavsim_truth" / path.name,
     ]
     for candidate in exact_candidates:
         if candidate.exists():
             return candidate.resolve()
 
     directory_candidates = [
+        path.parents[1] / "jmavsim_truth",
         path.parents[1] / "sysid_truth_logs",
         path.parents[1] / "gazebo_truth_traces",
     ]
@@ -189,6 +205,16 @@ def _autodetect_truth_csv_for_ident_log(path: Path) -> Path | None:
         csvs = sorted(directory.glob("*.csv"), key=lambda item: item.stat().st_mtime)
         if not csvs:
             continue
+        if directory.name == "jmavsim_truth":
+            matching = [item for item in csvs if item.name.startswith(f"{profile_name}_")]
+            if not matching:
+                continue
+            ident_mtime = path.stat().st_mtime
+            scored = sorted(matching, key=lambda item: abs(item.stat().st_mtime - ident_mtime))
+            nearest = scored[0]
+            if abs(nearest.stat().st_mtime - ident_mtime) <= MAX_TRUTH_SESSION_MTIME_GAP_S:
+                return nearest.resolve()
+            return matching[-1].resolve()
         if directory.name == "sysid_truth_logs":
             ident_mtime = path.stat().st_mtime
             scored = sorted(csvs, key=lambda item: abs(item.stat().st_mtime - ident_mtime))
@@ -203,6 +229,8 @@ def _autodetect_truth_csv_for_ident_log(path: Path) -> Path | None:
 def resolve_truth_csvs(
     csv_paths: Iterable[str | Path],
     explicit_truth_csvs: Iterable[str | Path] | None = None,
+    *,
+    disable_autodetect: bool = False,
 ) -> dict[Path, Path | None]:
     csv_paths = [Path(path).resolve() for path in csv_paths]
     explicit = [Path(path).resolve() for path in (explicit_truth_csvs or [])]
@@ -219,12 +247,21 @@ def resolve_truth_csvs(
         return mapping
 
     if explicit:
-        raise RuntimeError(
-            "Provide either one --truth-csv for the whole session or one --truth-csv per --csv."
-        )
+        for csv_path in csv_paths:
+            profile_name = csv_path.name.split("_r", 1)[0]
+            matching = [truth_path for truth_path in explicit if truth_path.name.startswith(f"{profile_name}_")]
+            if not matching:
+                raise RuntimeError(
+                    f"Could not match truth CSV for {csv_path.name}; provide either one --truth-csv for the whole "
+                    "session, one truth CSV per identification CSV, or truth CSVs prefixed by profile name."
+                )
+            ident_mtime = csv_path.stat().st_mtime
+            nearest = sorted(matching, key=lambda item: abs(item.stat().st_mtime - ident_mtime))[0]
+            mapping[csv_path] = nearest
+        return mapping
 
     for csv_path in csv_paths:
-        mapping[csv_path] = _autodetect_truth_csv_for_ident_log(csv_path)
+        mapping[csv_path] = None if disable_autodetect else _autodetect_truth_csv_for_ident_log(csv_path)
     return mapping
 
 
@@ -289,9 +326,14 @@ def build_identification_mode_reports(
     sdf_reference: dict,
     *,
     explicit_truth_csvs: Iterable[str | Path] | None = None,
+    disable_truth_autodetect: bool = False,
 ) -> dict:
     csv_paths = [Path(path).resolve() for path in csv_paths]
-    truth_csv_map = resolve_truth_csvs(csv_paths, explicit_truth_csvs)
+    truth_csv_map = resolve_truth_csvs(
+        csv_paths,
+        explicit_truth_csvs,
+        disable_autodetect=disable_truth_autodetect,
+    )
     mode_specs = {
         "px4_only": TRUTH_POLICY_NONE,
         "telemetry_augmented": TRUTH_POLICY_TELEMETRY,
@@ -476,7 +518,11 @@ def write_comparison_outputs(
         base_model_text,
         build_inertial_snippet(mass_kg=mass_kg, ixx=ixx, iyy=iyy, izz=izz),
     )
-    (out_dir / "candidate_x500_base.sdf").write_text(patched, encoding="utf-8")
+    slug = _model_slug(sdf_reference)
+    (out_dir / "candidate_base.sdf").write_text(patched, encoding="utf-8")
+    (out_dir / f"candidate_{slug}_base.sdf").write_text(patched, encoding="utf-8")
+    if slug == "x500":
+        (out_dir / "candidate_x500_base.sdf").write_text(patched, encoding="utf-8")
 
 
 def main() -> int:
@@ -508,7 +554,7 @@ def main() -> int:
     if not csv_paths:
         raise RuntimeError("provide --results-root or at least one --csv")
 
-    sdf_reference = parse_x500_sdf_reference(
+    sdf_reference = parse_multicopter_sdf_reference(
         Path(args.sdf_model).resolve() if Path(args.sdf_model).is_absolute() else args.sdf_model,
         Path(args.sdf_base_model).resolve() if Path(args.sdf_base_model).is_absolute() else args.sdf_base_model,
     )

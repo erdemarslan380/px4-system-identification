@@ -1,0 +1,142 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.9">
+  <model name="x500_bridge_calibrated_v2">
+    <include merge="true">
+      <uri>model://x500_bridge_calibrated_v2_base</uri>
+    </include>
+    <plugin filename="gz-sim-multicopter-motor-model-system" name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_0_joint</jointName>
+      <linkName>rotor_0</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.014516433431244024</timeConstantUp>
+      <timeConstantDown>0.01036100966780836</timeConstantDown>
+      <maxRotVelocity>1000.0</maxRotVelocity>
+      <motorConstant>4.48e-06</motorConstant>
+      <momentConstant>0.015</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>0</motorNumber>
+      <rotorDragCoefficient>5.644996e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>8.499999999999999e-07</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>8.5</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+    <plugin filename="gz-sim-multicopter-motor-model-system" name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_1_joint</jointName>
+      <linkName>rotor_1</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.014516433431244024</timeConstantUp>
+      <timeConstantDown>0.01036100966780836</timeConstantDown>
+      <maxRotVelocity>1000.0</maxRotVelocity>
+      <motorConstant>4.48e-06</motorConstant>
+      <momentConstant>0.015</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>1</motorNumber>
+      <rotorDragCoefficient>5.644996e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>8.499999999999999e-07</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>8.5</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+    <plugin filename="gz-sim-multicopter-motor-model-system" name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_2_joint</jointName>
+      <linkName>rotor_2</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.014516433431244024</timeConstantUp>
+      <timeConstantDown>0.01036100966780836</timeConstantDown>
+      <maxRotVelocity>1000.0</maxRotVelocity>
+      <motorConstant>4.48e-06</motorConstant>
+      <momentConstant>0.015</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>2</motorNumber>
+      <rotorDragCoefficient>5.644996e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>8.499999999999999e-07</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>8.5</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+    <plugin filename="gz-sim-multicopter-motor-model-system" name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_3_joint</jointName>
+      <linkName>rotor_3</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.014516433431244024</timeConstantUp>
+      <timeConstantDown>0.01036100966780836</timeConstantDown>
+      <maxRotVelocity>1000.0</maxRotVelocity>
+      <motorConstant>4.48e-06</motorConstant>
+      <momentConstant>0.015</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>3</motorNumber>
+      <rotorDragCoefficient>5.644996e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>8.499999999999999e-07</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>8.5</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+    <plugin filename="MotorFailurePlugin" name="gz::sim::systems::MotorFailureSystem">
+    </plugin>
+    <plugin filename="BodyFrameDragPlugin" name="BodyFrameDragPlugin">
+      <link_name>base_link</link_name>
+      <linear_drag_coefficients>0 0 0</linear_drag_coefficients>
+      <quadratic_drag_coefficients>0.002074315 0.059582830 0.047513801</quadratic_drag_coefficients>
+      <angular_damping_coefficients>0.000000000 0.000000000 0.000000000</angular_damping_coefficients>
+    </plugin>
+    <plugin filename="SystemIdentificationLoggerPlugin" name="SystemIdentificationLoggerPlugin">
+      <enabled>true</enabled>
+      <base_link_name>base_link</base_link_name>
+      <sample_period_s>0.005</sample_period_s>
+      <command_sub_topic>command/motor_speed</command_sub_topic>
+      <rotor>
+        <motor_number>0</motor_number>
+        <joint_name>rotor_0_joint</joint_name>
+        <link_name>rotor_0</link_name>
+        <turning_direction>ccw</turning_direction>
+        <time_constant_up_s>0.014516433431244024</time_constant_up_s>
+        <time_constant_down_s>0.01036100966780836</time_constant_down_s>
+        <max_rot_velocity_radps>1000.0</max_rot_velocity_radps>
+        <motor_constant>4.48e-06</motor_constant>
+        <moment_constant>0.015</moment_constant>
+        <rotor_drag_coefficient>5.644996e-05</rotor_drag_coefficient>
+        <rolling_moment_coefficient>8.499999999999999e-07</rolling_moment_coefficient>
+        <rotor_velocity_slowdown_sim>8.5</rotor_velocity_slowdown_sim>
+      </rotor>
+      <rotor>
+        <motor_number>1</motor_number>
+        <joint_name>rotor_1_joint</joint_name>
+        <link_name>rotor_1</link_name>
+        <turning_direction>ccw</turning_direction>
+        <time_constant_up_s>0.014516433431244024</time_constant_up_s>
+        <time_constant_down_s>0.01036100966780836</time_constant_down_s>
+        <max_rot_velocity_radps>1000.0</max_rot_velocity_radps>
+        <motor_constant>4.48e-06</motor_constant>
+        <moment_constant>0.015</moment_constant>
+        <rotor_drag_coefficient>5.644996e-05</rotor_drag_coefficient>
+        <rolling_moment_coefficient>8.499999999999999e-07</rolling_moment_coefficient>
+        <rotor_velocity_slowdown_sim>8.5</rotor_velocity_slowdown_sim>
+      </rotor>
+      <rotor>
+        <motor_number>2</motor_number>
+        <joint_name>rotor_2_joint</joint_name>
+        <link_name>rotor_2</link_name>
+        <turning_direction>cw</turning_direction>
+        <time_constant_up_s>0.014516433431244024</time_constant_up_s>
+        <time_constant_down_s>0.01036100966780836</time_constant_down_s>
+        <max_rot_velocity_radps>1000.0</max_rot_velocity_radps>
+        <motor_constant>4.48e-06</motor_constant>
+        <moment_constant>0.015</moment_constant>
+        <rotor_drag_coefficient>5.644996e-05</rotor_drag_coefficient>
+        <rolling_moment_coefficient>8.499999999999999e-07</rolling_moment_coefficient>
+        <rotor_velocity_slowdown_sim>8.5</rotor_velocity_slowdown_sim>
+      </rotor>
+      <rotor>
+        <motor_number>3</motor_number>
+        <joint_name>rotor_3_joint</joint_name>
+        <link_name>rotor_3</link_name>
+        <turning_direction>cw</turning_direction>
+        <time_constant_up_s>0.014516433431244024</time_constant_up_s>
+        <time_constant_down_s>0.01036100966780836</time_constant_down_s>
+        <max_rot_velocity_radps>1000.0</max_rot_velocity_radps>
+        <motor_constant>4.48e-06</motor_constant>
+        <moment_constant>0.015</moment_constant>
+        <rotor_drag_coefficient>5.644996e-05</rotor_drag_coefficient>
+        <rolling_moment_coefficient>8.499999999999999e-07</rolling_moment_coefficient>
+        <rotor_velocity_slowdown_sim>8.5</rotor_velocity_slowdown_sim>
+      </rotor>
+    </plugin>
+  </model>
+</sdf>

@@ -1,0 +1,237 @@
+{
+  "mass": {
+    "mass_kg": 0.8004750009455149,
+    "sample_count": 1788,
+    "std_kg": 0.015822497979268723,
+    "gravity_mps2": 9.80665
+  },
+  "thrust_scale": {
+    "thrust_scale_n_per_cmd": 15.999999999999998,
+    "sample_count": 1788,
+    "rmse_n": 0.3162621785430761,
+    "gravity_mps2": 9.80665
+  },
+  "observability": {
+    "absolute_mass_observable_from_current_logs": false,
+    "mass_anchor_candidates": {
+      "jmavsim_prior_collective_anchor": {
+        "method": "collective_specific_force_gain + prior thrust_scale",
+        "thrust_scale_n_per_cmd": 16.0,
+        "estimated_mass": {
+          "mass_kg": 0.8004750009455149,
+          "sample_count": 1788,
+          "std_kg": 0.015822497979268723,
+          "gravity_mps2": 9.80665
+        }
+      }
+    },
+    "prefer_prior_mass_anchor": true,
+    "prior_hints": {
+      "label": "jmavsim_prior_collective_anchor",
+      "thrust_scale_n_per_cmd": 16.0
+    }
+  },
+  "indirect_observables": {
+    "collective_specific_force_gain_mps2_per_cmd": {
+      "value": 19.988132022987504,
+      "sample_count": 1788,
+      "rmse": 0.39509313616229086
+    },
+    "hover_command_abs_mean": {
+      "value": 0.4902917231543624,
+      "sample_count": 1788,
+      "rmse": 0.0
+    },
+    "specific_drag": {
+      "x": {
+        "value": 0.0025913549711429,
+        "sample_count": 455,
+        "rmse": 0.30082104830031126
+      },
+      "y": {
+        "value": -0.07443434157613645,
+        "sample_count": 417,
+        "rmse": 0.286324953347836
+      },
+      "z": {
+        "value": 0.05935700776411946,
+        "sample_count": 298,
+        "rmse": 0.2229850355752437
+      }
+    }
+  },
+  "inertia": {
+    "x": {
+      "axis": "x",
+      "inertia_kgm2": 0.004373852224946589,
+      "sample_count": 842,
+      "rmse_nm": 0.0014678940378651645
+    },
+    "y": {
+      "axis": "y",
+      "inertia_kgm2": 0.0026550949108569153,
+      "sample_count": 1782,
+      "rmse_nm": 0.001805622958008261
+    },
+    "z": {
+      "axis": "z",
+      "inertia_kgm2": 0.050468379712270015,
+      "sample_count": 2405,
+      "rmse_nm": 0.00028142030567620174
+    }
+  },
+  "drag": {
+    "x": {
+      "axis": "x",
+      "coefficient": 0.0020743148729757757,
+      "sample_count": 455,
+      "rmse_n": 0.24079972892262244
+    },
+    "y": {
+      "axis": "y",
+      "coefficient": -0.059582829643536596,
+      "sample_count": 417,
+      "rmse_n": 0.22919596730183356
+    },
+    "z": {
+      "axis": "z",
+      "coefficient": 0.047513800846106465,
+      "sample_count": 298,
+      "rmse_n": 0.17849394656292888
+    }
+  },
+  "motor_model": {
+    "time_constant_up_s": {
+      "value": 0.01770296759907808,
+      "sample_count": 8,
+      "rmse": 0.0006327156400157636
+    },
+    "time_constant_down_s": {
+      "value": 0.012635377643668733,
+      "sample_count": 7,
+      "rmse": 0.003110764464603456
+    },
+    "max_rot_velocity_radps": {
+      "value": 1000.0,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "motor_constant": {
+      "value": 4e-06,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "moment_constant": {
+      "value": 0.0125,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rotor_drag_coefficient": {
+      "value": 8.06428e-05,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rolling_moment_coefficient": {
+      "value": 1e-06,
+      "sample_count": 0,
+      "rmse": 0.0
+    },
+    "rotor_velocity_slowdown_sim": {
+      "value": 10.0,
+      "sample_count": 0,
+      "rmse": 0.0
+    }
+  },
+  "effective_actuator_dynamics": {
+    "collective_up": {
+      "delay_s": {
+        "value": 0.0,
+        "sample_count": 8,
+        "rmse": 0.008839292253025575
+      },
+      "time_constant_s": {
+        "value": 0.01770296759907808,
+        "sample_count": 8,
+        "rmse": 0.0006327156400157636
+      }
+    },
+    "collective_down": {
+      "delay_s": {
+        "value": 0.018250513962826176,
+        "sample_count": 7,
+        "rmse": 0.015812603385455766
+      },
+      "time_constant_s": {
+        "value": 0.012635377643668733,
+        "sample_count": 7,
+        "rmse": 0.003110764464603456
+      }
+    }
+  },
+  "warnings": [
+    "hover_thrust samples do not contain thrust_n; absolute mass is not directly observable from normalized thrust alone. Using the research-mode prior thrust-scale anchor to convert the identified collective specific-force gain into an estimated mass.",
+    "y-axis inertia estimate used joint diagonal fit because it outperformed the axis-wise fit (rmse 0.0025 -> 0.0018).",
+    "z-axis inertia estimate used joint diagonal fit because it outperformed the axis-wise fit (rmse 0.0004 -> 0.0003).",
+    "motor_constant profile missing; motor_constant set to 0.0 in this estimate.",
+    "moment_constant estimate unusable (no usable rows for ratio estimate using tau_z_nm / yaw_moment_basis_n); moment_constant set to 0.0 in this estimate.",
+    "rotor_drag_coefficient profile missing; rotor_drag_coefficient set to 0.0 in this estimate.",
+    "rolling_moment_coefficient profile missing; rolling_moment_coefficient set to 0.0 in this estimate.",
+    "rotor_velocity_slowdown_sim profile missing; rotor_velocity_slowdown_sim set to 0.0 in this estimate.",
+    "max_rot_velocity_radps estimate unusable (no usable rows for max estimate using observed_max_rot_velocity_radps); max_rot_velocity_radps set to 0.0 in this estimate.",
+    "time_constant_up_s estimate unusable (no usable scalar estimates to combine); time_constant_up_s set to 0.0 in this estimate.",
+    "time_constant_down_s estimate unusable (no usable scalar estimates to combine); time_constant_down_s set to 0.0 in this estimate.",
+    "time_constant_up_s fell back to effective collective step-response dynamics because direct rotor telemetry was unavailable.",
+    "time_constant_down_s fell back to effective collective step-response dynamics because direct rotor telemetry was unavailable.",
+    "Completed-for-SITL hybrid candidate: kept HITL-identified mass/inertia/drag/time-constants and filled still-unobservable SDF motor fields from JMAVSIM_PRIOR_V1 for first-pass validation.",
+    "Bridge calibration geometry preset: x500_scaled_165mm",
+    "Bridge residual calibration candidate: simulator-only geometry/motor overrides for HITL-to-SITL matching."
+  ],
+  "composite_sources": {
+    "mass": "hitl_ident:estimate_mass_anchor",
+    "inertia": "hitl_ident:estimate_mass_anchor",
+    "drag": "hitl_ident:estimate_mass_anchor",
+    "motor_model": "hybrid: identified time constants + JMAVSIM_PRIOR_V1 for unobservable SDF fields",
+    "geometry": "preset:x500_scaled_165mm"
+  },
+  "geometry": {
+    "label": "x500 scaled to jMAVSim 165 mm arm length",
+    "rotor_positions_m": {
+      "rotor_0": [
+        0.11667261889578034,
+        -0.11667261889578034,
+        0.06
+      ],
+      "rotor_1": [
+        -0.11667261889578034,
+        0.11667261889578034,
+        0.06
+      ],
+      "rotor_2": [
+        0.11667261889578034,
+        0.11667261889578034,
+        0.06
+      ],
+      "rotor_3": [
+        -0.11667261889578034,
+        -0.11667261889578034,
+        0.06
+      ]
+    },
+    "turning_directions": {
+      "motor_0": "ccw",
+      "motor_1": "ccw",
+      "motor_2": "cw",
+      "motor_3": "cw"
+    }
+  },
+  "simulator_residuals": {
+    "body_velocity_decay_linear": 0.0,
+    "body_velocity_decay_angular": 0.0,
+    "body_drag_scale_x": 1.5,
+    "body_drag_scale_y": 1.5,
+    "body_drag_scale_z": 1.0,
+    "body_angular_damping_x": 0.0,
+    "body_angular_damping_y": 0.0,
+    "body_angular_damping_z": 0.0
+  }
+}

@@ -1,0 +1,52 @@
+[
+  {
+    "case": "lemniscate",
+    "repeat": 1,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/lemniscate/tracking_logs/repeat_01.csv"
+  },
+  {
+    "case": "lemniscate",
+    "repeat": 2,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/lemniscate/tracking_logs/repeat_02.csv"
+  },
+  {
+    "case": "lemniscate",
+    "repeat": 3,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/lemniscate/tracking_logs/repeat_03.csv"
+  },
+  {
+    "case": "lemniscate",
+    "repeat": 4,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/lemniscate/tracking_logs/repeat_04.csv"
+  },
+  {
+    "case": "lemniscate",
+    "repeat": 5,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/lemniscate/tracking_logs/repeat_05.csv"
+  },
+  {
+    "case": "hairpin",
+    "repeat": 1,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/tracking_logs/repeat_01.csv"
+  },
+  {
+    "case": "hairpin",
+    "repeat": 2,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/tracking_logs/repeat_02.csv"
+  },
+  {
+    "case": "hairpin",
+    "repeat": 3,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/tracking_logs/repeat_03.csv"
+  },
+  {
+    "case": "hairpin",
+    "repeat": 4,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/tracking_logs/repeat_04.csv"
+  },
+  {
+    "case": "hairpin",
+    "repeat": 5,
+    "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/tracking_logs/repeat_05.csv"
+  }
+]

@@ -267,6 +267,10 @@ def main() -> int:
             latest_lpos, latest_att, max_xy, max_z_err, max_tilt, failsafe = observe_ident(
                 mav,
                 duration_s=identification_duration_s(profile) + args.ident_tail_seconds,
+                profile=profile,
+                anchor_x=hold_x,
+                anchor_y=hold_y,
+                anchor_z=hold_z,
                 ref_z=hold_z,
                 report_period=args.report_period,
             )

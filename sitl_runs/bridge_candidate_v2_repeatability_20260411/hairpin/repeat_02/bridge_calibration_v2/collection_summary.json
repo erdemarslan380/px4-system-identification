@@ -1,0 +1,16 @@
+{
+  "px4_root": "/home/earsub/PX4-Autopilot-Identification",
+  "candidate_dir": "/home/earsub/px4-system-identification/docs/hitl_validation/_generated/candidates/lemniscate_calibrated_bridge_v2",
+  "model_label": "bridge_calibration_v2",
+  "model_name": "x500_bridge_calibrated_v2",
+  "dataset_root": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_02/bridge_calibration_v2",
+  "cases": [
+    {
+      "name": "hairpin",
+      "traj_id": 100,
+      "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/bridge_candidate_v2_repeatability_20260411/hairpin/repeat_02/bridge_calibration_v2/tracking_logs/hairpin.csv",
+      "ok": true,
+      "error": null
+    }
+  ]
+}

@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--endpoint", default="udpin:127.0.0.1:14550")
     p.add_argument("--baud", type=int, default=57600)
     p.add_argument("--profile", choices=sorted(IDENTIFICATION_PROFILES), default="hover_thrust")
-    p.add_argument("--hover-z", type=float, default=-3.0)
+    p.add_argument("--hover-z", type=float, default=-5.0)
     p.add_argument("--ramp-seconds", type=float, default=8.0)
     p.add_argument("--takeoff-timeout", type=float, default=45.0)
     p.add_argument("--takeoff-settle-seconds", type=float, default=2.0)
@@ -56,10 +56,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--takeoff-max-vert-speed", type=float, default=0.10)
     p.add_argument("--takeoff-tilt-limit-deg", type=float, default=5.0)
     p.add_argument("--pre-offboard-seconds", type=float, default=2.0)
-    p.add_argument("--direct-settle-seconds", type=float, default=2.0)
-    p.add_argument("--custom-handover-seconds", type=float, default=2.0)
-    p.add_argument("--custom-hold-seconds", type=float, default=5.0)
-    p.add_argument("--ident-tail-seconds", type=float, default=8.0)
+    p.add_argument("--direct-settle-seconds", type=float, default=1.5)
+    p.add_argument("--custom-handover-seconds", type=float, default=1.5)
+    p.add_argument("--custom-hold-seconds", type=float, default=3.0)
+    p.add_argument("--ident-tail-seconds", type=float, default=4.0)
     p.add_argument("--setpoint-period", type=float, default=0.05)
     p.add_argument("--report-period", type=float, default=0.5)
     p.add_argument("--arm-attempts", type=int, default=3)
@@ -79,71 +79,145 @@ def parse_args() -> argparse.Namespace:
 
 
 def identification_relative_position(profile: str, t_s: float) -> tuple[float, float, float]:
-    two_pi = 2.0 * math.pi
-    phase_s = 0.0
-    if profile == "roll_sweep":
-        phase_s = 6.4080236
-    elif profile == "pitch_sweep":
-        phase_s = 6.457
+    duration_s = identification_duration_s(profile)
+
+    def identification_window01(u: float) -> float:
+        clamped = max(0.0, min(1.0, u))
+        s = math.sin(math.pi * clamped)
+        return s * s
+
+    def windowed_multisine(amplitudes: tuple[float, ...], cycles: tuple[float, ...]) -> float:
+        if duration_s <= 0.0:
+            return 0.0
+        u = max(0.0, min(1.0, t_s / duration_s))
+        window = identification_window01(u)
+        value = 0.0
+        for amplitude, cycle in zip(amplitudes, cycles):
+            value += amplitude * math.sin(2.0 * math.pi * cycle * u)
+        return window * value
+
+    def integrate_velocity_transition(tau_s: float, segment_s: float, v0: float, v1: float) -> float:
+        if segment_s <= 1e-4:
+            return 0.5 * (v0 + v1) * max(tau_s, 0.0)
+        tau = max(0.0, min(segment_s, tau_s))
+        return v0 * tau + (v1 - v0) * (0.5 * tau - segment_s / (2.0 * math.pi) * math.sin(math.pi * tau / segment_s))
+
+    def symmetric_velocity_cycle_position(ramp_s: float, hold_s: float, dwell_s: float, cruise_v: float) -> float:
+        seg_accel_pos_end = ramp_s
+        seg_hold_pos_end = seg_accel_pos_end + hold_s
+        seg_decel_pos_end = seg_hold_pos_end + ramp_s
+        seg_dwell_end = seg_decel_pos_end + dwell_s
+        seg_accel_neg_end = seg_dwell_end + ramp_s
+        seg_hold_neg_end = seg_accel_neg_end + hold_s
+        seg_decel_neg_end = seg_hold_neg_end + ramp_s
+        distance_positive = cruise_v * (ramp_s + hold_s)
+        t = max(t_s, 0.0)
+
+        if t < seg_accel_pos_end:
+            return integrate_velocity_transition(t, ramp_s, 0.0, cruise_v)
+        if t < seg_hold_pos_end:
+            return 0.5 * cruise_v * ramp_s + cruise_v * (t - seg_accel_pos_end)
+        if t < seg_decel_pos_end:
+            tau = t - seg_hold_pos_end
+            return 0.5 * cruise_v * ramp_s + cruise_v * hold_s + integrate_velocity_transition(tau, ramp_s, cruise_v, 0.0)
+        if t < seg_dwell_end:
+            return distance_positive
+        if t < seg_accel_neg_end:
+            tau = t - seg_dwell_end
+            return distance_positive + integrate_velocity_transition(tau, ramp_s, 0.0, -cruise_v)
+        if t < seg_hold_neg_end:
+            return distance_positive - 0.5 * cruise_v * ramp_s - cruise_v * (t - seg_accel_neg_end)
+        if t < seg_decel_neg_end:
+            tau = t - seg_hold_neg_end
+            return 0.5 * cruise_v * ramp_s + integrate_velocity_transition(tau, ramp_s, -cruise_v, 0.0)
+        return 0.0
+
+    def leveled_step_sequence_position(segment_s: float, sequence: tuple[float, ...]) -> float:
+        idx = max(0, min(int(math.floor(max(t_s, 0.0) / segment_s)), len(sequence) - 1))
+        return sequence[idx]
+
     if profile == "hover_thrust":
         return (
             0.0,
             0.0,
-            0.35 * math.sin(two_pi * 0.12 * t_s) + 0.18 * math.sin(two_pi * 0.27 * t_s),
+            windowed_multisine((0.24, 0.10, 0.05), (2.0, 4.0, 6.0)),
         )
     if profile == "roll_sweep":
-        s0 = (
-            0.60 * math.sin(two_pi * 0.09 * phase_s)
-            + 0.28 * math.sin(two_pi * 0.19 * phase_s)
-            + 0.12 * math.sin(two_pi * 0.31 * phase_s)
-        )
-        s = (
-            0.60 * math.sin(two_pi * 0.09 * (t_s + phase_s))
-            + 0.28 * math.sin(two_pi * 0.19 * (t_s + phase_s))
-            + 0.12 * math.sin(two_pi * 0.31 * (t_s + phase_s))
-        )
         return (
             0.0,
-            s - s0,
+            windowed_multisine((0.42, 0.18, 0.08), (1.5, 3.0, 5.0)),
             0.0,
         )
     if profile == "pitch_sweep":
-        s0 = (
-            0.60 * math.sin(two_pi * 0.09 * phase_s)
-            + 0.28 * math.sin(two_pi * 0.19 * phase_s)
-            + 0.12 * math.sin(two_pi * 0.31 * phase_s)
-        )
-        s = (
-            0.60 * math.sin(two_pi * 0.09 * (t_s + phase_s))
-            + 0.28 * math.sin(two_pi * 0.19 * (t_s + phase_s))
-            + 0.12 * math.sin(two_pi * 0.31 * (t_s + phase_s))
-        )
         return (
-            s - s0,
+            windowed_multisine((0.42, 0.18, 0.08), (1.5, 3.0, 5.0)),
             0.0,
             0.0,
         )
     if profile == "yaw_sweep":
         return (0.0, 0.0, 0.0)
     if profile == "drag_x":
-        return (1.20 * math.sin(two_pi * 0.08 * t_s), 0.0, 0.0)
+        return (symmetric_velocity_cycle_position(2.5, 1.5, 1.0, 0.60), 0.0, 0.0)
     if profile == "drag_y":
-        return (0.0, 1.20 * math.sin(two_pi * 0.08 * t_s), 0.0)
+        return (0.0, symmetric_velocity_cycle_position(2.5, 1.5, 1.0, 0.60), 0.0)
     if profile == "drag_z":
-        return (0.0, 0.0, 0.50 * math.sin(two_pi * 0.09 * t_s))
+        return (0.0, 0.0, symmetric_velocity_cycle_position(1.8, 1.0, 0.8, 0.32))
     if profile == "mass_vertical":
         return (
             0.0,
             0.0,
-            0.55 * math.sin(two_pi * 0.08 * t_s)
-            + 0.35 * math.sin(two_pi * 0.17 * t_s)
-            + 0.18 * math.sin(two_pi * 0.29 * t_s)
-            + 0.10 * math.sin(two_pi * 0.41 * t_s),
+            windowed_multisine((0.34, 0.18, 0.10), (2.0, 4.0, 6.0)),
         )
     if profile == "motor_step":
-        sequence = (0.00, 0.06, -0.02, 0.11, -0.04, 0.16, -0.06, 0.00)
-        segment = max(0, min(int(math.floor(t_s / 2.5)), len(sequence) - 1))
-        return (0.0, 0.0, sequence[segment])
+        sequence = (0.00, 0.05, 0.00, -0.03, 0.00, 0.08, 0.00, -0.05, 0.00, 0.03)
+        return (0.0, 0.0, leveled_step_sequence_position(1.4, sequence))
+    if profile == "actuator_lag_collective":
+        sequence = (0.00, 0.04, -0.04, 0.06, -0.06, 0.08, -0.08, 0.10, -0.10, 0.05, -0.05, 0.00)
+        return (0.0, 0.0, leveled_step_sequence_position(1.0, sequence))
+    if profile == "bridge_probe_xy":
+        def shifted_cycle(start_s: float) -> float:
+            ramp_s = 1.0
+            hold_s = 0.75
+            dwell_s = 0.5
+            cycle_duration_s = 4.0 * ramp_s + 2.0 * hold_s + dwell_s
+            if t_s < start_s or t_s >= start_s + cycle_duration_s:
+                return 0.0
+            local_t = t_s - start_s
+
+            seg_accel_pos_end = ramp_s
+            seg_hold_pos_end = seg_accel_pos_end + hold_s
+            seg_decel_pos_end = seg_hold_pos_end + ramp_s
+            seg_dwell_end = seg_decel_pos_end + dwell_s
+            seg_accel_neg_end = seg_dwell_end + ramp_s
+            seg_hold_neg_end = seg_accel_neg_end + hold_s
+            seg_decel_neg_end = seg_hold_neg_end + ramp_s
+            cruise_v = 0.70
+            distance_positive = cruise_v * (ramp_s + hold_s)
+
+            if local_t < seg_accel_pos_end:
+                return integrate_velocity_transition(local_t, ramp_s, 0.0, cruise_v)
+            if local_t < seg_hold_pos_end:
+                return 0.5 * cruise_v * ramp_s + cruise_v * (local_t - seg_accel_pos_end)
+            if local_t < seg_decel_pos_end:
+                tau = local_t - seg_hold_pos_end
+                return 0.5 * cruise_v * ramp_s + cruise_v * hold_s + integrate_velocity_transition(tau, ramp_s, cruise_v, 0.0)
+            if local_t < seg_dwell_end:
+                return distance_positive
+            if local_t < seg_accel_neg_end:
+                tau = local_t - seg_dwell_end
+                return distance_positive + integrate_velocity_transition(tau, ramp_s, 0.0, -cruise_v)
+            if local_t < seg_hold_neg_end:
+                return distance_positive - 0.5 * cruise_v * ramp_s - cruise_v * (local_t - seg_accel_neg_end)
+            if local_t < seg_decel_neg_end:
+                tau = local_t - seg_hold_neg_end
+                return 0.5 * cruise_v * ramp_s + integrate_velocity_transition(tau, ramp_s, -cruise_v, 0.0)
+            return 0.0
+
+        return (
+            shifted_cycle(0.0),
+            shifted_cycle(6.0),
+            0.0,
+        )
     return (0.0, 0.0, 0.0)
 
 

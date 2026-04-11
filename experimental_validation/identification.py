@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
 
@@ -13,6 +14,7 @@ from experimental_validation.estimators import (
     DragEstimate,
     HoverMassEstimate,
     ScalarEstimate,
+    StepResponseDynamicsEstimate,
     ThrustScaleEstimate,
     estimate_axis_inertia,
     estimate_axis_inertia_with_coupling,
@@ -22,6 +24,7 @@ from experimental_validation.estimators import (
     estimate_proportional_scale,
     estimate_quadratic_drag,
     estimate_ratio,
+    estimate_step_response_dynamics,
     estimate_thrust_scale,
     estimate_time_constant,
     load_numeric_csv,
@@ -54,7 +57,15 @@ def _load_profile_strings(path: str | Path) -> list[str]:
     for line in text_rows[1:]:
         if not line.strip():
             continue
+        if line.startswith(("INFO ", "WARN ", "ERROR ")):
+            continue
         parts = [part.strip() for part in line.split(",")]
+        if not parts:
+            continue
+        try:
+            float(parts[0])
+        except (TypeError, ValueError):
+            continue
         values.append(parts[profile_index] if profile_index < len(parts) else "")
     return values
 
@@ -118,15 +129,13 @@ def _expand_truth_rows(
     ident_idx = 0
     out: list[dict[str, float | str]] = []
 
-    passthrough_keys = (
+    rotor_indices = _detect_rotor_indices(identification_rows)
+    passthrough_keys = [
         "profile",
         "thrust_cmd",
-        "motor_0",
-        "motor_1",
-        "motor_2",
-        "motor_3",
         "controller",
-    )
+        *[f"motor_{i}" for i in rotor_indices],
+    ]
 
     for truth_row, truth_time in zip(truth_rows, truth_times):
         while ident_idx + 1 < len(identification_rows):
@@ -201,6 +210,8 @@ def load_identification_csv(
 
 
 def _apply_identification_aliases(rows: list[dict[str, float | str]]) -> None:
+    rotor_indices = _detect_rotor_indices(rows)
+
     def _finite_or_none(value: object) -> float | None:
         try:
             numeric = float(value)
@@ -211,25 +222,14 @@ def _apply_identification_aliases(rows: list[dict[str, float | str]]) -> None:
     global_max_rot_velocity = 0.0
     global_max_rotor_command = 0.0
     for row in rows:
-        for key in (
-            "observed_max_rot_velocity_radps",
-            "rotor_0_actual_radps",
-            "rotor_1_actual_radps",
-            "rotor_2_actual_radps",
-            "rotor_3_actual_radps",
-        ):
+        for key in ["observed_max_rot_velocity_radps", *[f"rotor_{i}_actual_radps" for i in rotor_indices]]:
             value = row.get(key)
             if value is None:
                 continue
             value = float(value)
             if math.isfinite(value):
                 global_max_rot_velocity = max(global_max_rot_velocity, abs(value))
-        for key in (
-            "rotor_0_cmd_radps",
-            "rotor_1_cmd_radps",
-            "rotor_2_cmd_radps",
-            "rotor_3_cmd_radps",
-        ):
+        for key in [f"rotor_{i}_cmd_radps" for i in rotor_indices]:
             value = _finite_or_none(row.get(key))
             if value is not None:
                 global_max_rotor_command = max(global_max_rotor_command, abs(value))
@@ -273,6 +273,12 @@ def _apply_identification_aliases(rows: list[dict[str, float | str]]) -> None:
             row.setdefault("tau_y_nm", float(row["total_torque_body_y_nm"]))
         if "total_torque_body_z_nm" in row:
             row.setdefault("tau_z_nm", float(row["total_torque_body_z_nm"]))
+        if "torque_sp_roll" in row and "tau_x_nm" not in row:
+            row["tau_x_nm"] = float(row["torque_sp_roll"])
+        if "torque_sp_pitch" in row and "tau_y_nm" not in row:
+            row["tau_y_nm"] = float(row["torque_sp_pitch"])
+        if "torque_sp_yaw" in row and "tau_z_nm" not in row:
+            row["tau_z_nm"] = float(row["torque_sp_yaw"])
         if "p_dot_body" in row and "p_dot_radps2" not in row:
             row["p_dot_radps2"] = float(row["p_dot_body"])
         if "q_dot_body" in row and "q_dot_radps2" not in row:
@@ -284,13 +290,14 @@ def _apply_identification_aliases(rows: list[dict[str, float | str]]) -> None:
             row["thrust_cmd"] = abs(float(row["rate_sp_thrust_z"]))
         elif "att_sp_thrust_z" in row and "thrust_cmd" not in row:
             row["thrust_cmd"] = abs(float(row["att_sp_thrust_z"]))
-        elif all(key in row for key in ("motor_0", "motor_1", "motor_2", "motor_3")) and "thrust_cmd" not in row:
-            row["thrust_cmd"] = (
-                abs(float(row["motor_0"])) +
-                abs(float(row["motor_1"])) +
-                abs(float(row["motor_2"])) +
-                abs(float(row["motor_3"]))
-            ) / 4.0
+        elif "thrust_cmd" not in row:
+            motor_values = [
+                abs(float(row[f"motor_{i}"]))
+                for i in rotor_indices
+                if f"motor_{i}" in row
+            ]
+            if motor_values:
+                row["thrust_cmd"] = sum(motor_values) / len(motor_values)
 
         effective_max_rot = max(
             global_max_rot_velocity,
@@ -298,7 +305,7 @@ def _apply_identification_aliases(rows: list[dict[str, float | str]]) -> None:
             1.0,
         )
         normalized_rotor_commands = 0.0 < global_max_rotor_command <= 1.5 and effective_max_rot > 10.0
-        for rotor_index in range(4):
+        for rotor_index in rotor_indices:
             motor_key = f"motor_{rotor_index}"
             cmd_key = f"rotor_{rotor_index}_cmd_radps"
             inferred_key = f"rotor_{rotor_index}_cmd_inferred"
@@ -323,7 +330,7 @@ def _apply_identification_aliases(rows: list[dict[str, float | str]]) -> None:
         if "collective_cmd_radps" not in row:
             command_values = [
                 float(row[key])
-                for key in (f"rotor_{i}_cmd_radps" for i in range(4))
+                for key in (f"rotor_{i}_cmd_radps" for i in rotor_indices)
                 if key in row and math.isfinite(float(row[key]))
             ]
             if command_values:
@@ -331,7 +338,7 @@ def _apply_identification_aliases(rows: list[dict[str, float | str]]) -> None:
         if "collective_actual_radps" not in row:
             actual_values = [
                 float(row[key])
-                for key in (f"rotor_{i}_actual_radps" for i in range(4))
+                for key in (f"rotor_{i}_actual_radps" for i in rotor_indices)
                 if key in row and math.isfinite(float(row[key]))
             ]
             if actual_values:
@@ -419,6 +426,63 @@ def _apply_identification_aliases(rows: list[dict[str, float | str]]) -> None:
                 row.setdefault("pitch_torque_proxy", (m0 + m1) - (m2 + m3))
                 row.setdefault("yaw_torque_proxy", (-m0 + m1 - m2 + m3))
 
+        def _derive_linear_accel(velocity_column: str, accel_column: str, alias_column: str) -> None:
+            for index, row in enumerate(profile_rows):
+                if velocity_column not in row:
+                    continue
+                prev_index = index - 1
+                next_index = index + 1
+                derived: float | None = None
+
+                if prev_index >= 0 and next_index < len(profile_rows):
+                    prev_row = profile_rows[prev_index]
+                    next_row = profile_rows[next_index]
+                    if velocity_column in prev_row and velocity_column in next_row:
+                        dt = float(next_row.get("t_s", 0.0)) - float(prev_row.get("t_s", 0.0))
+                        if dt > 1e-6:
+                            derived = (float(next_row[velocity_column]) - float(prev_row[velocity_column])) / dt
+
+                if derived is None and prev_index >= 0:
+                    prev_row = profile_rows[prev_index]
+                    if velocity_column in prev_row:
+                        dt = float(row.get("t_s", 0.0)) - float(prev_row.get("t_s", 0.0))
+                        if dt > 1e-6:
+                            derived = (float(row[velocity_column]) - float(prev_row[velocity_column])) / dt
+
+                if derived is None:
+                    continue
+
+                current = _finite_or_none(row.get(accel_column))
+                if current is None or abs(current) <= 1e-6:
+                    row[accel_column] = derived
+                    row[alias_column] = derived
+
+        _derive_linear_accel("vx_mps", "ax_world_mps2", "ax_drag_mps2")
+        _derive_linear_accel("vy_mps", "ay_world_mps2", "ay_drag_mps2")
+        _derive_linear_accel("vz_mps", "az_world_mps2", "az_drag_mps2")
+
+        for row in profile_rows:
+            if "ax_world_mps2" in row and ("ax" not in row or abs(_finite_or_none(row.get("ax")) or 0.0) <= 1e-6):
+                row["ax"] = float(row["ax_world_mps2"])
+            if "ay_world_mps2" in row and ("ay" not in row or abs(_finite_or_none(row.get("ay")) or 0.0) <= 1e-6):
+                row["ay"] = float(row["ay_world_mps2"])
+            if "az_world_mps2" in row and ("az" not in row or abs(_finite_or_none(row.get("az")) or 0.0) <= 1e-6):
+                row["az"] = float(row["az_world_mps2"])
+            if "az_world_mps2" in row and "collective_response_up_mps2" not in row:
+                row["collective_response_up_mps2"] = -float(row["az_world_mps2"])
+
+
+def _detect_rotor_indices(rows: Iterable[dict[str, float | str]]) -> list[int]:
+    indices: set[int] = set()
+    for row in rows:
+        for key in row.keys():
+            match = re.match(r"^(?:motor|rotor|esc)_(\d+)(?:_|$)", str(key))
+            if match:
+                indices.add(int(match.group(1)))
+    if not indices:
+        return [0, 1, 2, 3]
+    return sorted(indices)
+
 
 def _zero_inertia(axis: str) -> AxisInertiaEstimate:
     return AxisInertiaEstimate(axis=axis, inertia_kgm2=0.0, sample_count=0, rmse_nm=0.0)
@@ -430,6 +494,34 @@ def _zero_drag(axis: str) -> DragEstimate:
 
 def _zero_scalar() -> ScalarEstimate:
     return ScalarEstimate(value=0.0, sample_count=0, rmse=0.0)
+
+
+def _zero_step_response_dynamics() -> StepResponseDynamicsEstimate:
+    return StepResponseDynamicsEstimate(delay_s=_zero_scalar(), time_constant_s=_zero_scalar())
+
+
+def _estimate_mass_from_collective_gain_anchor(
+    specific_force_gain: ScalarEstimate,
+    *,
+    thrust_scale_n_per_cmd: float,
+) -> HoverMassEstimate | None:
+    if specific_force_gain.sample_count <= 0:
+        return None
+    gain = float(specific_force_gain.value)
+    thrust_scale = float(thrust_scale_n_per_cmd)
+    if not math.isfinite(gain) or not math.isfinite(thrust_scale):
+        return None
+    if abs(gain) <= 1e-6 or thrust_scale <= 0.0:
+        return None
+
+    mass_kg = thrust_scale / gain
+    propagated_rmse = abs(thrust_scale) * float(specific_force_gain.rmse) / max(abs(gain) ** 2, 1e-9)
+    return HoverMassEstimate(
+        mass_kg=mass_kg,
+        sample_count=specific_force_gain.sample_count,
+        std_kg=propagated_rmse,
+        gravity_mps2=GRAVITY_MPS2,
+    )
 
 
 def _truth_values(rows: list[dict[str, float]], column: str) -> list[float]:
@@ -597,6 +689,41 @@ def _safe_drag_estimate(
         return _zero_drag(axis)
 
 
+def _safe_specific_drag_estimate(
+    rows: list[dict[str, float]],
+    axis: str,
+    velocity_column: str,
+    accel_column: str,
+    warnings: list[str],
+) -> ScalarEstimate:
+    if not rows:
+        warnings.append(f"specific_drag_{axis} profile missing; specific_drag_{axis} set to 0.0 in this estimate.")
+        return _zero_scalar()
+    try:
+        return estimate_proportional_scale(
+            [
+                {
+                    "feature": abs(float(row[velocity_column])) * float(row[velocity_column]),
+                    "target": -float(row[accel_column]),
+                }
+                for row in rows
+                if row.get(velocity_column) is not None
+                and row.get(accel_column) is not None
+                and math.isfinite(float(row[velocity_column]))
+                and math.isfinite(float(row[accel_column]))
+                and abs(float(row[velocity_column])) >= 0.1
+            ],
+            feature_column="feature",
+            target_column="target",
+            min_feature_abs=1e-6,
+        )
+    except ValueError as exc:
+        warnings.append(
+            f"specific_drag_{axis} estimate unusable ({exc}); specific_drag_{axis} set to 0.0 in this estimate."
+        )
+        return _zero_scalar()
+
+
 def _safe_scalar_estimate(rows: list[dict[str, float]], label: str, warnings: list[str], func, *args, **kwargs) -> ScalarEstimate:
     if not rows:
         warnings.append(f"{label} profile missing; {label} set to 0.0 in this estimate.")
@@ -606,6 +733,205 @@ def _safe_scalar_estimate(rows: list[dict[str, float]], label: str, warnings: li
     except ValueError as exc:
         warnings.append(f"{label} estimate unusable ({exc}); {label} set to 0.0 in this estimate.")
         return _zero_scalar()
+
+
+def _safe_step_response_dynamics_estimate(
+    rows: list[dict[str, float]],
+    *,
+    direction: str,
+    warnings: list[str],
+) -> StepResponseDynamicsEstimate:
+    if not rows:
+        warnings.append(
+            f"effective collective {direction} dynamics profile missing; effective collective {direction} dynamics set to 0.0 in this estimate."
+        )
+        return _zero_step_response_dynamics()
+    try:
+        return estimate_step_response_dynamics(
+            rows,
+            time_column="t_s",
+            command_column="thrust_cmd",
+            response_column="collective_response_up_mps2",
+            direction=direction,
+        )
+    except ValueError as exc:
+        warnings.append(
+            f"effective collective {direction} dynamics estimate unusable ({exc}); effective collective {direction} dynamics set to 0.0 in this estimate."
+        )
+        return _zero_step_response_dynamics()
+
+
+def _bridge_probe_axis_rows(
+    rows: list[dict[str, float]],
+    *,
+    axis: str,
+    sign: str = "all",
+    min_ref_accel_abs: float = 0.20,
+    dominance_ratio: float = 1.2,
+) -> list[dict[str, float]]:
+    axis = str(axis).lower()
+    sign = str(sign).lower()
+    if axis not in {"x", "y"}:
+        return []
+
+    feature_key = f"ref_a{axis}"
+    other_axis = "y" if axis == "x" else "x"
+    other_feature_key = f"ref_a{other_axis}"
+    out: list[dict[str, float]] = []
+
+    for row in rows:
+        feature = row.get(feature_key)
+        if feature is None:
+            continue
+        feature = float(feature)
+        if not math.isfinite(feature) or abs(feature) < min_ref_accel_abs:
+            continue
+
+        other = float(row.get(other_feature_key, 0.0) or 0.0)
+        vertical = float(row.get("ref_az", 0.0) or 0.0)
+        if abs(feature) < dominance_ratio * max(abs(other), abs(vertical)):
+            continue
+
+        if sign == "positive" and feature <= 0.0:
+            continue
+        if sign == "negative" and feature >= 0.0:
+            continue
+        out.append(row)
+
+    return out
+
+
+def _safe_bridge_probe_axis_scale(
+    rows: list[dict[str, float]],
+    *,
+    axis: str,
+    feature_column: str,
+    target_column: str,
+    warnings: list[str],
+    sign: str = "all",
+    min_feature_abs: float = 0.05,
+) -> ScalarEstimate:
+    dominant_rows = _bridge_probe_axis_rows(rows, axis=axis, sign=sign)
+    label = f"bridge_probe_{axis}_{target_column}_{sign}"
+    if not dominant_rows:
+        return _zero_scalar()
+    try:
+        return estimate_proportional_scale(
+            dominant_rows,
+            feature_column=feature_column,
+            target_column=target_column,
+            min_feature_abs=min_feature_abs,
+        )
+    except ValueError as exc:
+        warnings.append(f"{label} unusable ({exc}); set to 0.0 in this estimate.")
+        return _zero_scalar()
+
+
+def _estimate_bridge_probe_observables(
+    rows: list[dict[str, float]],
+    warnings: list[str],
+) -> dict[str, object]:
+    if not rows:
+        return {
+            "available": False,
+            "x": {
+                "velocity_scale": _zero_scalar().as_dict(),
+                "accel_scale": _zero_scalar().as_dict(),
+                "accel_scale_positive": _zero_scalar().as_dict(),
+                "accel_scale_negative": _zero_scalar().as_dict(),
+            },
+            "y": {
+                "velocity_scale": _zero_scalar().as_dict(),
+                "accel_scale": _zero_scalar().as_dict(),
+                "accel_scale_positive": _zero_scalar().as_dict(),
+                "accel_scale_negative": _zero_scalar().as_dict(),
+            },
+        }
+
+    x_velocity_scale = _safe_bridge_probe_axis_scale(
+        rows,
+        axis="x",
+        feature_column="ref_vx",
+        target_column="vx_mps",
+        warnings=warnings,
+        min_feature_abs=0.05,
+    )
+    y_velocity_scale = _safe_bridge_probe_axis_scale(
+        rows,
+        axis="y",
+        feature_column="ref_vy",
+        target_column="vy_mps",
+        warnings=warnings,
+        min_feature_abs=0.05,
+    )
+    x_accel_scale = _safe_bridge_probe_axis_scale(
+        rows,
+        axis="x",
+        feature_column="ref_ax",
+        target_column="ax_world_mps2",
+        warnings=warnings,
+        min_feature_abs=0.10,
+    )
+    y_accel_scale = _safe_bridge_probe_axis_scale(
+        rows,
+        axis="y",
+        feature_column="ref_ay",
+        target_column="ay_world_mps2",
+        warnings=warnings,
+        min_feature_abs=0.10,
+    )
+    x_accel_scale_positive = _safe_bridge_probe_axis_scale(
+        rows,
+        axis="x",
+        feature_column="ref_ax",
+        target_column="ax_world_mps2",
+        warnings=warnings,
+        sign="positive",
+        min_feature_abs=0.10,
+    )
+    x_accel_scale_negative = _safe_bridge_probe_axis_scale(
+        rows,
+        axis="x",
+        feature_column="ref_ax",
+        target_column="ax_world_mps2",
+        warnings=warnings,
+        sign="negative",
+        min_feature_abs=0.10,
+    )
+    y_accel_scale_positive = _safe_bridge_probe_axis_scale(
+        rows,
+        axis="y",
+        feature_column="ref_ay",
+        target_column="ay_world_mps2",
+        warnings=warnings,
+        sign="positive",
+        min_feature_abs=0.10,
+    )
+    y_accel_scale_negative = _safe_bridge_probe_axis_scale(
+        rows,
+        axis="y",
+        feature_column="ref_ay",
+        target_column="ay_world_mps2",
+        warnings=warnings,
+        sign="negative",
+        min_feature_abs=0.10,
+    )
+
+    return {
+        "available": True,
+        "x": {
+            "velocity_scale": x_velocity_scale.as_dict(),
+            "accel_scale": x_accel_scale.as_dict(),
+            "accel_scale_positive": x_accel_scale_positive.as_dict(),
+            "accel_scale_negative": x_accel_scale_negative.as_dict(),
+        },
+        "y": {
+            "velocity_scale": y_velocity_scale.as_dict(),
+            "accel_scale": y_accel_scale.as_dict(),
+            "accel_scale_positive": y_accel_scale_positive.as_dict(),
+            "accel_scale_negative": y_accel_scale_negative.as_dict(),
+        },
+    }
 
 
 def _combine_scalar_estimates(estimates: Sequence[ScalarEstimate]) -> ScalarEstimate:
@@ -618,12 +944,17 @@ def _combine_scalar_estimates(estimates: Sequence[ScalarEstimate]) -> ScalarEsti
     return ScalarEstimate(value=weighted_value, sample_count=total_samples, rmse=weighted_rmse)
 
 
-def _extract_rotor_rows(rows: Iterable[dict[str, float]], rotor_count: int = 4) -> list[dict[str, float]]:
+def _extract_rotor_rows(
+    rows: Iterable[dict[str, float]],
+    rotor_indices: Sequence[int] | None = None,
+) -> list[dict[str, float]]:
+    rows = list(rows)
     out: list[dict[str, float]] = []
+    rotor_indices = list(rotor_indices) if rotor_indices is not None else _detect_rotor_indices(rows)
     for row in rows:
         t_s = float(row.get("t_s", 0.0))
         run_index = float(row.get("run_index", 0.0))
-        for rotor_index in range(rotor_count):
+        for rotor_index in rotor_indices:
             cmd_key = f"rotor_{rotor_index}_cmd_radps"
             joint_key = f"rotor_{rotor_index}_joint_vel_radps"
             actual_key = f"rotor_{rotor_index}_actual_radps"
@@ -770,7 +1101,8 @@ def _estimate_rotor_time_constant(rotor_rows: list[dict[str, float]], direction:
         except ValueError:
             return None
 
-    for rotor_index in range(4):
+    rotor_indices = sorted({int(row.get("rotor", -1)) for row in rotor_rows if int(row.get("rotor", -1)) >= 0})
+    for rotor_index in rotor_indices:
         per_rotor_all = [row for row in rotor_rows if int(row.get("rotor", -1)) == rotor_index]
         if len(per_rotor_all) < 2:
             continue
@@ -799,15 +1131,71 @@ def _combined_profile_rows(grouped: Dict[str, list[dict[str, float]]], *names: s
     return out
 
 
-def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float | str]]) -> dict:
+def estimate_parameters_from_identification_log(
+    rows: Iterable[dict[str, float | str]],
+    *,
+    prior_hints: dict | None = None,
+    prefer_prior_mass_anchor: bool = False,
+) -> dict:
     normalized_rows = [dict(row) for row in rows]
     _apply_identification_aliases(normalized_rows)
     grouped = split_rows_by_profile(normalized_rows)
     warnings: list[str] = []
+    prior_hints = dict(prior_hints or {})
 
     numeric_rows = [dict(row) for profile_rows in grouped.values() for row in profile_rows]
     hover_rows = _combined_profile_rows(grouped, "hover_thrust", "hover", "mass_vertical")
+    specific_force_gain = _zero_scalar()
+    hover_command_mean = _zero_scalar()
+    mass_anchor_candidates: dict[str, dict[str, float | str | dict[str, float]]] = {}
     if hover_rows:
+        try:
+            specific_force_gain = estimate_proportional_scale(
+                [
+                    {
+                        "feature": abs(float(row["thrust_cmd"])),
+                        "target": GRAVITY_MPS2 + float(row["az_world_mps2"]),
+                    }
+                    for row in hover_rows
+                    if row.get("thrust_cmd") is not None
+                    and row.get("az_world_mps2") is not None
+                    and math.isfinite(float(row["thrust_cmd"]))
+                    and math.isfinite(float(row["az_world_mps2"]))
+                    and abs(float(row["thrust_cmd"])) > 1e-6
+                ],
+                feature_column="feature",
+                target_column="target",
+                min_feature_abs=1e-6,
+            )
+        except ValueError:
+            specific_force_gain = _zero_scalar()
+        try:
+            hover_command_values = [
+                abs(float(row["thrust_cmd"]))
+                for row in hover_rows
+                if row.get("thrust_cmd") is not None and math.isfinite(float(row["thrust_cmd"]))
+            ]
+            hover_command_mean = ScalarEstimate(
+                value=sum(hover_command_values) / len(hover_command_values),
+                sample_count=len(hover_command_values),
+                rmse=0.0,
+            )
+        except (ValueError, ZeroDivisionError):
+            hover_command_mean = _zero_scalar()
+
+        anchor_thrust_scale = prior_hints.get("thrust_scale_n_per_cmd")
+        anchor_label = str(prior_hints.get("label") or "prior_thrust_scale_anchor")
+        if anchor_thrust_scale is not None:
+            anchored_mass = _estimate_mass_from_collective_gain_anchor(
+                specific_force_gain,
+                thrust_scale_n_per_cmd=float(anchor_thrust_scale),
+            )
+            if anchored_mass is not None:
+                mass_anchor_candidates[anchor_label] = {
+                    "method": "collective_specific_force_gain + prior thrust_scale",
+                    "thrust_scale_n_per_cmd": float(anchor_thrust_scale),
+                    "estimated_mass": anchored_mass.as_dict(),
+                }
         truth_mass = _truth_mass_estimate(hover_rows) or _truth_mass_estimate(numeric_rows)
         hover_has_thrust = any("thrust_n" in row for row in hover_rows)
         if truth_mass is not None:
@@ -837,16 +1225,31 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
                 accel_z_column="az_world_mps2",
             )
         else:
-            warnings.append(
-                "hover_thrust samples do not contain thrust_n; using a nominal 1.0 kg mass fallback "
-                "and estimating thrust scale from normalized command."
-            )
-            mass = HoverMassEstimate(
-                mass_kg=1.0,
-                sample_count=len(hover_rows),
-                std_kg=0.0,
-                gravity_mps2=GRAVITY_MPS2,
-            )
+            anchored_mass = None
+            if prefer_prior_mass_anchor and anchor_thrust_scale is not None:
+                anchored_mass = _estimate_mass_from_collective_gain_anchor(
+                    specific_force_gain,
+                    thrust_scale_n_per_cmd=float(anchor_thrust_scale),
+                )
+            if anchored_mass is not None:
+                warnings.append(
+                    "hover_thrust samples do not contain thrust_n; absolute mass is not directly observable from "
+                    "normalized thrust alone. Using the research-mode prior thrust-scale anchor to convert the "
+                    "identified collective specific-force gain into an estimated mass."
+                )
+                mass = anchored_mass
+            else:
+                warnings.append(
+                    "hover_thrust samples do not contain thrust_n; absolute mass is not directly observable from "
+                    "normalized thrust alone. Using a nominal 1.0 kg fallback while also reporting the indirect "
+                    "collective specific-force gain."
+                )
+                mass = HoverMassEstimate(
+                    mass_kg=1.0,
+                    sample_count=len(hover_rows),
+                    std_kg=0.0,
+                    gravity_mps2=GRAVITY_MPS2,
+                )
             thrust = estimate_thrust_scale(
                 hover_rows,
                 mass_kg=mass.mass_kg,
@@ -877,6 +1280,7 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
     drag_x_rows = grouped.get("drag_x") or []
     drag_y_rows = grouped.get("drag_y") or []
     drag_z_rows = grouped.get("drag_z") or []
+    bridge_probe_rows = grouped.get("bridge_probe_xy") or []
 
     truth_inertia_x = _truth_inertia_estimate(numeric_rows, "x")
     truth_inertia_y = _truth_inertia_estimate(numeric_rows, "y")
@@ -938,8 +1342,12 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
     drag_x = _safe_drag_estimate(drag_x_rows, "x", mass.mass_kg, "vx_mps", "ax_drag_mps2", warnings)
     drag_y = _safe_drag_estimate(drag_y_rows, "y", mass.mass_kg, "vy_mps", "ay_drag_mps2", warnings)
     drag_z = _safe_drag_estimate(drag_z_rows, "z", mass.mass_kg, "vz_mps", "az_drag_mps2", warnings)
+    specific_drag_x = _safe_specific_drag_estimate(drag_x_rows, "x", "vx_mps", "ax_drag_mps2", warnings)
+    specific_drag_y = _safe_specific_drag_estimate(drag_y_rows, "y", "vy_mps", "ay_drag_mps2", warnings)
+    specific_drag_z = _safe_specific_drag_estimate(drag_z_rows, "z", "vz_mps", "az_drag_mps2", warnings)
+    bridge_probe = _estimate_bridge_probe_observables(bridge_probe_rows, warnings)
 
-    motor_rows = _combined_profile_rows(grouped, "motor_step")
+    motor_rows = _combined_profile_rows(grouped, "motor_step", "actuator_lag_collective")
     rotor_rows = _extract_rotor_rows(numeric_rows)
     motor_rotor_rows = _extract_rotor_rows(motor_rows)
     rotor_rows_for_motor_dynamics = motor_rotor_rows if motor_rotor_rows else rotor_rows
@@ -1035,6 +1443,26 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
     truth_time_constant_down = _truth_scalar_estimate(numeric_rows, "truth_time_constant_down_s")
     time_constant_up = truth_time_constant_up or _safe_scalar_estimate(rotor_rows_for_motor_dynamics, "time_constant_up_s", warnings, _estimate_rotor_time_constant, "up")
     time_constant_down = truth_time_constant_down or _safe_scalar_estimate(rotor_rows_for_motor_dynamics, "time_constant_down_s", warnings, _estimate_rotor_time_constant, "down")
+    effective_collective_up = _safe_step_response_dynamics_estimate(motor_rows, direction="up", warnings=warnings)
+    effective_collective_down = _safe_step_response_dynamics_estimate(motor_rows, direction="down", warnings=warnings)
+    if truth_time_constant_up is None and time_constant_up.sample_count <= 0 and effective_collective_up.time_constant_s.sample_count > 0:
+        time_constant_up = ScalarEstimate(
+            value=float(effective_collective_up.time_constant_s.value),
+            sample_count=int(effective_collective_up.time_constant_s.sample_count),
+            rmse=float(effective_collective_up.time_constant_s.rmse),
+        )
+        warnings.append(
+            "time_constant_up_s fell back to effective collective step-response dynamics because direct rotor telemetry was unavailable."
+        )
+    if truth_time_constant_down is None and time_constant_down.sample_count <= 0 and effective_collective_down.time_constant_s.sample_count > 0:
+        time_constant_down = ScalarEstimate(
+            value=float(effective_collective_down.time_constant_s.value),
+            sample_count=int(effective_collective_down.time_constant_s.sample_count),
+            rmse=float(effective_collective_down.time_constant_s.rmse),
+        )
+        warnings.append(
+            "time_constant_down_s fell back to effective collective step-response dynamics because direct rotor telemetry was unavailable."
+        )
     if any(value is not None for value in (
         truth_motor_constant,
         truth_moment_constant,
@@ -1050,6 +1478,22 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
     return {
         "mass": mass.as_dict(),
         "thrust_scale": thrust.as_dict(),
+        "observability": {
+            "absolute_mass_observable_from_current_logs": bool(hover_rows) and any("thrust_n" in row for row in hover_rows),
+            "mass_anchor_candidates": mass_anchor_candidates,
+            "prefer_prior_mass_anchor": bool(prefer_prior_mass_anchor),
+            "prior_hints": prior_hints,
+        },
+        "indirect_observables": {
+            "collective_specific_force_gain_mps2_per_cmd": specific_force_gain.as_dict(),
+            "hover_command_abs_mean": hover_command_mean.as_dict(),
+            "specific_drag": {
+                "x": specific_drag_x.as_dict(),
+                "y": specific_drag_y.as_dict(),
+                "z": specific_drag_z.as_dict(),
+            },
+            "bridge_probe": bridge_probe,
+        },
         "inertia": {
             "x": inertia_x.as_dict(),
             "y": inertia_y.as_dict(),
@@ -1069,6 +1513,10 @@ def estimate_parameters_from_identification_log(rows: Iterable[dict[str, float |
             "rotor_drag_coefficient": rotor_drag_coefficient.as_dict(),
             "rolling_moment_coefficient": rolling_moment_coefficient.as_dict(),
             "rotor_velocity_slowdown_sim": rotor_velocity_slowdown.as_dict(),
+        },
+        "effective_actuator_dynamics": {
+            "collective_up": effective_collective_up.as_dict(),
+            "collective_down": effective_collective_down.as_dict(),
         },
         "warnings": warnings,
     }

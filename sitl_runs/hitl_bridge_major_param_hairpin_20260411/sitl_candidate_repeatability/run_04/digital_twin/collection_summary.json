@@ -1,0 +1,16 @@
+{
+  "px4_root": "/home/earsub/PX4-Autopilot-Identification",
+  "candidate_dir": "/home/earsub/px4-system-identification/hitl_runs/ident_single_session_campaign_visible_20260411_retry4/estimate_mass_anchor_completed_for_sitl",
+  "model_label": "digital_twin",
+  "model_name": "x500_identified",
+  "dataset_root": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/sitl_candidate_repeatability/run_04/digital_twin",
+  "cases": [
+    {
+      "name": "hairpin",
+      "traj_id": 100,
+      "tracking_log": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/sitl_candidate_repeatability/run_04/digital_twin/tracking_logs/hairpin.csv",
+      "ok": false,
+      "error": "vehicle did not settle near (0.0025349680799990892, 0.04611280560493469, -4.69882869720459) in 20.0s (last={'x': 0.14683042466640472, 'y': -0.3053767681121826, 'z': -4.716931343078613})"
+    }
+  ]
+}

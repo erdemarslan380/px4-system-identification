@@ -1,0 +1,117 @@
+{
+  "common_logged_start": {
+    "x_m": 0.0,
+    "y_m": 0.0,
+    "z_m": -3.0
+  },
+  "source_mode": "yaw_frozen_binary_trajectories",
+  "freeze_yaw": true,
+  "yaw_value_rad": 1.6745060682296753,
+  "entries": [
+    {
+      "traj_id": 100,
+      "name": "hairpin",
+      "duration_s": 27.7,
+      "sample_dt_s": 0.02,
+      "num_samples": 1386,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": 0.17242112755775452,
+        "y_m": -0.35076630115509033,
+        "z_m": -3.0244905948638916
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_100.traj",
+      "path": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/sitl_candidate_repeatability/run_03/cases/hairpin/runtime/digital_twin/rootfs/trajectories/id_100.traj",
+      "sha256": "7441de2dc4a764d3de8601810b29163bcecd55f80b43e325a22e89fba88ae81a",
+      "source_sha256": "d7ebc694abc3bbc3b852f8b962f888c1d0d1f87d015aee0aefda541668ab6367"
+    },
+    {
+      "traj_id": 101,
+      "name": "lemniscate",
+      "duration_s": 23.18,
+      "sample_dt_s": 0.02,
+      "num_samples": 1160,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": -0.1394369900226593,
+        "y_m": -0.4041249454021454,
+        "z_m": -3.047140121459961
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_101.traj",
+      "path": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/sitl_candidate_repeatability/run_03/cases/hairpin/runtime/digital_twin/rootfs/trajectories/id_101.traj",
+      "sha256": "78e6933f29b8889828865c989de93a56cd157a88e0ddb834cb567f2cbdb1dba0",
+      "source_sha256": "58d656be8bca8f2b2de3a3955bd6299175842d3bb9ac35e4d475c0e525a2c136"
+    },
+    {
+      "traj_id": 102,
+      "name": "circle",
+      "duration_s": 18.9,
+      "sample_dt_s": 0.02,
+      "num_samples": 946,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": -0.4370052218437195,
+        "y_m": 0.1456737220287323,
+        "z_m": -3.013955593109131
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_102.traj",
+      "path": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/sitl_candidate_repeatability/run_03/cases/hairpin/runtime/digital_twin/rootfs/trajectories/id_102.traj",
+      "sha256": "7e0ccac22f684fd11662d5eaba2fab75a38c15ae91eb1bc07e21ad6f047d9ea2",
+      "source_sha256": "578dba4caa26c415903c2e21afba67143910bffa21aae096a5b7f16c8089fdbc"
+    },
+    {
+      "traj_id": 103,
+      "name": "time_optimal_30s",
+      "duration_s": 11.0,
+      "sample_dt_s": 0.020183,
+      "num_samples": 546,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": 6.999992370605469,
+        "y_m": 2.000053882598877,
+        "z_m": -1.0000009536743164
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_103.traj",
+      "path": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/sitl_candidate_repeatability/run_03/cases/hairpin/runtime/digital_twin/rootfs/trajectories/id_103.traj",
+      "sha256": "f271fcf329abbcc625818d38d79fa6bd54b6937dd6099031c3b2475499ef6972",
+      "source_sha256": "76f3a938d86ed299923c218b87456b49632c6bb43b111d579f5e95493067cd64"
+    },
+    {
+      "traj_id": 104,
+      "name": "minimum_snap_50s",
+      "duration_s": 23.44,
+      "sample_dt_s": 0.02,
+      "num_samples": 1173,
+      "start_pose": {
+        "x_m": 0.0,
+        "y_m": 0.0,
+        "z_m": -3.0
+      },
+      "end_pose": {
+        "x_m": -8.0,
+        "y_m": 2.853273173286652e-14,
+        "z_m": -3.0
+      },
+      "source_path": "/home/earsub/px4-system-identification/assets/validation_trajectories/id_104.traj",
+      "path": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/sitl_candidate_repeatability/run_03/cases/hairpin/runtime/digital_twin/rootfs/trajectories/id_104.traj",
+      "sha256": "3c7fe534af8e9ea67a7b21281cc68b3e3039c78b8818b86ee75972abe185d8f9",
+      "source_sha256": "5248b146160334fcbbf091c3c5dbe99c25bda3856b6d0eaf84b5a51eeaa49e89"
+    }
+  ]
+}

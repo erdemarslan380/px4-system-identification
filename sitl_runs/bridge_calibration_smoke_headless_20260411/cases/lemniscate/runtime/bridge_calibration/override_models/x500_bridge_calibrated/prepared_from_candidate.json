@@ -1,0 +1,14 @@
+{
+  "model_dir": "/home/earsub/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_bridge_calibrated",
+  "base_model_dir": "/home/earsub/PX4-Autopilot-Identification/Tools/simulation/gz/models/x500_bridge_calibrated_base",
+  "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_calibration_20260411/stage1/candidates/geom_x500_scaled",
+  "model_name": "x500_bridge_calibrated",
+  "notes": [
+    "Diagonal inertia regularized to satisfy rigid-body triangle inequalities before SDF export: ixx 0.004373852->0.004373852, iyy 0.002655095->0.002655095, izz 0.050468380->0.007027947.",
+    "Rotor pose override applied: rotor_0 -> (0.116673, -0.116673, 0.060000)",
+    "Rotor pose override applied: rotor_1 -> (-0.116673, 0.116673, 0.060000)",
+    "Rotor pose override applied: rotor_2 -> (0.116673, 0.116673, 0.060000)",
+    "Rotor pose override applied: rotor_3 -> (-0.116673, -0.116673, 0.060000)",
+    "Turning-direction override applied to 4 motor plugins and 4 logger rotor entries."
+  ]
+}

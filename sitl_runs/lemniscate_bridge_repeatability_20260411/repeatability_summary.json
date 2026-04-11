@@ -1,0 +1,85 @@
+{
+  "px4_root": "/home/earsub/PX4-Autopilot-Identification",
+  "repetitions": 5,
+  "aggregate_sources": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_bridge_repeatability_20260411/aggregate_sources",
+  "cases": {
+    "lemniscate": {
+      "re_identified_from_sitl_ident": {
+        "label": "Re-identified from SITL ident",
+        "aggregate_csv": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_bridge_repeatability_20260411/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/lemniscate.csv",
+        "aggregate": {
+          "path": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_bridge_repeatability_20260411/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/lemniscate.csv",
+          "samples": 700,
+          "source_count": 5
+        },
+        "rmse_m": {
+          "mean": 0.3612476741457445,
+          "median": 0.3597030624277594,
+          "std": 0.002552773575363946,
+          "min": 0.35832533423738494,
+          "max": 0.3646429416718284
+        },
+        "max_error_m": {
+          "mean": 0.6118903099869571,
+          "median": 0.615538286330753,
+          "std": 0.015729593862065707,
+          "min": 0.5856235199281191,
+          "max": 0.6338341587931342
+        },
+        "runs": [
+          {
+            "samples": 1159,
+            "rmse_m": 0.36396929680666334,
+            "max_error_m": 0.615538286330753,
+            "mean_error_m": 0.33015731933759335,
+            "repeat": 1,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_01.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1160,
+            "rmse_m": 0.35832533423738494,
+            "max_error_m": 0.5856235199281191,
+            "mean_error_m": 0.33139159858914413,
+            "repeat": 2,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_02.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1160,
+            "rmse_m": 0.3646429416718284,
+            "max_error_m": 0.6173311410815108,
+            "mean_error_m": 0.3308383270166294,
+            "repeat": 3,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_03.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1160,
+            "rmse_m": 0.3595977355850862,
+            "max_error_m": 0.6338341587931342,
+            "mean_error_m": 0.32385494596796616,
+            "repeat": 4,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_04.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1160,
+            "rmse_m": 0.3597030624277594,
+            "max_error_m": 0.6071244438012686,
+            "mean_error_m": 0.3288287925135058,
+            "repeat": 5,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_bridge_repeatability_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/lemniscate/repeat_05.csv",
+            "ok": true,
+            "reused": false
+          }
+        ],
+        "bitwise_identical": false
+      }
+    }
+  }
+}

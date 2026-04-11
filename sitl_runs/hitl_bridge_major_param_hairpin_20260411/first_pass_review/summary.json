@@ -1,0 +1,10 @@
+{
+  "stock_rmse_vs_reference_m": 0.4871141436568113,
+  "candidate_rmse_vs_reference_m": 0.2903970315115958,
+  "hitl_mean_rmse_vs_reference_m": 0.7342898522413475,
+  "stock_rmse_vs_hitl_mean_m": 0.5960679914968429,
+  "candidate_rmse_vs_hitl_mean_m": 0.7990000378758372,
+  "hitl_repeat_count": 5,
+  "stock_csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/stock_sitl_placeholder/tracking_logs/hairpin.csv",
+  "candidate_csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_major_param_hairpin_20260411/digital_twin/tracking_logs/hairpin.csv"
+}

@@ -1,0 +1,85 @@
+{
+  "px4_root": "/home/earsub/PX4-Autopilot-Identification",
+  "repetitions": 5,
+  "aggregate_sources": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_holdout_hairpin_x5_20260411/aggregate_sources",
+  "cases": {
+    "hairpin": {
+      "re_identified_from_sitl_ident": {
+        "label": "Re-identified from SITL ident",
+        "aggregate_csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_holdout_hairpin_x5_20260411/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/hairpin.csv",
+        "aggregate": {
+          "path": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_holdout_hairpin_x5_20260411/aggregate_sources/re_identified_from_sitl_ident/tracking_logs/hairpin.csv",
+          "samples": 700,
+          "source_count": 5
+        },
+        "rmse_m": {
+          "mean": 0.29040869069741054,
+          "median": 0.28937893093349815,
+          "std": 0.0029988329393271893,
+          "min": 0.2870511424798548,
+          "max": 0.29545042479538625
+        },
+        "max_error_m": {
+          "mean": 0.5300529139476701,
+          "median": 0.5214757267083484,
+          "std": 0.011986062822463719,
+          "min": 0.5201506295305237,
+          "max": 0.5502331709466453
+        },
+        "runs": [
+          {
+            "samples": 1386,
+            "rmse_m": 0.28937893093349815,
+            "max_error_m": 0.5201506295305237,
+            "mean_error_m": 0.25695004122063003,
+            "repeat": 1,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_holdout_hairpin_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_01.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1386,
+            "rmse_m": 0.2870511424798548,
+            "max_error_m": 0.520895415150681,
+            "mean_error_m": 0.25401559016318137,
+            "repeat": 2,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_holdout_hairpin_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_02.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1386,
+            "rmse_m": 0.2882108841103925,
+            "max_error_m": 0.5502331709466453,
+            "mean_error_m": 0.25557161802201644,
+            "repeat": 3,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_holdout_hairpin_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_03.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1386,
+            "rmse_m": 0.29545042479538625,
+            "max_error_m": 0.5214757267083484,
+            "mean_error_m": 0.2624822718454006,
+            "repeat": 4,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_holdout_hairpin_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_04.csv",
+            "ok": true,
+            "reused": false
+          },
+          {
+            "samples": 1386,
+            "rmse_m": 0.29195207116792105,
+            "max_error_m": 0.5375096274021519,
+            "mean_error_m": 0.25709110806593877,
+            "repeat": 5,
+            "csv": "/home/earsub/px4-system-identification/sitl_runs/hitl_bridge_holdout_hairpin_x5_20260411/raw_repeats/re_identified_from_sitl_ident/tracking_logs/hairpin/repeat_05.csv",
+            "ok": true,
+            "reused": false
+          }
+        ],
+        "bitwise_identical": false
+      }
+    }
+  }
+}
