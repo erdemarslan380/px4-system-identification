@@ -934,6 +934,356 @@ def _estimate_bridge_probe_observables(
     }
 
 
+def _safe_step_response_estimate(
+    rows: list[dict[str, float]],
+    *,
+    label: str,
+    command_column: str,
+    response_column: str,
+    direction: str,
+    warnings: list[str],
+    min_step_abs: float = 0.15,
+    min_step_fraction_of_range: float = 0.2,
+    min_response_abs: float = 0.1,
+    max_event_window_s: float = 0.60,
+) -> StepResponseDynamicsEstimate:
+    if not rows:
+        return _zero_step_response_dynamics()
+    try:
+        return estimate_step_response_dynamics(
+            rows,
+            time_column="t_s",
+            command_column=command_column,
+            response_column=response_column,
+            direction=direction,
+            min_step_abs=min_step_abs,
+            min_step_fraction_of_range=min_step_fraction_of_range,
+            min_response_abs=min_response_abs,
+            max_event_window_s=max_event_window_s,
+        )
+    except ValueError as exc:
+        warnings.append(f"{label} unusable ({exc}); set to 0.0 in this estimate.")
+        return _zero_step_response_dynamics()
+
+
+def _estimate_sample_period(rows: list[dict[str, float]]) -> dict[str, float]:
+    if len(rows) < 2:
+        return {"mean_dt_s": 0.0, "std_dt_s": 0.0, "sample_count": max(0, len(rows))}
+    times = sorted(
+        float(row["t_s"])
+        for row in rows
+        if row.get("t_s") is not None and math.isfinite(float(row["t_s"]))
+    )
+    if len(times) < 2:
+        return {"mean_dt_s": 0.0, "std_dt_s": 0.0, "sample_count": len(times)}
+    dts = [
+        b - a
+        for a, b in zip(times[:-1], times[1:])
+        if math.isfinite(a) and math.isfinite(b) and (b - a) > 1e-6
+    ]
+    if not dts:
+        return {"mean_dt_s": 0.0, "std_dt_s": 0.0, "sample_count": len(times)}
+    mean_dt = sum(dts) / len(dts)
+    variance = sum((dt - mean_dt) ** 2 for dt in dts) / max(1, len(dts) - 1)
+    return {
+        "mean_dt_s": float(mean_dt),
+        "std_dt_s": float(math.sqrt(max(variance, 0.0))),
+        "sample_count": int(len(dts)),
+    }
+
+
+def _mean_abs_estimate(rows: list[dict[str, float]], column: str) -> ScalarEstimate:
+    values = [
+        abs(float(row[column]))
+        for row in rows
+        if row.get(column) is not None and math.isfinite(float(row[column]))
+    ]
+    if not values:
+        return _zero_scalar()
+    mean_value = sum(values) / len(values)
+    return ScalarEstimate(
+        value=float(mean_value),
+        sample_count=len(values),
+        rmse=_scalar_rmse(values, mean_value) if len(values) > 1 else 0.0,
+    )
+
+
+def _safe_correlation_lag_estimate(
+    rows: list[dict[str, float]],
+    *,
+    feature_column: str,
+    target_column: str,
+    label: str,
+    warnings: list[str],
+    min_feature_abs: float = 0.05,
+    max_lag_s: float = 0.25,
+) -> ScalarEstimate:
+    seq = sorted(
+        (
+            (float(row["t_s"]), float(row[feature_column]), float(row[target_column]))
+            for row in rows
+            if row.get("t_s") is not None
+            and row.get(feature_column) is not None
+            and row.get(target_column) is not None
+            and math.isfinite(float(row["t_s"]))
+            and math.isfinite(float(row[feature_column]))
+            and math.isfinite(float(row[target_column]))
+        ),
+        key=lambda item: item[0],
+    )
+    if len(seq) < 12:
+        return _zero_scalar()
+
+    times = [item[0] for item in seq]
+    features = [item[1] for item in seq]
+    targets = [item[2] for item in seq]
+    dt_stats = _estimate_sample_period(rows)
+    mean_dt = float(dt_stats["mean_dt_s"]) if dt_stats["mean_dt_s"] > 1e-6 else 0.01
+    lag_step = max(0.005, min(0.02, mean_dt * 0.5))
+
+    def _interp_feature(query_t: float) -> float | None:
+        if query_t < times[0] or query_t > times[-1]:
+            return None
+        lo = 0
+        hi = len(times) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if times[mid] < query_t:
+                lo = mid + 1
+            elif times[mid] > query_t:
+                hi = mid - 1
+            else:
+                return features[mid]
+        upper = min(len(times) - 1, lo)
+        lower = max(0, upper - 1)
+        if lower == upper:
+            return features[lower]
+        t0 = times[lower]
+        t1 = times[upper]
+        if abs(t1 - t0) <= 1e-9:
+            return features[lower]
+        alpha = (query_t - t0) / (t1 - t0)
+        return features[lower] + alpha * (features[upper] - features[lower])
+
+    best_lag: float | None = None
+    best_rmse = math.inf
+    best_count = 0
+    lag = 0.0
+    while lag <= max_lag_s + 1e-9:
+        aligned_features: list[float] = []
+        aligned_targets: list[float] = []
+        for t_s, _feature, target in zip(times, features, targets):
+            shifted = _interp_feature(t_s - lag)
+            if shifted is None or abs(shifted) < min_feature_abs:
+                continue
+            aligned_features.append(float(shifted))
+            aligned_targets.append(float(target))
+        if len(aligned_features) >= max(10, len(seq) // 6):
+            denominator = sum(value * value for value in aligned_features)
+            if denominator > 1e-9:
+                scale = sum(
+                    feature * target for feature, target in zip(aligned_features, aligned_targets)
+                ) / denominator
+                rmse = math.sqrt(
+                    sum((scale * feature - target) ** 2 for feature, target in zip(aligned_features, aligned_targets))
+                    / len(aligned_features)
+                )
+                if rmse < best_rmse:
+                    best_rmse = rmse
+                    best_lag = lag
+                    best_count = len(aligned_features)
+        lag += lag_step
+
+    if best_lag is None:
+        warnings.append(f"{label} unusable (no valid lag alignment); set to 0.0 in this estimate.")
+        return _zero_scalar()
+
+    return ScalarEstimate(
+        value=float(best_lag),
+        sample_count=int(best_count),
+        rmse=float(best_rmse),
+    )
+
+
+def _estimate_state_chain_observables(
+    bridge_probe_rows: list[dict[str, float]],
+    warnings: list[str],
+) -> dict[str, object]:
+    if not bridge_probe_rows:
+        return {
+            "bridge_probe_xy": {
+                "available": False,
+                "sampling": _estimate_sample_period([]),
+                "x": {
+                    "velocity_correlation_lag_s": _zero_scalar().as_dict(),
+                    "accel_correlation_lag_s": _zero_scalar().as_dict(),
+                    "up": _zero_step_response_dynamics().as_dict(),
+                    "down": _zero_step_response_dynamics().as_dict(),
+                },
+                "y": {
+                    "velocity_correlation_lag_s": _zero_scalar().as_dict(),
+                    "accel_correlation_lag_s": _zero_scalar().as_dict(),
+                    "up": _zero_step_response_dynamics().as_dict(),
+                    "down": _zero_step_response_dynamics().as_dict(),
+                },
+            }
+        }
+
+    x_rows = _bridge_probe_axis_rows(
+        bridge_probe_rows,
+        axis="x",
+        min_ref_accel_abs=0.15,
+        dominance_ratio=1.05,
+    )
+    y_rows = _bridge_probe_axis_rows(
+        bridge_probe_rows,
+        axis="y",
+        min_ref_accel_abs=0.15,
+        dominance_ratio=1.05,
+    )
+
+    x_up = _safe_step_response_estimate(
+        x_rows,
+        label="bridge_probe_state_chain_x_up",
+        command_column="ref_ax",
+        response_column="ax_world_mps2",
+        direction="up",
+        warnings=warnings,
+    )
+    x_down = _safe_step_response_estimate(
+        x_rows,
+        label="bridge_probe_state_chain_x_down",
+        command_column="ref_ax",
+        response_column="ax_world_mps2",
+        direction="down",
+        warnings=warnings,
+    )
+    y_up = _safe_step_response_estimate(
+        y_rows,
+        label="bridge_probe_state_chain_y_up",
+        command_column="ref_ay",
+        response_column="ay_world_mps2",
+        direction="up",
+        warnings=warnings,
+    )
+    y_down = _safe_step_response_estimate(
+        y_rows,
+        label="bridge_probe_state_chain_y_down",
+        command_column="ref_ay",
+        response_column="ay_world_mps2",
+        direction="down",
+        warnings=warnings,
+    )
+    x_velocity_lag = _safe_correlation_lag_estimate(
+        x_rows,
+        feature_column="ref_vx",
+        target_column="vx_mps",
+        label="bridge_probe_state_chain_x_velocity_lag",
+        warnings=warnings,
+        min_feature_abs=0.05,
+    )
+    y_velocity_lag = _safe_correlation_lag_estimate(
+        y_rows,
+        feature_column="ref_vy",
+        target_column="vy_mps",
+        label="bridge_probe_state_chain_y_velocity_lag",
+        warnings=warnings,
+        min_feature_abs=0.05,
+    )
+    x_accel_lag = _safe_correlation_lag_estimate(
+        x_rows,
+        feature_column="ref_ax",
+        target_column="ax_world_mps2",
+        label="bridge_probe_state_chain_x_accel_lag",
+        warnings=warnings,
+        min_feature_abs=0.10,
+    )
+    y_accel_lag = _safe_correlation_lag_estimate(
+        y_rows,
+        feature_column="ref_ay",
+        target_column="ay_world_mps2",
+        label="bridge_probe_state_chain_y_accel_lag",
+        warnings=warnings,
+        min_feature_abs=0.10,
+    )
+
+    return {
+        "bridge_probe_xy": {
+            "available": True,
+            "sampling": _estimate_sample_period(bridge_probe_rows),
+            "x": {
+                "velocity_correlation_lag_s": x_velocity_lag.as_dict(),
+                "accel_correlation_lag_s": x_accel_lag.as_dict(),
+                "up": x_up.as_dict(),
+                "down": x_down.as_dict(),
+            },
+            "y": {
+                "velocity_correlation_lag_s": y_velocity_lag.as_dict(),
+                "accel_correlation_lag_s": y_accel_lag.as_dict(),
+                "up": y_up.as_dict(),
+                "down": y_down.as_dict(),
+            },
+        }
+    }
+
+
+def _estimate_control_effort_observables(
+    bridge_probe_rows: list[dict[str, float]],
+    roll_rows: list[dict[str, float]],
+    pitch_rows: list[dict[str, float]],
+    yaw_rows: list[dict[str, float]],
+) -> dict[str, object]:
+    x_rows = _bridge_probe_axis_rows(
+        bridge_probe_rows,
+        axis="x",
+        min_ref_accel_abs=0.15,
+        dominance_ratio=1.05,
+    )
+    y_rows = _bridge_probe_axis_rows(
+        bridge_probe_rows,
+        axis="y",
+        min_ref_accel_abs=0.15,
+        dominance_ratio=1.05,
+    )
+
+    return {
+        "bridge_probe_xy": {
+            "x_dominant": {
+                "mean_abs_rate_sp_pitch": _mean_abs_estimate(x_rows, "rate_sp_pitch").as_dict(),
+                "mean_abs_torque_sp_pitch": _mean_abs_estimate(x_rows, "tau_y_nm").as_dict(),
+                "mean_abs_alloc_unalloc_pitch": _mean_abs_estimate(x_rows, "alloc_unalloc_pitch").as_dict(),
+                "mean_abs_pitch_rad": _mean_abs_estimate(x_rows, "pitch").as_dict(),
+            },
+            "y_dominant": {
+                "mean_abs_rate_sp_roll": _mean_abs_estimate(y_rows, "rate_sp_roll").as_dict(),
+                "mean_abs_torque_sp_roll": _mean_abs_estimate(y_rows, "tau_x_nm").as_dict(),
+                "mean_abs_alloc_unalloc_roll": _mean_abs_estimate(y_rows, "alloc_unalloc_roll").as_dict(),
+                "mean_abs_roll_rad": _mean_abs_estimate(y_rows, "roll").as_dict(),
+            },
+        },
+        "attitude_sweeps": {
+            "roll": {
+                "mean_abs_rate_sp_roll": _mean_abs_estimate(roll_rows, "rate_sp_roll").as_dict(),
+                "mean_abs_torque_sp_roll": _mean_abs_estimate(roll_rows, "tau_x_nm").as_dict(),
+                "mean_abs_alloc_unalloc_roll": _mean_abs_estimate(roll_rows, "alloc_unalloc_roll").as_dict(),
+            },
+            "pitch": {
+                "mean_abs_rate_sp_pitch": _mean_abs_estimate(pitch_rows, "rate_sp_pitch").as_dict(),
+                "mean_abs_torque_sp_pitch": _mean_abs_estimate(pitch_rows, "tau_y_nm").as_dict(),
+                "mean_abs_alloc_unalloc_pitch": _mean_abs_estimate(pitch_rows, "alloc_unalloc_pitch").as_dict(),
+            },
+            "yaw": {
+                "mean_abs_rate_sp_yaw": _mean_abs_estimate(yaw_rows, "rate_sp_yaw").as_dict(),
+                "mean_abs_torque_sp_yaw": _mean_abs_estimate(yaw_rows, "tau_z_nm").as_dict(),
+                "mean_abs_alloc_unalloc_yaw": _mean_abs_estimate(yaw_rows, "alloc_unalloc_yaw").as_dict(),
+            },
+        },
+        "allocation_global": {
+            "mean_abs_alloc_torque_achieved": _mean_abs_estimate(bridge_probe_rows + roll_rows + pitch_rows + yaw_rows, "alloc_torque_achieved").as_dict(),
+        },
+    }
+
+
 def _combine_scalar_estimates(estimates: Sequence[ScalarEstimate]) -> ScalarEstimate:
     usable = [estimate for estimate in estimates if estimate.sample_count > 0]
     if not usable:
@@ -1346,6 +1696,8 @@ def estimate_parameters_from_identification_log(
     specific_drag_y = _safe_specific_drag_estimate(drag_y_rows, "y", "vy_mps", "ay_drag_mps2", warnings)
     specific_drag_z = _safe_specific_drag_estimate(drag_z_rows, "z", "vz_mps", "az_drag_mps2", warnings)
     bridge_probe = _estimate_bridge_probe_observables(bridge_probe_rows, warnings)
+    state_chain = _estimate_state_chain_observables(bridge_probe_rows, warnings)
+    control_effort = _estimate_control_effort_observables(bridge_probe_rows, roll_rows, pitch_rows, yaw_rows)
 
     motor_rows = _combined_profile_rows(grouped, "motor_step", "actuator_lag_collective")
     rotor_rows = _extract_rotor_rows(numeric_rows)
@@ -1494,6 +1846,8 @@ def estimate_parameters_from_identification_log(
             },
             "bridge_probe": bridge_probe,
         },
+        "state_chain": state_chain,
+        "control_effort": control_effort,
         "inertia": {
             "x": inertia_x.as_dict(),
             "y": inertia_y.as_dict(),

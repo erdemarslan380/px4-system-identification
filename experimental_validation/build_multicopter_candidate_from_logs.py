@@ -45,6 +45,7 @@ OPTIONAL_PROFILES = (
 def latest_profile_logs(ident_root: Path) -> tuple[dict[str, Path], list[str]]:
     selected: dict[str, Path] = {}
     missing: list[str] = []
+    sibling_tracking_root = ident_root.parent / "tracking_logs"
 
     for profile in REQUIRED_PROFILES:
         matches = sorted(ident_root.glob(f"{profile}*.csv"), key=lambda path: path.stat().st_mtime)
@@ -55,6 +56,8 @@ def latest_profile_logs(ident_root: Path) -> tuple[dict[str, Path], list[str]]:
 
     for profile in OPTIONAL_PROFILES:
         matches = sorted(ident_root.glob(f"{profile}*.csv"), key=lambda path: path.stat().st_mtime)
+        if not matches and sibling_tracking_root.exists():
+            matches = sorted(sibling_tracking_root.glob(f"{profile}*.csv"), key=lambda path: path.stat().st_mtime)
         if matches:
             selected[profile] = matches[-1].resolve()
 

@@ -1,0 +1,73 @@
+{
+  "case_name": "lemniscate",
+  "hitl_tracking_dir": "/home/earsub/px4-system-identification/hitl_runs/lemniscate_repeatability_clean_20260411_fresh2/raw_pull_small/tracking_logs",
+  "repetitions": 5,
+  "results": [
+    {
+      "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_calibration_fix4_lemniscate/stage2/candidates/x500_scaled_165mm__thrust_up",
+      "candidate_name": "x500_scaled_165mm__thrust_up",
+      "review_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_up/review",
+      "tracking_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_up/tracking_logs",
+      "score": {
+        "mean_overlap_pct": 0.023,
+        "contact_pct": 0.286,
+        "mean_center_distance_m": 1.259233,
+        "max_center_distance_m": 2.120054
+      },
+      "bitwise_identical": false
+    },
+    {
+      "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_calibration_fix4_lemniscate/stage2/candidates/x500_scaled_165mm__yawdamp_005",
+      "candidate_name": "x500_scaled_165mm__yawdamp_005",
+      "review_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__yawdamp_005/review",
+      "tracking_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__yawdamp_005/tracking_logs",
+      "score": {
+        "mean_overlap_pct": 0.015,
+        "contact_pct": 0.286,
+        "mean_center_distance_m": 1.240804,
+        "max_center_distance_m": 2.109399
+      },
+      "bitwise_identical": false
+    },
+    {
+      "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_calibration_fix4_lemniscate/stage2/candidates/x500_scaled_165mm__thrust_fast",
+      "candidate_name": "x500_scaled_165mm__thrust_fast",
+      "review_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_fast/review",
+      "tracking_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_fast/tracking_logs",
+      "score": {
+        "mean_overlap_pct": 0.015,
+        "contact_pct": 0.286,
+        "mean_center_distance_m": 1.269156,
+        "max_center_distance_m": 2.165011
+      },
+      "bitwise_identical": false
+    },
+    {
+      "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_calibration_fix4_lemniscate/stage2/candidates/x500_scaled_165mm__thrust_fast_yaw",
+      "candidate_name": "x500_scaled_165mm__thrust_fast_yaw",
+      "review_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_fast_yaw/review",
+      "tracking_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_fast_yaw/tracking_logs",
+      "score": {
+        "mean_overlap_pct": 0.013,
+        "contact_pct": 0.143,
+        "mean_center_distance_m": 1.270588,
+        "max_center_distance_m": 2.184262
+      },
+      "bitwise_identical": false
+    }
+  ],
+  "best": {
+    "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_calibration_fix4_lemniscate/stage2/candidates/x500_scaled_165mm__thrust_up",
+    "candidate_name": "x500_scaled_165mm__thrust_up",
+    "review_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_up/review",
+    "tracking_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_up/tracking_logs",
+    "score": {
+      "mean_overlap_pct": 0.023,
+      "contact_pct": 0.286,
+      "mean_center_distance_m": 1.259233,
+      "max_center_distance_m": 2.120054
+    },
+    "bitwise_identical": false
+  },
+  "best_review_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_overlap_selection_fix4_lemniscate/x500_scaled_165mm__thrust_up/review"
+}

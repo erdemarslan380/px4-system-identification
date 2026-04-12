@@ -68,6 +68,7 @@ class ValidationModelSpec:
     label: str
     gz_model: str
     display_name: str
+    truth_state_bridge: bool = False
 
 DEFAULT_MODEL_SPECS: tuple[ValidationModelSpec, ...] = (
     ValidationModelSpec("stock_sitl_placeholder", "x500", "Stock x500 SITL"),
@@ -151,6 +152,13 @@ SITL_CONSOLE_ROWS = 26
 SITL_LAND_TIMEOUT_SECONDS = 45.0
 SITL_QGC_DISCOVERY_GRACE_SECONDS = 2.0
 SITL_DISARM_AFTER_LAND_TIMEOUT_SECONDS = 12.0
+SITL_CONTROL_BASELINE_PARAMS = (
+    REPO_ROOT / "experimental_validation" / "qgc" / "current_vehicle.params"
+)
+SITL_CONTROL_BASELINE_PREFIXES = ("MC_", "MPC_", "IMU_")
+SITL_CONTROL_BASELINE_EXACT = {
+    "MPC_THR_HOVER",
+}
 
 
 @dataclass
@@ -225,6 +233,52 @@ def _apply_x500_esc_scaling(mav, *, min_value: int, max_value: int) -> None:
     for motor_idx in range(1, 5):
         set_param(mav, f"SIM_GZ_EC_MIN{motor_idx}", min_value, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
         set_param(mav, f"SIM_GZ_EC_MAX{motor_idx}", max_value, mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+
+
+def _load_sitl_control_baseline_params() -> dict[str, tuple[float, int]]:
+    if not SITL_CONTROL_BASELINE_PARAMS.exists():
+        return {}
+
+    selected: dict[str, tuple[float, int]] = {}
+    for raw_line in SITL_CONTROL_BASELINE_PARAMS.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "\t" not in line:
+            continue
+        parts = [part.strip() for part in line.split("\t")]
+        if len(parts) < 5:
+            continue
+        name = parts[2]
+        if not (
+            name in SITL_CONTROL_BASELINE_EXACT
+            or any(name.startswith(prefix) for prefix in SITL_CONTROL_BASELINE_PREFIXES)
+        ):
+            continue
+        try:
+            value = float(parts[3])
+        except ValueError:
+            continue
+        param_type_code = int(float(parts[4]))
+        if param_type_code == 9:
+            param_type = mavutil.mavlink.MAV_PARAM_TYPE_REAL32
+        elif param_type_code == 6:
+            param_type = mavutil.mavlink.MAV_PARAM_TYPE_INT32
+        else:
+            param_type = (
+                mavutil.mavlink.MAV_PARAM_TYPE_INT32
+                if float(value).is_integer()
+                else mavutil.mavlink.MAV_PARAM_TYPE_REAL32
+            )
+        selected[name] = (value, param_type)
+    return selected
+
+
+def _apply_sitl_control_baseline_params(mav) -> None:
+    baseline = _load_sitl_control_baseline_params()
+    if not baseline:
+        return
+
+    for name, (value, param_type) in sorted(baseline.items()):
+        set_param(mav, name, value, param_type)
 
 
 def _start_session_with_retries(
@@ -958,7 +1012,16 @@ def _open_console_window(console_log: Path, *, title: str = SITL_CONSOLE_WINDOW_
         )
 
 
-def _build_px4_env(px4_root: Path, build_dir: Path, run_rootfs: Path, override_models_root: Path, model_name: str, headless: bool) -> dict[str, str]:
+def _build_px4_env(
+    px4_root: Path,
+    build_dir: Path,
+    run_rootfs: Path,
+    override_models_root: Path,
+    model_name: str,
+    headless: bool,
+    *,
+    truth_state_bridge: bool = False,
+) -> dict[str, str]:
     env = os.environ.copy()
     models = px4_root / "Tools" / "simulation" / "gz" / "models"
     worlds = px4_root / "Tools" / "simulation" / "gz" / "worlds"
@@ -986,6 +1049,43 @@ def _build_px4_env(px4_root: Path, build_dir: Path, run_rootfs: Path, override_m
             env.setdefault("PX4_GZ_FOLLOW_OFFSET_Y", str(VISUAL_FOLLOW_OFFSET_Y))
             env.setdefault("PX4_GZ_FOLLOW_OFFSET_Z", str(VISUAL_FOLLOW_OFFSET_Z))
     return env
+
+
+def _activate_truth_state_bridge_mode(session: "Px4SitlSession", mav) -> None:
+    commands = (
+        "param set SIM_GZ_EN_ODOM 1",
+        "param set EKF2_EV_CTRL 15",
+        "param set EKF2_EV_DELAY 0",
+        "param set EKF2_EV_NOISE_MD 1",
+        "param set EKF2_EVP_NOISE 0.02",
+        "param set EKF2_EVV_NOISE 0.03",
+        "param set EKF2_EVA_NOISE 0.05",
+        "param set EKF2_GPS_CTRL 0",
+        "param set EKF2_BARO_CTRL 0",
+        "param set EKF2_HGT_REF 3",
+        "param set ATT_EXT_HDG_M 1",
+    )
+
+    for command in commands:
+        try:
+            session.send(command, timeout_s=5.0)
+        except Exception as exc:
+            print(f"Truth-state bridge best-effort command failed: {command} ({exc})", flush=True)
+
+    try:
+        session.send("ekf2 stop", timeout_s=5.0)
+    except Exception:
+        pass
+
+    time.sleep(1.0)
+
+    try:
+        session.send("ekf2 start", timeout_s=5.0)
+    except Exception as exc:
+        print(f"Truth-state bridge best-effort command failed: ekf2 start ({exc})", flush=True)
+
+    time.sleep(2.0)
+    wait_for_sim_ready(mav, timeout=15.0, require_local_position=True, min_local_samples=3)
 
 
 def _wait_for_ready_for_takeoff(session: "Px4SitlSession", *, timeout_s: float = SITL_READY_FOR_TAKEOFF_TIMEOUT_SECONDS) -> None:
@@ -1868,7 +1968,15 @@ def run_validation_model(
     if model_spec.label != "stock_sitl_placeholder":
         _prepare_model_override(px4_root, model_spec.gz_model, override_models_root)
         _patch_gz_env_model_override(run_rootfs, override_models_root)
-    env = _build_px4_env(px4_root, build_dir, run_rootfs, override_models_root, model_spec.gz_model, headless)
+    env = _build_px4_env(
+        px4_root,
+        build_dir,
+        run_rootfs,
+        override_models_root,
+        model_spec.gz_model,
+        headless,
+        truth_state_bridge=model_spec.truth_state_bridge,
+    )
     world_name, override_worlds_root, world_sdf = _prepare_reference_world(px4_root, runtime_root)
     _patch_gz_env_world_override(run_rootfs, override_worlds_root)
     env["PX4_GZ_WORLDS"] = str(override_worlds_root.resolve())
@@ -1909,6 +2017,11 @@ def run_validation_model(
                     f"Derived MPC_THR_HOVER={hover_thrust:.3f} from candidate mass/motor model",
                     flush=True,
                 )
+        _apply_sitl_control_baseline_params(mav)
+        print(
+            f"Applied SITL control baseline from {SITL_CONTROL_BASELINE_PARAMS}",
+            flush=True,
+        )
         request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
         request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE)
         request_message_interval(mav, mavutil.mavlink.MAVLINK_MSG_ID_STATUSTEXT, interval_us=500_000)
@@ -1950,6 +2063,8 @@ def run_validation_model(
 
         _wait_for_ready_for_takeoff(session)
         _wait_for_preflight_ok(session)
+        if model_spec.truth_state_bridge:
+            _activate_truth_state_bridge_mode(session, mav)
         if not headless and SITL_QGC_DISCOVERY_GRACE_SECONDS > 0.0:
             time.sleep(SITL_QGC_DISCOVERY_GRACE_SECONDS)
         _ensure_manual_control_mode(mav, value=1)

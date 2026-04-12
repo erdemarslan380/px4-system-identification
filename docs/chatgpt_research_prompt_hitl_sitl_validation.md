@@ -399,6 +399,34 @@ Bugünkü durum:
 - ama HITL-SITL behavioral overlap hâlâ zayıf
 - tam SDF transfer yaklaşımı tek başına yeterli görünmüyor
 
+Son somut sonuç:
+
+- `lemniscate x5` tube-overlap tabanlı residual seçim yapıldı
+- en iyi aday: `x500_scaled_165mm__thrust_up`
+- calibration trajectory sonucu:
+  - mean overlap `0.023%`
+  - contact `0.286%`
+  - mean center distance `1.259 m`
+- hold-out `hairpin x5` sonucu:
+  - mean overlap `0.018%`
+  - contact `1.429%`
+  - mean center distance `0.751 m`
+
+Yani:
+
+- residual seçim mantığı doğru yönde kuruldu
+- ama mevcut residual aile, behavioral tube eşleşmesini hâlâ kapatamıyor
+- bu da eksik olan farkın yalnız motor time constant veya lineer damping ölçekleriyle açıklanamadığını düşündürüyor
+
+Yeni yön değişikliği:
+
+- Gazebo tarafında deneysel bir `truth-state bridge` eklendi
+- Gazebo groundtruth artık isteğe bağlı olarak doğrudan `vehicle_attitude` ve `vehicle_local_position` zincirine verilebiliyor
+- amaç, estimator/state-chain farkını bilinçli olarak kapatıp HIL semantiğine yaklaşmak
+- ilk smoke testte center distance `1.259 m -> 0.992 m` iyileşti
+- ama overlap hâlâ `0.0%` ve maneuver geç fazında dikey kararsızlık görüldü
+- yani state-chain farkı gerçek ve etkili; fakat tek başına çözüm değil
+
 Aranan şey:
 
 - daha güçlü ama hâlâ savunulabilir bir residual calibration methodology

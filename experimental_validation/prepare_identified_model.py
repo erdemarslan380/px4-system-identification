@@ -110,6 +110,10 @@ def _extract_simulator_residuals(candidate_payload: dict) -> dict[str, float]:
         "body_angular_damping_x",
         "body_angular_damping_y",
         "body_angular_damping_z",
+        "motor_balance_x",
+        "motor_balance_y",
+        "moment_balance_x",
+        "moment_balance_y",
     ):
         value = residuals.get(key)
         if value is None:
@@ -119,6 +123,39 @@ def _extract_simulator_residuals(candidate_payload: dict) -> dict[str, float]:
         except (TypeError, ValueError):
             continue
     return out
+
+
+def _rotor_axis_sign_lookup(geometry: dict | None) -> dict[str, tuple[float, float]]:
+    rotor_positions = (geometry or {}).get("rotor_positions_m")
+    if not isinstance(rotor_positions, dict):
+        return {}
+
+    lookup: dict[str, tuple[float, float]] = {}
+    for rotor_name, position in rotor_positions.items():
+        if not isinstance(position, (list, tuple)) or len(position) != 3:
+            continue
+        x_sign = 1.0 if float(position[0]) >= 0.0 else -1.0
+        y_sign = 1.0 if float(position[1]) >= 0.0 else -1.0
+        lookup[rotor_name] = (x_sign, y_sign)
+        if rotor_name.startswith("rotor_"):
+            suffix = rotor_name.split("_", 1)[1]
+            lookup[f"motor_{suffix}"] = (x_sign, y_sign)
+    return lookup
+
+
+def _residual_axis_scale(
+    base_value: float,
+    *,
+    axis_signs: tuple[float, float] | None,
+    scale_x: float,
+    scale_y: float,
+    floor: float = 0.2,
+) -> float:
+    if axis_signs is None:
+        return float(base_value)
+    x_sign, y_sign = axis_signs
+    scale = 1.0 + float(scale_x) * float(x_sign) + float(scale_y) * float(y_sign)
+    return float(base_value) * max(floor, scale)
 
 
 def _apply_rotor_positions(base_root: ET.Element, rotor_positions: dict[str, object] | None) -> list[str]:
@@ -323,6 +360,7 @@ def prepare_identified_model(px4_root: str | Path, candidate_dir: str | Path, *,
         params["izz_kgm2"],
     )
     params.update(regularized_inertia)
+    rotor_axis_signs = _rotor_axis_sign_lookup(geometry)
 
     if identified_dir.exists():
         shutil.rmtree(identified_dir)
@@ -379,11 +417,34 @@ def prepare_identified_model(px4_root: str | Path, candidate_dir: str | Path, *,
         or plugin.attrib.get("filename") == "gz-sim-multicopter-motor-model-system"
     ]
     for plugin in plugin_paths:
+        motor_number = plugin.findtext("motorNumber")
+        link_name = plugin.findtext("linkName")
+        axis_signs = rotor_axis_signs.get(f"motor_{motor_number}") if motor_number is not None else None
+        if axis_signs is None and link_name:
+            axis_signs = rotor_axis_signs.get(link_name)
         _set_text(plugin, "timeConstantUp", params["time_constant_up_s"])
         _set_text(plugin, "timeConstantDown", params["time_constant_down_s"])
         _set_text(plugin, "maxRotVelocity", params["max_rot_velocity_radps"])
-        _set_text(plugin, "motorConstant", params["motor_constant"])
-        _set_text(plugin, "momentConstant", params["moment_constant"])
+        _set_text(
+            plugin,
+            "motorConstant",
+            _residual_axis_scale(
+                params["motor_constant"],
+                axis_signs=axis_signs,
+                scale_x=float(simulator_residuals.get("motor_balance_x", 0.0)),
+                scale_y=float(simulator_residuals.get("motor_balance_y", 0.0)),
+            ),
+        )
+        _set_text(
+            plugin,
+            "momentConstant",
+            _residual_axis_scale(
+                params["moment_constant"],
+                axis_signs=axis_signs,
+                scale_x=float(simulator_residuals.get("moment_balance_x", 0.0)),
+                scale_y=float(simulator_residuals.get("moment_balance_y", 0.0)),
+            ),
+        )
         _set_text(plugin, "rotorDragCoefficient", params["rotor_drag_coefficient"])
         _set_text(plugin, "rollingMomentCoefficient", params["rolling_moment_coefficient"])
         _set_text(plugin, "rotorVelocitySlowdownSim", params["rotor_velocity_slowdown_sim"])
@@ -395,16 +456,48 @@ def prepare_identified_model(px4_root: str | Path, candidate_dir: str | Path, *,
     ]
     for plugin in logger_plugins:
         for rotor in plugin.findall("rotor"):
+            motor_number = rotor.findtext("motor_number")
+            axis_signs = rotor_axis_signs.get(f"motor_{motor_number}") if motor_number is not None else None
             _set_text(rotor, "time_constant_up_s", params["time_constant_up_s"])
             _set_text(rotor, "time_constant_down_s", params["time_constant_down_s"])
             _set_text(rotor, "max_rot_velocity_radps", params["max_rot_velocity_radps"])
-            _set_text(rotor, "motor_constant", params["motor_constant"])
-            _set_text(rotor, "moment_constant", params["moment_constant"])
+            _set_text(
+                rotor,
+                "motor_constant",
+                _residual_axis_scale(
+                    params["motor_constant"],
+                    axis_signs=axis_signs,
+                    scale_x=float(simulator_residuals.get("motor_balance_x", 0.0)),
+                    scale_y=float(simulator_residuals.get("motor_balance_y", 0.0)),
+                ),
+            )
+            _set_text(
+                rotor,
+                "moment_constant",
+                _residual_axis_scale(
+                    params["moment_constant"],
+                    axis_signs=axis_signs,
+                    scale_x=float(simulator_residuals.get("moment_balance_x", 0.0)),
+                    scale_y=float(simulator_residuals.get("moment_balance_y", 0.0)),
+                ),
+            )
             _set_text(rotor, "rotor_drag_coefficient", params["rotor_drag_coefficient"])
             _set_text(rotor, "rolling_moment_coefficient", params["rolling_moment_coefficient"])
             _set_text(rotor, "rotor_velocity_slowdown_sim", params["rotor_velocity_slowdown_sim"])
     geometry_notes.extend(_apply_turning_directions(wrapper_root, geometry.get("turning_directions") if geometry else None))
     geometry_notes.extend(drag_notes)
+    if abs(float(simulator_residuals.get("motor_balance_x", 0.0))) > 1e-9 or abs(float(simulator_residuals.get("motor_balance_y", 0.0))) > 1e-9:
+        geometry_notes.append(
+            "Applied directional motorConstant residuals with "
+            f"motor_balance_x={float(simulator_residuals.get('motor_balance_x', 0.0)):.6f}, "
+            f"motor_balance_y={float(simulator_residuals.get('motor_balance_y', 0.0)):.6f}."
+        )
+    if abs(float(simulator_residuals.get("moment_balance_x", 0.0))) > 1e-9 or abs(float(simulator_residuals.get("moment_balance_y", 0.0))) > 1e-9:
+        geometry_notes.append(
+            "Applied directional momentConstant residuals with "
+            f"moment_balance_x={float(simulator_residuals.get('moment_balance_x', 0.0)):.6f}, "
+            f"moment_balance_y={float(simulator_residuals.get('moment_balance_y', 0.0)):.6f}."
+        )
     quadratic_drag_xyz = (
         body_drag_coeffs["x"] * float(simulator_residuals.get("body_drag_scale_x", 1.0)),
         body_drag_coeffs["y"] * float(simulator_residuals.get("body_drag_scale_y", 1.0)),

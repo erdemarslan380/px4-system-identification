@@ -95,6 +95,10 @@ def build_variant(
     body_angular_damping_x: float = 0.0,
     body_angular_damping_y: float = 0.0,
     body_angular_damping_z: float = 0.0,
+    motor_balance_x: float = 0.0,
+    motor_balance_y: float = 0.0,
+    moment_balance_x: float = 0.0,
+    moment_balance_y: float = 0.0,
 ) -> dict:
     payload = deepcopy(base_payload)
     payload["geometry"] = deepcopy(GEOMETRY_PRESETS[geometry_preset])
@@ -120,6 +124,10 @@ def build_variant(
         "body_angular_damping_x": float(body_angular_damping_x),
         "body_angular_damping_y": float(body_angular_damping_y),
         "body_angular_damping_z": float(body_angular_damping_z),
+        "motor_balance_x": float(motor_balance_x),
+        "motor_balance_y": float(motor_balance_y),
+        "moment_balance_x": float(moment_balance_x),
+        "moment_balance_y": float(moment_balance_y),
     }
     return payload
 
@@ -144,6 +152,10 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--body-angular-damping-x", type=float, default=0.0)
     ap.add_argument("--body-angular-damping-y", type=float, default=0.0)
     ap.add_argument("--body-angular-damping-z", type=float, default=0.0)
+    ap.add_argument("--motor-balance-x", type=float, default=0.0)
+    ap.add_argument("--motor-balance-y", type=float, default=0.0)
+    ap.add_argument("--moment-balance-x", type=float, default=0.0)
+    ap.add_argument("--moment-balance-y", type=float, default=0.0)
     return ap.parse_args()
 
 
@@ -172,6 +184,10 @@ def main() -> int:
         body_angular_damping_x=args.body_angular_damping_x,
         body_angular_damping_y=args.body_angular_damping_y,
         body_angular_damping_z=args.body_angular_damping_z,
+        motor_balance_x=args.motor_balance_x,
+        motor_balance_y=args.motor_balance_y,
+        moment_balance_x=args.moment_balance_x,
+        moment_balance_y=args.moment_balance_y,
     )
     target = out_dir / "identified_parameters.json"
     target.write_text(json.dumps(variant, indent=2), encoding="utf-8")

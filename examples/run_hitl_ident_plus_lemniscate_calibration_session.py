@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -20,10 +21,7 @@ from pull_sdcard_logs_over_mavftp import (
     collect_remote_files,
     download_file_via_port,
 )
-from run_hitl_ident_suite_single_session import (
-    list_remote_ident_logs_with_retry,
-    normalize_downloaded_ident_logs,
-)
+from run_hitl_ident_suite_single_session import normalize_downloaded_ident_logs
 from run_hitl_trajectory_suite_only import (
     current_cube_port,
     graceful_stop_hitl_session,
@@ -34,6 +32,7 @@ from run_hitl_trajectory_suite_only import (
 RESTART_SCRIPT = SCRIPT_DIR / "restart_hitl_px4_clean_gui.sh"
 USB_STREAM_SCRIPT = SCRIPT_DIR / "set_hitl_usb_actuator_stream.sh"
 SESSION_HELPER = SCRIPT_DIR / "run_hitl_full_stack_single_session.py"
+NSH_RUNNER = SCRIPT_DIR / "px4_nsh_runner.py"
 CAMPAIGN_NAME = "identification_plus_lemniscate_calibration"
 
 
@@ -56,15 +55,48 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def list_remote_tracking_logs(port: str, baud: int) -> dict[str, int | None]:
-    grouped = collect_remote_files(
-        port,
-        baud,
-        10.0,
-        {"tracking_logs": "/fs/microsd/tracking_logs"},
-        (".csv",),
+def _list_remote_csvs_via_nsh(port: str, baud: int, remote_dir: str) -> dict[str, int | None]:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(NSH_RUNNER),
+            "--port",
+            port,
+            "--baud",
+            str(baud),
+            "--timeout",
+            "12.0",
+            "--quiet-timeout",
+            "1.0",
+            "--cmd",
+            f"ls {remote_dir}",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
     )
-    return {name: size for name, size in grouped.get("tracking_logs", [])}
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"NSH ls failed for {remote_dir}: returncode={result.returncode} stderr={result.stderr.strip()}"
+        )
+    files: dict[str, int | None] = {}
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.strip().strip("\x1b[K")
+        if not line or line.startswith(">>>") or line.startswith("nsh>"):
+            continue
+        if line == f"{remote_dir}:" or line == f"ls {remote_dir}":
+            continue
+        if line.endswith(".csv"):
+            files[line] = None
+    return files
+
+
+def list_remote_ident_logs(port: str, baud: int) -> dict[str, int | None]:
+    return _list_remote_csvs_via_nsh(port, baud, "/fs/microsd/identification_logs")
+
+
+def list_remote_tracking_logs(port: str, baud: int) -> dict[str, int | None]:
+    return _list_remote_csvs_via_nsh(port, baud, "/fs/microsd/tracking_logs")
 
 
 def list_remote_tracking_logs_with_retry(port: str, baud: int, attempts: int = 5, delay_s: float = 2.0) -> dict[str, int | None]:
@@ -76,6 +108,17 @@ def list_remote_tracking_logs_with_retry(port: str, baud: int, attempts: int = 5
             last_error = exc
             time.sleep(delay_s)
     raise RuntimeError(f"Unable to list remote tracking logs over MAVFTP: {last_error}")
+
+
+def list_remote_ident_logs_with_retry(port: str, baud: int, attempts: int = 5, delay_s: float = 2.0) -> dict[str, int | None]:
+    last_error: Exception | None = None
+    for _ in range(max(1, attempts)):
+        try:
+            return list_remote_ident_logs(port, baud)
+        except Exception as exc:
+            last_error = exc
+            time.sleep(delay_s)
+    raise RuntimeError(f"Unable to list remote identification logs over NSH: {last_error}")
 
 
 def download_created_csvs(
@@ -125,6 +168,7 @@ def main() -> int:
     restart_log = console_dir / "restart.log"
     stream_log = console_dir / "usb_stream.log"
     helper_log = console_dir / "single_session_helper.log"
+    sdcard_cleanup_log = console_dir / "sdcard_cleanup.log"
 
     before_ident_files: dict[str, int | None] = {}
     before_tracking_files: dict[str, int | None] = {}
@@ -132,6 +176,10 @@ def main() -> int:
         port = wait_for_cube_port(timeout_s=30.0)
         before_ident_files = list_remote_ident_logs_with_retry(port, args.baud)
         before_tracking_files = list_remote_tracking_logs_with_retry(port, args.baud)
+        sdcard_cleanup_log.write_text(
+            "Remote CSV cleanup skipped; using NSH directory snapshots to detect new files reliably.\n",
+            encoding="utf-8",
+        )
     except Exception:
         before_ident_files = {}
         before_tracking_files = {}

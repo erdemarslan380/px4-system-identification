@@ -1,0 +1,34 @@
+{
+  "case_name": "lemniscate",
+  "hitl_tracking_dir": "/home/earsub/px4-system-identification/hitl_runs/lemniscate_repeatability_clean_20260411_fresh2/raw_pull_small/tracking_logs",
+  "repetitions": 5,
+  "results": [
+    {
+      "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_calibration_fix4_lemniscate/stage2/candidates/x500_scaled_165mm__thrust_up",
+      "candidate_name": "x500_scaled_165mm__thrust_up",
+      "review_dir": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_recheck_control_baseline/x500_scaled_165mm__thrust_up/review",
+      "tracking_dir": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_recheck_control_baseline/x500_scaled_165mm__thrust_up/tracking_logs",
+      "score": {
+        "mean_overlap_pct": 0.0,
+        "contact_pct": 0.143,
+        "mean_center_distance_m": 1.086251,
+        "max_center_distance_m": 1.841199
+      },
+      "bitwise_identical": false
+    }
+  ],
+  "best": {
+    "candidate_dir": "/home/earsub/px4-system-identification/sitl_runs/bridge_calibration_fix4_lemniscate/stage2/candidates/x500_scaled_165mm__thrust_up",
+    "candidate_name": "x500_scaled_165mm__thrust_up",
+    "review_dir": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_recheck_control_baseline/x500_scaled_165mm__thrust_up/review",
+    "tracking_dir": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_recheck_control_baseline/x500_scaled_165mm__thrust_up/tracking_logs",
+    "score": {
+      "mean_overlap_pct": 0.0,
+      "contact_pct": 0.143,
+      "mean_center_distance_m": 1.086251,
+      "max_center_distance_m": 1.841199
+    },
+    "bitwise_identical": false
+  },
+  "best_review_dir": "/home/earsub/px4-system-identification/sitl_runs/lemniscate_recheck_control_baseline/x500_scaled_165mm__thrust_up/review"
+}
